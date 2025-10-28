@@ -1,0 +1,18 @@
+TEST FILE - Auto-Commit System
+================================
+
+Timestamp: 2025-10-28 23:20:00
+Purpose: Test auto-commit to GitHub
+
+Jika file ini muncul di GitHub dalam 1-2 menit,
+berarti auto-commit system bekerja dengan baik!
+
+Repository: https://github.com/rafall04/raf-bot-v2
+
+How it works:
+1. File changes detected
+2. Wait 10 seconds (debounce)
+3. Auto commit with timestamp
+4. Auto push to GitHub
+
+Status: TESTING...
