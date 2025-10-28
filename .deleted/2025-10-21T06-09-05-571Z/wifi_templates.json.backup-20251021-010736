@@ -1,0 +1,277 @@
+[
+  {
+    "keywords": [
+      "history wifi",
+      "riwayat wifi",
+      "historywifi",
+      "riwayatwifi",
+      "cek history wifi",
+      "cek riwayat wifi",
+      "lihat history wifi",
+      "lihat riwayat wifi",
+      "log wifi",
+      "log perubahan wifi",
+      "riwayat perubahan wifi",
+      "history perubahan wifi"
+    ],
+    "intent": "HISTORY_WIFI",
+    "category": "wifi",
+    "description": "Lihat riwayat perubahan WiFi (nama & password)",
+    "icon": "📜"
+  },
+  {
+    "keywords": [
+      "info wifi",
+      "password wifi",
+      "cek password wifi",
+      "infowifi",
+      "passwordwifi",
+      "lihat password wifi",
+      "tampilkan password wifi",
+      "apa password wifi",
+      "lupa password wifi"
+    ],
+    "intent": "INFO_WIFI",
+    "category": "wifi",
+    "description": "Lihat informasi WiFi (nama & password saat ini)",
+    "icon": "📶"
+  },
+  {
+    "keywords": [
+      "ganti sandi",
+      "ubah password",
+      "ganti password",
+      "lupa password",
+      "reset password",
+      "sandi wifi",
+      "password wifi",
+      "cara ganti password",
+      "mau ganti password",
+      "rubah sandi",
+      "ubah sandi",
+      "ganti pw",
+      "rubah pw",
+      "reset sandi",
+      "ganti kunci wifi",
+      "ganti pasport",
+      "ganti password wifi",
+      "ubah password wifi",
+      "ganti sandi wifi",
+      "ubah sandi wifi",
+      "reset password wifi",
+      "ganti password wifi saya",
+      "ubah password wifi saya",
+      "mau ganti password wifi"
+    ],
+    "intent": "GANTI_SANDI_WIFI",
+    "category": "wifi",
+    "description": "Ganti password WiFi",
+    "icon": "🔐"
+  },
+  {
+    "keywords": [
+      "ganti nama",
+      "ubah ssid",
+      "ganti ssid",
+      "nama wifi",
+      "nama hotspot",
+      "cara ganti nama wifi",
+      "ganti nama sinyal",
+      "rubah nama wifi",
+      "ubah nama sinyal",
+      "ganti nama hotspot",
+      "ganti nama wifi",
+      "ubah nama wifi",
+      "ganti nama wifi saya",
+      "ubah nama wifi saya",
+      "mau ganti nama wifi",
+      "cara ubah nama wifi"
+    ],
+    "intent": "GANTI_NAMA_WIFI",
+    "category": "wifi",
+    "description": "Ganti nama WiFi/SSID",
+    "icon": "✏️"
+  },
+  {
+    "keywords": [
+      "cek wifi",
+      "cek koneksi",
+      "status wifi",
+      "lihat wifi",
+      "info wifi",
+      "siapa saja yang pakai wifi",
+      "cek pengguna wifi",
+      "info koneksi",
+      "status modem",
+      "lihat pengguna wifi",
+      "siapa yang konek",
+      "cek pemakai wifi",
+      "info modem"
+    ],
+    "intent": "CEK_WIFI",
+    "category": "wifi",
+    "description": "Cek status WiFi dan koneksi",
+    "icon": "📡"
+  },
+  {
+    "keywords": [
+      "wifi mati",
+      "internet mati",
+      "tidak ada koneksi",
+      "internet putus",
+      "tidak bisa konek",
+      "koneksi terputus",
+      "sinyal hilang",
+      "los merah",
+      "kenapa wifi mati",
+      "internet tidak jalan"
+    ],
+    "intent": "LAPOR_GANGGUAN",
+    "category": "support",
+    "description": "Laporkan gangguan jaringan (mati/putus)",
+    "icon": "🚨"
+  },
+  {
+    "keywords": [
+      "lemot",
+      "lambat",
+      "koneksi lambat",
+      "jaringan lambat",
+      "internet lemot",
+      "kenapa lemot",
+      "wifi lemot"
+    ],
+    "intent": "LAPOR_GANGGUAN",
+    "category": "support",
+    "description": "Laporkan gangguan jaringan (lambat/lemot)",
+    "icon": "🐌"
+  },
+  {
+    "keywords": [
+      "cek tagihan",
+      "tagihan saya",
+      "info tagihan",
+      "lihat tagihan",
+      "berapa tagihan",
+      "tagihan bulan ini",
+      "jatuh tempo"
+    ],
+    "intent": "CEK_TAGIHAN",
+    "category": "customer",
+    "description": "Cek tagihan bulanan",
+    "icon": "💰"
+  },
+  {
+    "keywords": [
+      "paket bulanan",
+      "harga paket",
+      "daftar paket",
+      "paket internet",
+      "paket wifi",
+      "harga langganan",
+      "info paket"
+    ],
+    "intent": "TANYA_PAKET_BULANAN",
+    "category": "customer",
+    "description": "Tanya info paket & harga",
+    "icon": "📦"
+  },
+  {
+    "keywords": [
+      "cek saldo",
+      "sisa saldo",
+      "saldo saya",
+      "saldo voucher",
+      "poin saya"
+    ],
+    "intent": "CEK_SALDO",
+    "category": "saldo",
+    "description": "Cek saldo akun",
+    "icon": "💳"
+  },
+  {
+    "keywords": [
+      "harga voucher",
+      "daftar voucher",
+      "jual voucher",
+      "ada voucher apa saja",
+      "info voucher"
+    ],
+    "intent": "TANYA_HARGA_VOUCHER",
+    "category": "voucher",
+    "description": "Tanya info & harga voucher",
+    "icon": "🎫"
+  },
+  {
+    "keywords": [
+      "reboot modem",
+      "restart modem",
+      "matikan modem",
+      "nyalakan ulang modem",
+      "restart wifi"
+    ],
+    "intent": "REBOOT_MODEM",
+    "category": "wifi",
+    "description": "Restart modem/router",
+    "icon": "🔄"
+  },
+  {
+    "keywords": [
+      "ubah paket",
+      "ganti paket",
+      "upgrade paket",
+      "downgrade paket",
+      "naik paket",
+      "turun paket"
+    ],
+    "intent": "UBAH_PAKET",
+    "category": "customer",
+    "description": "Ubah/upgrade paket langganan",
+    "icon": "⬆️"
+  },
+  {
+    "keywords": [
+      "bantuan",
+      "help",
+      "tolong",
+      "panduan",
+      "cara pakai",
+      "bingung",
+      "menu"
+    ],
+    "intent": "BANTUAN",
+    "category": "help",
+    "description": "Panduan & bantuan penggunaan bot",
+    "icon": "❓"
+  },
+  {
+    "keywords": [
+      "hi",
+      "hai",
+      "halo",
+      "hallo",
+      "hello",
+      "min",
+      "kak",
+      "mas",
+      "mbak",
+      "pak",
+      "bu",
+      "selamat pagi",
+      "selamat siang",
+      "selamat sore",
+      "selamat malam",
+      "pagi",
+      "siang",
+      "sore",
+      "malam",
+      "assalamualaikum",
+      "assalamu'alaikum",
+      "p"
+    ],
+    "intent": "SAPAAN_UMUM",
+    "category": "greeting",
+    "description": "Sapaan & greeting",
+    "icon": "👋"
+  }
+]

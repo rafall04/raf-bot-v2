@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1760442321283,
+    "userId": "1",
+    "userName": "huigiugiu",
+    "newStatus": true,
+    "status": "approved",
+    "created_at": "2025-10-14T11:45:21.283Z",
+    "updated_at": "2025-10-14T11:45:35.538Z",
+    "updated_by": 2,
+    "requested_by_teknisi_id": 3
+  },
+  {
+    "id": 1760442348492,
+    "userId": "1",
+    "userName": "huigiugiu",
+    "newStatus": false,
+    "status": "approved",
+    "created_at": "2025-10-14T11:45:48.492Z",
+    "updated_at": "2025-10-14T11:46:03.402Z",
+    "updated_by": 2,
+    "requested_by_teknisi_id": 3
+  }
+]

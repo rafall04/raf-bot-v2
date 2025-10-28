@@ -1,0 +1,46 @@
+{
+  "speed_on_demand_applied": {
+    "name": "Notifikasi Speed on Demand Diberikan",
+    "template": "🚀 *Speed on Demand Aktif!* 🚀\n\nHalo ${nama},\n\nPermintaan penambahan kecepatan Anda telah disetujui dan sekarang aktif!\n\n- Paket Tambahan: *${requestedPackageName}*\n- Berlaku hingga: *${expirationDate}*\n\nSelamat menikmati koneksi internet yang lebih cepat! Jika ada kendala, jangan ragu untuk menghubungi kami."
+  },
+  "speed_on_demand_reverted": {
+    "name": "Notifikasi Speed on Demand Berakhir",
+    "template": "👋 *Periode Speed on Demand Selesai* 👋\n\nHalo ${nama},\n\nPeriode penambahan kecepatan sementara Anda untuk paket *${requestedPackageName}* telah berakhir.\n\nLayanan internet Anda kini telah kembali ke paket normal: *${originalPackageName}*.\n\nTerima kasih telah menggunakan fitur Speed on Demand kami!"
+  },
+  "unpaid_reminder": {
+    "name": "Pengingat Tagihan (Cron Job)",
+    "template": "Yth. Pelanggan *${nama}*,\n\nKami dari *${nama_wifi}* ingin memberitahukan bahwa tagihan internet Anda untuk periode *${periode}* telah jatuh tempo pada tanggal *${jatuh_tempo}*.\n\nDetail Tagihan:\n- Paket: *${paket}*\n- Total: *${harga}*\n\nMohon untuk segera melakukan pembayaran agar layanan Anda tidak terganggu.\n\nPembayaran dapat dilakukan melalui:\n${rekening}\n\nJika sudah membayar, mohon abaikan pesan ini atau konfirmasi ke Admin.\n\nTerima kasih,\n*${nama_bot}*"
+  },
+  "tagihan_lunas": {
+    "name": "Cek Tagihan - LUNAS",
+    "template": "✅ *STATUS TAGIHAN ANDA* ✅\n\nHalo Kak *${nama}*,\n\nStatus tagihan WiFi Anda untuk paket *${paket}* dengan total *${harga}* adalah: *LUNAS*.\n\nTerima kasih telah melakukan pembayaran tepat waktu. Selamat menikmati layanan kami! 😊\n\nButuh bantuan lain? Ketik *menuwifi*."
+  },
+  "tagihan_belum_lunas": {
+    "name": "Cek Tagihan - BELUM LUNAS",
+    "template": "⚠️ *STATUS TAGIHAN ANDA* ⚠️\n\nHalo Kak *${nama}*,\n\nStatus tagihan WiFi Anda untuk paket *${paket}* dengan total *${harga}* adalah: *BELUM LUNAS*.\n\nMohon untuk segera melakukan pembayaran agar layanan Anda tidak terganggu. Anda dapat menghubungi teknisi atau admin untuk proses pembayaran.\n\nButuh bantuan lain? Ketik *menuwifi*."
+  },
+  "sudah_bayar_notification": {
+    "name": "Notifikasi 'Sudah Bayar' ke Pelanggan",
+    "template": "✅ STATUS PEMBAYARAN TAGIHAN WIFI ANDA ✅\nHalo Kak ${nama},\n\nTerima kasih, pembayaran tagihan WiFi Anda telah kami terima.\n\nRincian Pembayaran:\n\nStatus: *LUNAS*\n\nPaket: *${paket}*\n\nJumlah: *${harga_formatted}*\n\nSelamat menikmati layanan kami! 😊\n\nButuh bantuan? Ketik menuwifi untuk bantuan lebih lanjut.\n\nSalam Hangat,\n\nAdmin *${nama_wifi}*"
+  },
+  "isolir_notification": {
+    "name": "Notifikasi Isolir",
+    "template": "Selamat Pagi Bpk/Ibu ${nama},\n\nDiberitahukan kepada pelanggan bahwa saat ini layanan anda terisolir karena adanya tagihan yang belum terbayarkan untuk periode ${periode}.\n\nMohon segera lakukan pembayaran agar layanan dapat aktif kembali. Pembayaran dapat dilakukan melalui:\n${rekening}\n\n*Abaikan pesan ini jika Anda sudah membayar.\n\n\nTerimakasih\nAdmin ${nama_wifi}"
+  },
+  "compensation_applied": {
+    "name": "Notifikasi Kompensasi Diberikan",
+    "template": "Pelanggan Yth. ${nama},\n\nSebagai bentuk permintaan maaf kami, Anda mendapatkan kompensasi berupa peningkatan kecepatan internet.\n\nDetail Kompensasi:\n- Profil Baru: ${profileBaru}\n- Durasi: ${durasiLengkap}\n- Berlaku hingga: ${tanggalAkhir}\n\nSemoga layanan kami semakin memuaskan.\n\nSalam Hangat,\n*${nama_bot}*"
+  },
+  "compensation_reverted": {
+    "name": "Notifikasi Kompensasi Berakhir",
+    "template": "Pelanggan Yth. ${nama},\n\nPeriode kompensasi peningkatan kecepatan internet Anda telah berakhir pada ${tanggalRevert}.\nLayanan internet Anda kini telah kembali ke profil normal ${profileAsli}.\n\nTerima kasih atas kepercayaan Anda terhadap layanan kami.\n\nSalam,\n*${nama_bot}*"
+  },
+  "customer_welcome": {
+    "name": "Pendaftaran Pelanggan Baru",
+    "template": "✨ *Selamat Bergabung di ${nama_wifi}!* ✨\n\nHalo *${nama}*,\n\nAkun Anda telah berhasil dibuat. Berikut adalah detail login Anda untuk mengakses portal pelanggan:\n\n👤 *Username:* `${username}`\n🔑 *Password:* `${password}`\n\nMohon simpan informasi ini baik-baik. Anda dapat menggunakan kredensial ini untuk memeriksa status layanan, tagihan, dan lainnya di aplikasi atau website kami.\n\nTerima kasih telah memilih kami sebagai penyedia layanan internet Anda."
+  },
+  "redaman_alert": {
+    "name": "Notifikasi Gangguan Redaman",
+    "template": "⚠️ *Notifikasi Gangguan Redaman* ⚠️\n\nTerdeteksi gangguan redaman pada pelanggan:\n\n- Nama Pelanggan: *${nama}*\n- No Hp: *${no_hp}*\n- Alamat: *${alamat}*\n- User PPPoE: *${pppoe}*\n- Redaman: *${redaman}*\n\nMohon kepada tim teknisi untuk segera melakukan pengecekan lebih lanjut."
+  }
+}

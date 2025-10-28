@@ -1,0 +1,42 @@
+[
+    {
+        "id": "redaman_default_001",
+        "type": "redaman",
+        "name": "RX Power (Default)",
+        "description": "Parameter untuk mengukur kekuatan sinyal penerimaan dalam dBm",
+        "paths": [
+            "VirtualParameters.RXPower",
+            "VirtualParameters.redaman"
+        ],
+        "createdAt": "2025-01-09T12:00:00.000Z",
+        "createdBy": "system"
+    },
+    {
+        "id": "temperature_default_001",
+        "type": "temperature",
+        "name": "Temperature Sensor (Default)",
+        "description": "Parameter untuk mengukur suhu perangkat dalam Celsius",
+        "paths": [
+            "VirtualParameters.Temp",
+            "VirtualParameters.Temperature",
+            "VirtualParameters.gettemp"
+        ],
+        "createdAt": "2025-01-09T12:00:00.000Z",
+        "createdBy": "system"
+    },
+    {
+        "id": "modemtype_default_001",
+        "type": "modemType",
+        "name": "Device Product Class (Default)",
+        "description": "Parameter untuk mengidentifikasi tipe/model perangkat modem",
+        "paths": [
+            "DeviceID.ProductClass",
+            "Device.DeviceInfo.ProductClass",
+            "InternetGatewayDevice.DeviceInfo.ProductClass",
+            "Device.DeviceInfo.ModelName",
+            "InternetGatewayDevice.DeviceInfo.ModelName"
+        ],
+        "createdAt": "2025-01-09T12:00:00.000Z",
+        "createdBy": "system"
+    }
+]

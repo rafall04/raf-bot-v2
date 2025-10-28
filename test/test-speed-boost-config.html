@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Speed Boost Config</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Test Speed Boost Config API</h1>
+    
+    <button onclick="testLoadConfig()">Test Load Config</button>
+    <button onclick="testLoadPackages()">Test Load Packages</button>
+    <button onclick="testSaveConfig()">Test Save Config</button>
+    
+    <h2>Results:</h2>
+    <pre id="results"></pre>
+    
+    <script>
+        function showResult(data) {
+            document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+        }
+        
+        function testLoadConfig() {
+            $.ajax({
+                url: '/api/speed-boost-config',
+                method: 'GET',
+                success: function(response) {
+                    console.log('Config loaded:', response);
+                    showResult(response);
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr);
+                    showResult({error: xhr.responseText});
+                }
+            });
+        }
+        
+        function testLoadPackages() {
+            $.ajax({
+                url: '/api/packages',
+                method: 'GET',
+                success: function(response) {
+                    console.log('Packages loaded:', response);
+                    showResult(response);
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr);
+                    showResult({error: xhr.responseText});
+                }
+            });
+        }
+        
+        function testSaveConfig() {
+            const testConfig = {
+                enabled: true,
+                globalSettings: {
+                    allowMultipleBoosts: false,
+                    requirePaymentFirst: true,
+                    autoApproveDoubleBoost: true,
+                    maxBoostDuration: 30,
+                    minBoostDuration: 1
+                },
+                pricingMatrix: [],
+                customPackages: [],
+                paymentMethods: {
+                    cash: { enabled: true, autoApprove: false },
+                    transfer: { enabled: true, requireProof: true },
+                    double_billing: { enabled: true, maxAmount: 500000 }
+                },
+                templates: {
+                    welcomeMessage: "Test welcome",
+                    successMessage: "Test success",
+                    rejectionMessage: "Test rejection"
+                }
+            };
+            
+            $.ajax({
+                url: '/api/speed-boost-config',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(testConfig),
+                success: function(response) {
+                    console.log('Config saved:', response);
+                    showResult(response);
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr);
+                    showResult({error: xhr.responseText});
+                }
+            });
+        }
+    </script>
+</body>
+</html>

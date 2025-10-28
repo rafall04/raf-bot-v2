@@ -1,0 +1,86 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files (sensitive data)
+database.sqlite
+*.sqlite
+*.sqlite3
+*.db
+# Keep structure but ignore actual user data
+database/user/*.json
+!database/user/.gitkeep
+database/invoices.json
+database/reports.json
+database/agent_credentials.json
+database/agent_transactions.json
+database/topup_requests.json
+database/saldo_transactions.json
+
+# Config with sensitive info
+config.json
+config.local.json
+*.config.js
+
+# Session files
+session/
+raf_session/
+baileys_auth_info/
+*.data.json
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Uploads (keep structure, ignore files)
+uploads/**/*
+!uploads/**/.gitkeep
+static/uploads/**/*
+!static/uploads/**/.gitkeep
+
+# WhatsApp media cache
+media/
+downloads/
+
+# Backup files
+*.backup
+*.bak
+*.old
+backup/
+
+# Test files
+coverage/
+.nyc_output/
+test-results/
+
+# Build files
+dist/
+build/
+
+# System files
+.DS_Store
+desktop.ini

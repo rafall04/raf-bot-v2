@@ -1,0 +1,40 @@
+[
+  {
+    "name": "1. MASTER Up To 20 Mbps",
+    "price": 165000,
+    "profile": "20Mbps",
+    "id": 4,
+    "whitelist": false,
+    "description": "adawdaw",
+    "showInMonthly": true,
+    "updated_at": "2025-10-16T18:31:16.090Z",
+    "displayProfile": "15Mbps"
+  },
+  {
+    "name": "2. EPIC Up To 30 Mbps",
+    "price": "196900",
+    "profile": "30Mbps",
+    "id": 2,
+    "whitelist": false
+  },
+  {
+    "name": "3. LEGEND Up To 50 Mbps",
+    "price": "286000",
+    "profile": "50Mbps",
+    "id": 3,
+    "whitelist": false
+  },
+  {
+    "id": "1759860675446",
+    "name": "Paket-10Mbps",
+    "price": 100000,
+    "profile": "10Mbps",
+    "whitelist": false,
+    "isSpeedBoost": false,
+    "speedBoostPrices": {
+      "1_day": 0,
+      "3_days": 0,
+      "7_days": 0
+    }
+  }
+]

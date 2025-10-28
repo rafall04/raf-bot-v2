@@ -1,0 +1,32 @@
+[
+  {
+    "id": "speedreq_1760637926368_1",
+    "userId": 1,
+    "userName": "Test User",
+    "userPhone": "6285233047094",
+    "currentPackageName": "Paket-10Mbps",
+    "currentPackagePrice": 100000,
+    "currentPackageProfile": "10Mbps",
+    "requestedPackageName": "1. MASTER Up To 20 Mbps",
+    "requestedPackagePrice": "165000",
+    "requestedPackageProfile": "20Mbps",
+    "durationKey": "1_day",
+    "durationLabel": "1 Hari",
+    "durationHours": 24,
+    "price": 15000,
+    "paymentMethod": "transfer",
+    "paymentStatus": "verified",
+    "status": "expired",
+    "createdAt": "2025-10-16T18:05:26.368Z",
+    "updatedAt": "2025-10-16T18:06:14.004Z",
+    "paymentProof": "/uploads/payment-speed-1760637944544-1.jpg",
+    "paymentNotes": "Upload via WhatsApp",
+    "paymentDate": "2025-10-16T18:05:44.545Z",
+    "paymentVerifiedBy": "admin",
+    "paymentVerifiedAt": "2025-10-16T18:06:12.529Z",
+    "approvedBy": "admin",
+    "expirationDate": "2025-10-17T18:06:12.957Z",
+    "notes": "Pembayaran terverifikasi, speed boost diaktifkan.",
+    "expiredAt": "2025-10-18T07:13:28.533Z"
+  }
+]

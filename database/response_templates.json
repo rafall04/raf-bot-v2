@@ -1,0 +1,190 @@
+{
+  "mess_owner": {
+    "name": "Pesan Khusus Owner",
+    "template": "Fitur Ini Hanya Khusus Untuk Owner Wifi !!!"
+  },
+  "mess_notRegister": {
+    "name": "Pesan Tidak Terdaftar (Umum)",
+    "template": "Maaf pengguna tidak terdaftar"
+  },
+  "mess_notProfile": {
+    "name": "Pesan Profil Kosong",
+    "template": "Maaf Profil Yang Akan Dihapus Tidak Boleh Kosong."
+  },
+  "mess_onlyMonthly": {
+    "name": "Pesan Khusus Pelanggan Bulanan",
+    "template": "Mohon maaf fitur ini hanya bisa dipakai pada pelanggan bulanan."
+  },
+  "mess_wrongFormat": {
+    "name": "Pesan Format Salah",
+    "template": "Format Salah !!! Silahkan periksa kembali."
+  },
+  "mess_mustNumber": {
+    "name": "Pesan Harus Angka",
+    "template": "jumlah harus berupa angka!!"
+  },
+  "mess_teknisiOrOwnerOnly": {
+    "name": "Pesan Khusus Teknisi/Owner",
+    "template": "Fitur ini hanya untuk Teknisi atau Owner."
+  },
+  "mess_teknisiOnly": {
+    "name": "Pesan Khusus Teknisi",
+    "template": "Fitur ini hanya untuk Teknisi."
+  },
+  "mess_reportNotFound": {
+    "name": "Pesan Laporan Tidak Ditemukan",
+    "template": "Maaf, tiket laporan tidak ditemukan."
+  },
+  "mess_reportAlreadyDone": {
+    "name": "Pesan Laporan Sudah Selesai",
+    "template": "Laporan ini statusnya sudah selesai sebelumnya."
+  },
+  "mess_reportNotFound_detail": {
+    "name": "Pesan Laporan Tidak Ditemukan (dengan ID)",
+    "template": "Maaf, tiket laporan dengan ID \"${ticketId}\" tidak ditemukan."
+  },
+  "mess_reportAlreadyDone_detail": {
+    "name": "Pesan Laporan Sudah Selesai (dengan ID)",
+    "template": "Laporan dengan tiket ID \"${ticketId}\" statusnya sudah selesai sebelumnya."
+  },
+  "convo_awaiting_question_prompt": {
+    "name": "Percakapan: Menunggu Pertanyaan",
+    "template": "Tentu, silakan. Apa yang ingin Anda tanyakan? 😊"
+  },
+  "convo_ai_busy": {
+    "name": "Percakapan: AI Sibuk",
+    "template": "Maaf, sepertinya AI sedang sibuk. Coba lagi beberapa saat ya."
+  },
+  "convo_ask_voucher_price": {
+    "name": "Percakapan: Tanya Harga Voucher (Beli)",
+    "template": "Mohon balas dengan *harga* voucher yang ingin Anda beli (contoh: `1000`). Atau ketik *batal* untuk membatalkan."
+  },
+  "convo_voucher_price_not_found": {
+    "name": "Percakapan: Harga Voucher Tidak Ditemukan",
+    "template": "Maaf, voucher seharga Rp ${chosenPrice} tidak tersedia. Silakan pilih salah satu dari daftar yang ada, atau ketik *batal*."
+  },
+  "convo_request_cancelled": {
+    "name": "Percakapan: Permintaan Dibatalkan",
+    "template": "Baik, permintaan sebelumnya telah dibatalkan. Ada lagi yang bisa saya bantu?"
+  },
+  "convo_ganti_nama_pilih_satu": {
+    "name": "Percakapan: Ganti Nama - Pilih Satu SSID",
+    "template": "Baik, Anda memilih untuk mengubah satu SSID.\n\nBerikut daftar SSID Anda:\n${ssidList}\n\nSilakan balas dengan *nomor* SSID yang ingin Anda ubah (misalnya: `1`)."
+  },
+  "convo_ganti_nama_konfirmasi_semua": {
+    "name": "Percakapan: Ganti Nama - Konfirmasi Semua",
+    "template": "Siap! Nama untuk *semua SSID* akan diubah menjadi *\\\"${nama_wifi_baru}\\\"*.\n\nSudah benar? Balas *'ya'* untuk melanjutkan."
+  },
+  "convo_ganti_nama_tanya_nama_semua": {
+    "name": "Percakapan: Ganti Nama - Tanya Nama (Semua)",
+    "template": "Oke, Anda memilih untuk mengubah semua SSID sekaligus. Silakan ketik nama WiFi baru yang Anda inginkan."
+  },
+  "convo_ganti_nama_pilihan_tidak_valid": {
+    "name": "Percakapan: Ganti Nama - Pilihan Tidak Valid",
+    "template": "Pilihan tidak valid. Mohon balas dengan angka *1* atau *2*."
+  },
+  "convo_ganti_nama_nomor_ssid_tidak_valid": {
+    "name": "Percakapan: Ganti Nama - Nomor SSID Tidak Valid",
+    "template": "Nomor SSID tidak valid. Mohon balas dengan nomor yang sesuai dari daftar."
+  },
+  "convo_ganti_nama_konfirmasi_satu": {
+    "name": "Percakapan: Ganti Nama - Konfirmasi Satu",
+    "template": "Baik. Nama untuk *SSID ${selectedSsidId}* akan diubah menjadi *\\\"${nama_wifi_baru}\\\"*.\n\nSudah benar? Balas *'ya'* untuk melanjutkan."
+  },
+  "convo_ganti_nama_tanya_nama_satu": {
+    "name": "Percakapan: Ganti Nama - Tanya Nama (Satu)",
+    "template": "Oke. Sekarang, silakan ketik nama WiFi baru yang Anda inginkan untuk SSID tersebut."
+  },
+  "convo_ganti_nama_nama_kosong": {
+    "name": "Percakapan: Ganti Nama - Nama Kosong",
+    "template": "Nama WiFi tidak boleh kosong ya, Kak. Silakan ketik nama yang baru atau ketik *batal*."
+  },
+  "convo_ganti_nama_nama_panjang": {
+    "name": "Percakapan: Ganti Nama - Nama Terlalu Panjang",
+    "template": "Wah, nama WiFi-nya terlalu panjang (maksimal 32 karakter). Coba yang lebih pendek ya, atau ketik *batal*."
+  },
+  "convo_ganti_nama_karakter_tidak_valid": {
+    "name": "Percakapan: Ganti Nama - Karakter Tidak Valid",
+    "template": "⚠️ Nama WiFi mengandung karakter yang tidak diperbolehkan. Gunakan hanya huruf, angka, spasi, titik, dan tanda hubung."
+  },
+  "convo_ganti_nama_proses": {
+    "name": "Percakapan: Ganti Nama - Proses",
+    "template": "Oke, ditunggu sebentar ya. Saya sedang proses perubahan nama WiFi untuk *${targetUserName}*... ⏳"
+  },
+  "convo_ganti_nama_sukses": {
+    "name": "Percakapan: Ganti Nama - Sukses",
+    "template": "✨ Berhasil! Nama WiFi Anda sudah saya ubah menjadi *\\\"${nama_wifi_baru}\\\"*.\n\nSilakan cari nama WiFi baru tersebut di perangkat Anda dan sambungkan kembali menggunakan kata sandi yang sama ya. Jika ada kendala, jangan ragu hubungi saya lagi! 😊"
+  },
+  "convo_ganti_nama_gagal": {
+    "name": "Percakapan: Ganti Nama - Gagal",
+    "template": "⚠️ Aduh, maaf Kak. Sepertinya ada kendala teknis saat saya mencoba mengubah nama WiFi Anda. Mohon pastikan modem dalam keadaan menyala dan coba lagi beberapa saat, ya. Jika masih gagal, silakan hubungi Admin."
+  },
+  "convo_balasan_ya_tidak": {
+    "name": "Percakapan: Balasan Ya/Tidak",
+    "template": "Mohon balas *'ya'* untuk melanjutkan atau ketik *'batal'* untuk membatalkan."
+  },
+  "bantuan": {
+    "name": "Teks Bantuan (Help)",
+    "template": "🆘 *PANDUAN BANTUAN ${nama_layanan}* 🆘\n\nHalo Kak ${pushname}! Saya ${nama_bot}, siap membantu Anda memahami cara menggunakan layanan kami melalui WhatsApp.\n\n-----------------------------------\n🌟 *MEMULAI DENGAN MUDAH*\n-----------------------------------\nUntuk melihat daftar lengkap semua perintah yang tersedia, kapan saja Anda bisa mengetik:\n➡️  _*menuwifi*_\n\nBerikut adalah beberapa kategori layanan utama dan perintah penting yang bisa Anda gunakan:\n\n-----------------------------------\n🔖 *INFORMASI UMUM & HARGA*\n-----------------------------------\n  • *voucher* : Lihat daftar harga dan jenis voucher internet.\n  • *pasang* : Informasi biaya pemasangan WiFi baru.\n  • *bulanan* : Lihat pilihan paket dan harga langganan WiFi bulanan.\n  • *admin* : Dapatkan nomor kontak Admin jika butuh bantuan personal.\n\n-----------------------------------\n⚙️ *LAYANAN KHUSUS PELANGGAN*\n(Fitur ini aktif jika nomor Anda terdaftar sebagai pelanggan)\n-----------------------------------\n  • *menupelanggan* : Akses semua fitur pengelolaan WiFi Anda, seperti:\n    ◦ _gantinama_ : Ubah nama/SSID WiFi.\n    ◦ _gantisandi_ : Ubah kata sandi WiFi.\n    ◦ _gantipower_ : Sesuaikan jangkauan sinyal modem.\n    ◦ _reboot_ : Restart modem Anda.\n    ◦ _cekwifi_ : Cek informasi detail modem Anda.\n\n-----------------------------------\n💰 *PEMBELIAN VOUCHER & SALDO*\n-----------------------------------\n  • *tutorial* : Panduan lengkap cara topup saldo untuk pembelian voucher.\n  • *ceksaldo* : Periksa sisa saldo voucher Anda.\n  • *belivoucher [harga]* : Beli voucher internet langsung (misal: `belivoucher 1000`). Pastikan saldo Anda cukup!\n  • *transfer [nomor62] [jumlah]* : Bagi saldo ke sesama pengguna (misal: `transfer 628xxxx 5000`).\n\n-----------------------------------\n📡 *LAPOR & KELOLA KENDALA TEKNIS*\n-----------------------------------\n  • *lapor [deskripsi keluhan]* : Jika Anda mengalami gangguan pada layanan, laporkan di sini.\n    *Contoh:* `lapor internet tidak bisa konek sejak pagi`\n    *(Fitur ini khusus untuk pelanggan yang nomor WhatsApp-nya sudah terdaftar).*\n    (Anda akan mendapatkan Nomor Tiket untuk pelacakan).\n  • *cektiket [ID_Tiket]* : Cek status perkembangan tiket laporan Anda.\n    *Contoh:* `cektiket ABC123X`\n  • *batalkantiket [ID_Tiket]* : Batalkan tiket laporan yang masih berstatus \"Baru\".\n    *Contoh:* `batalkantiket ABC123X`\n\n-----------------------------------\n💡 *TIPS PENGGUNAAN*\n-----------------------------------\n  • Perhatikan contoh penggunaan untuk setiap perintah.\n  • Beberapa perintah membutuhkan parameter tambahan (seperti harga, nomor telepon, atau deskripsi). Pastikan Anda mengisinya dengan benar.\n  • Jika lupa perintah spesifik, selalu mulai dengan _*menuwifi*_.\n\n-----------------------------------\nJika Anda masih memiliki pertanyaan atau membutuhkan bantuan yang tidak tercakup di sini, jangan ragu untuk menghubungi Admin melalui perintah _*admin*_.\n\nSemoga panduan ini bermanfaat!\nTim ${nama_bot}"
+  },
+  "sapaan_umum_1": {
+    "name": "Sapaan Umum (V1)",
+    "template": "👋 Halo Kak ${pushname}! Selamat datang di ${nama_layanan}. Saya ${nama_bot}, siap membantu Anda hari ini! 😊\n\nKetik salah satu perintah di bawah ini untuk informasi cepat:\n➡️  _*menuwifi*_ - Lihat semua layanan & fitur.\n➡️  _*voucher*_ - Cek daftar harga voucher.\n➡️  _*pasang*_ - Info biaya pemasangan WiFi.\n➡️  _*bulanan*_ - Lihat info paket langganan bulanan.\n\nAtau ketik _*bantuan*_ untuk panduan penggunaan lengkap. Semoga harimu menyenangkan! ✨"
+  },
+  "sapaan_umum_2": {
+    "name": "Sapaan Umum (V2)",
+    "template": "Hai, Kak ${pushname}! Ada yang bisa saya bantu di ${nama_layanan}? ✨\n\nBeberapa hal cepat yang bisa Anda lakukan:\n➡️ Ketik *menuwifi* untuk lihat semua fitur.\n➡️ Ketik *bantuan* untuk panduan lengkap."
+  },
+  "sapaan_umum_3": {
+    "name": "Sapaan Umum (V3)",
+    "template": "Selamat datang di ${nama_layanan}, Kak ${pushname}. Saya ${nama_bot}, asisten virtual Anda.\n\nSilakan ketik *menuwifi* untuk melihat daftar layanan kami, atau *bantuan* jika Anda memerlukan panduan."
+  },
+  "sapaan_umum_4": {
+    "name": "Sapaan Umum (V4)",
+    "template": "Halo, Kak ${pushname}! Dengan ${nama_bot} di sini. Butuh bantuan dengan layanan ${nama_layanan}?\n\nKetik *menuwifi* untuk memulai."
+  },
+  "cek_saldo": {
+    "name": "Cek Saldo",
+    "template": "💰 *INFORMASI SALDO ANDA DI ${nama_layanan}* 💰\n\nHalo Kak ${pushname}! Semangat terus ya! 😉\n\nBerikut adalah rincian saldo Anda saat ini:\n========================\nSaldo Tersedia: *${formattedSaldo}*\n========================\n\n${pesanKondisional}\n\nUntuk melihat daftar lengkap harga voucher, ketik:\n➡️  _*voucher*_\n\nButuh bantuan lain atau ingin lihat semua fitur? Ketik _*menuwifi*_ atau _*bantuan*_.\n\nTerima kasih & selamat menikmati layanan ${nama_bot}! ✨"
+  },
+  "cek_saldo_menipis": {
+    "name": "Cek Saldo (Kondisi: Menipis)",
+    "template": "⚠️ Saldo Anda sepertinya menipis nih, hanya tersisa ${formattedSaldo}. Yuk, segera top up agar bisa terus beli voucher! Ketik _*tutorial*_ untuk panduan lengkap cara top up.\n"
+  },
+  "cek_saldo_cukup": {
+    "name": "Cek Saldo (Kondisi: Cukup)",
+    "template": "Dengan saldo sebesar ${formattedSaldo}, Anda sudah bisa membeli berbagai pilihan voucher kami! Untuk membeli, ketik _*belivoucher [harga]*_ (contoh: `belivoucher 1000`).\n"
+  },
+  "tanya_harga_voucher": {
+    "name": "Tanya Harga Voucher",
+    "template": "🎟️ *DAFTAR HARGA VOUCHER INTERNET ${nama_layanan}* 🎟️\n\nHalo Kak ${pushname}! Siap untuk internetan tanpa batas? 😉\nBerikut adalah pilihan voucher terbaik kami untuk Anda:\n===================================\n${voucherListString}\n===================================\n\n💡 *CARA BELI VOUCHER & TOPUP SALDO:*\n1.  Pastikan saldo Anda cukup! Cek saldo dengan ketik:\n    ➡️  _*ceksaldo*_\n2.  Jika saldo kurang, yuk topup dulu! Panduan lengkapnya ada di:\n    ➡️  _*tutorial*_\n3.  Saldo sudah oke? Langsung beli voucher dengan format:\n    ➡️  _*belivoucher [harga_voucher]*_\n    *Contoh:* `belivoucher ${contoh_harga_voucher}` (untuk membeli voucher seharga ${contoh_harga_rupiah})\n\n✨ *Tips Pro:* Simpan perintah di atas biar gampang kalau mau beli lagi!\n\n===================================\n📢 *INFO PENTING:*\n  - Harga voucher dapat berubah sewaktu-waktu tanpa pemberitahuan terlebih dahulu.\n  - Pastikan Anda mengetik *harga voucher dengan benar* (sesuai daftar di atas) saat melakukan pembelian dengan perintah `belivoucher`.\n\n💬 Butuh bantuan atau ada pertanyaan lain? Jangan ragu untuk menghubungi Admin kami:\n🔗 ${adminWaLink} (Klik untuk Chat Langsung)\n===================================\n\nTerima kasih telah memilih ${nama_layanan}! Selamat menikmati koneksi internetnya! 🚀"
+  },
+  "list_profil_statik": {
+    "name": "List Profil Statik (Owner)",
+    "template": "「 *LIST-PROFIL-STATIK* 」\n\nJumlah : ${jumlah}\n\n${list}"
+  },
+  "list_profil_voucher": {
+    "name": "List Profil Voucher (Owner)",
+    "template": "「 *LIST-PROFIL-VOUCHER* 」\n\nJumlah : ${jumlah}\n\n${list}"
+  },
+  "semua_saldo": {
+    "name": "Semua Saldo (Owner)",
+    "template": "「 *${nama_layanan}* 」\n\nJumlah Saldo Semua User.\n\n${list}"
+  },
+  "tidak_dikenali": {
+    "name": "Intent Tidak Dikenali",
+    "template": "Maaf Kak ${pushname}, saya belum mengerti maksud Anda. Bisa coba jelaskan dengan kalimat lain?\n\nAtau ketik *bantuan* untuk melihat daftar hal yang bisa saya lakukan. 😊"
+  },
+  "transfer_sukses_pengirim": {
+    "name": "Transfer Sukses (Pengirim)",
+    "template": "*「 SUKSES 」*\n\nPengiriman uang telah sukses\nDari : +${nomorPengirim}\nKe : +${nomorTujuan}\nJumlah transfer : ${jumlah}\nSisa Uang Kamu Adalah : ${sisaSaldo}"
+  },
+  "transfer_sukses_penerima": {
+    "name": "Transfer Sukses (Penerima)",
+    "template": "*「 SUKSES 」*\n\nPengisian Saldo Dengan Jumlah\n${jumlah}\nDari Nomor ${nomorPengirim}\n\nSilakan Cek Saldo Anda Dengan Ketik ceksaldo\n\nTerima Kasih Telah Melakukan Topup\nBy Bot Voucher"
+  },
+  "mess_userNotRegister": {
+    "name": "Pesan Pengguna Tidak Terdaftar",
+    "template": "Anda tidak terdaftar di dalam database pelanggan kami."
+  }
+}

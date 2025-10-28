@@ -1,0 +1,127 @@
+[
+  {
+    "id": "wifi_log_1760557776533_h63provlk",
+    "timestamp": "2025-10-15T19:49:36.532Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "6285233047094",
+    "changeType": "ssid_name",
+    "changes": {
+      "oldSsidName": "HALOO",
+      "newSsidName": "HALOO"
+    },
+    "changedBy": "Rapppp",
+    "changedBySender": "6285233047094@s.whatsapp.net",
+    "changeSource": "wa_bot",
+    "reason": "Perubahan nama WiFi melalui WhatsApp Bot",
+    "notes": "Nama WiFi diubah langsung oleh Owner",
+    "ipAddress": "WhatsApp",
+    "userAgent": "WhatsApp Bot"
+  },
+  {
+    "id": "wifi_log_1760558129299_6i2b5shdd",
+    "timestamp": "2025-10-15T19:55:29.297Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "6285233047094",
+    "changeType": "ssid_name",
+    "changes": {
+      "oldSsidName": "HALOO, PPP 5G",
+      "newSsidName": "halo",
+      "details": "SSID 1: \"HALOO\" → \"halo\"; SSID 5: \"PPP 5G\" → \"halo\""
+    },
+    "changedBy": "Rapppp",
+    "changedBySender": "6285233047094@s.whatsapp.net",
+    "changeSource": "wa_bot",
+    "reason": "Perubahan nama WiFi melalui WhatsApp Bot",
+    "notes": "Nama WiFi diubah untuk 2 SSID",
+    "ipAddress": "WhatsApp",
+    "userAgent": "WhatsApp Bot"
+  },
+  {
+    "id": "wifi_log_1760558187769_whquwzn3t",
+    "timestamp": "2025-10-15T19:56:27.768Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "6285233047094",
+    "changeType": "ssid_name",
+    "changes": {
+      "oldSsidName": "halo, halo",
+      "newSsidName": "1 p adu?",
+      "details": "SSID 1: \"halo\" → \"1 p adu?\"; SSID 5: \"halo\" → \"1 p adu?\""
+    },
+    "changedBy": "Rapppp",
+    "changedBySender": "6285233047094@s.whatsapp.net",
+    "changeSource": "wa_bot",
+    "reason": "Perubahan nama WiFi melalui WhatsApp Bot",
+    "notes": "Nama WiFi diubah untuk 2 SSID",
+    "ipAddress": "WhatsApp",
+    "userAgent": "WhatsApp Bot"
+  },
+  {
+    "id": "wifi_log_1760593723872_cucfic7t1",
+    "timestamp": "2025-10-16T05:48:43.872Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "6285233047094",
+    "changeType": "ssid_name",
+    "changes": {
+      "oldSsidName": "1 p adu?, 1 p adu?",
+      "newSsidName": "P",
+      "details": "SSID 1: \"1 p adu?\" → \"P\"; SSID 5: \"1 p adu?\" → \"P\""
+    },
+    "changedBy": "Rapppp",
+    "changedBySender": "6285233047094@s.whatsapp.net",
+    "changeSource": "wa_bot",
+    "reason": "Perubahan nama WiFi melalui WhatsApp Bot",
+    "notes": "Nama WiFi diubah untuk 2 SSID",
+    "ipAddress": "WhatsApp",
+    "userAgent": "WhatsApp Bot"
+  },
+  {
+    "id": "wifi_log_1760593743695_yzq721jc4",
+    "timestamp": "2025-10-16T05:49:03.694Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "6285233047094",
+    "changeType": "password",
+    "changes": {
+      "oldPassword": "hidden",
+      "newPassword": "12345678",
+      "ssidsChanged": "1, 5",
+      "passwordChanged": true
+    },
+    "changedBy": "Rapppp",
+    "changedBySender": "6285233047094@s.whatsapp.net",
+    "changeSource": "wa_bot",
+    "reason": "Perubahan password WiFi melalui WhatsApp Bot",
+    "notes": "Password WiFi diubah untuk 2 SSID",
+    "ipAddress": "WhatsApp",
+    "userAgent": "WhatsApp Bot"
+  },
+  {
+    "id": "wifi_log_1760939674765_8j5cvdtgv",
+    "timestamp": "2025-10-20T05:54:34.764Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "6285233047094",
+    "changeType": "ssid_name",
+    "changes": {
+      "oldSsidName": "P",
+      "newSsidName": "SERVER"
+    },
+    "changedBy": "Rapppp",
+    "changedBySender": "6285233047094@s.whatsapp.net",
+    "changeSource": "wa_bot",
+    "reason": "Perubahan nama WiFi melalui WhatsApp Bot",
+    "notes": "Nama WiFi diubah langsung oleh User",
+    "ipAddress": "WhatsApp",
+    "userAgent": "WhatsApp Bot"
+  }
+]

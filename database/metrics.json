@@ -1,0 +1,157 @@
+{
+  "system": {
+    "uptime": 420009,
+    "uptimeHuman": "7m 0s",
+    "memory": {
+      "rss": "94.72 MB",
+      "heapTotal": "54.63 MB",
+      "heapUsed": "51.55 MB",
+      "external": "4.34 MB",
+      "percentUsed": "94.36%"
+    },
+    "cpu": {
+      "usage": {
+        "user": 3171000,
+        "system": 578000
+      },
+      "loadAvg": [
+        0,
+        0,
+        0
+      ]
+    },
+    "system": {
+      "platform": "win32",
+      "arch": "x64",
+      "nodeVersion": "v20.11.0",
+      "totalMemory": "7.89 GB",
+      "freeMemory": "2.92 GB"
+    }
+  },
+  "commands": {
+    "SAPAAN_UMUM": {
+      "count": 17,
+      "uniqueUsers": 0,
+      "lastUsed": 1760956395903
+    },
+    "GANTI_SANDI_WIFI": {
+      "count": 8,
+      "uniqueUsers": 0,
+      "lastUsed": 1760939646199
+    },
+    "GANTI_NAMA_WIFI": {
+      "count": 12,
+      "uniqueUsers": 0,
+      "lastUsed": 1760960186632
+    },
+    "MENU_PELANGGAN": {
+      "count": 3,
+      "uniqueUsers": 0,
+      "lastUsed": 1760989527384
+    },
+    "CEK_WIFI": {
+      "count": 16,
+      "uniqueUsers": 0,
+      "lastUsed": 1760959209658
+    },
+    "HISTORY_WIFI": {
+      "count": 6,
+      "uniqueUsers": 0,
+      "lastUsed": 1760595133101
+    },
+    "STATUS_SPEED": {
+      "count": 1,
+      "uniqueUsers": 0,
+      "lastUsed": 1760599458609
+    },
+    "REQUEST_SPEED_BOOST": {
+      "count": 5,
+      "uniqueUsers": 0,
+      "lastUsed": 1760637879954
+    },
+    "TANYA_PAKET_BULANAN": {
+      "count": 2,
+      "uniqueUsers": 0,
+      "lastUsed": 1760640269424
+    },
+    "TOPUP_SALDO": {
+      "count": 40,
+      "uniqueUsers": 0,
+      "lastUsed": 1761116010586
+    },
+    "CEK_SALDO": {
+      "count": 6,
+      "uniqueUsers": 0,
+      "lastUsed": 1760887523974
+    },
+    "agent": {
+      "count": 7,
+      "uniqueUsers": 0,
+      "lastUsed": 1760859083517
+    },
+    "transaksi hari ini": {
+      "count": 2,
+      "uniqueUsers": 0,
+      "lastUsed": 1760838231982
+    },
+    "agent_change_pin": {
+      "count": 3,
+      "uniqueUsers": 0,
+      "lastUsed": 1760838204806
+    },
+    "konfirmasi": {
+      "count": 2,
+      "uniqueUsers": 0,
+      "lastUsed": 1760838302730
+    },
+    "check_topup_status": {
+      "count": 1,
+      "uniqueUsers": 0,
+      "lastUsed": 1760887515458
+    },
+    "LAPOR_GANGGUAN_LEMOT": {
+      "count": 5,
+      "uniqueUsers": 0,
+      "lastUsed": 1761164653594
+    },
+    "LAPOR_GANGGUAN_MATI": {
+      "count": 7,
+      "uniqueUsers": 0,
+      "lastUsed": 1761164662985
+    },
+    "LAPOR_PANDUAN": {
+      "count": 2,
+      "uniqueUsers": 1,
+      "lastUsed": 1761321205942
+    },
+    "CEK_TIKET": {
+      "count": 6,
+      "uniqueUsers": 0,
+      "lastUsed": 1761164295677
+    },
+    "BATALKAN_TIKET": {
+      "count": 2,
+      "uniqueUsers": 0,
+      "lastUsed": 1761164288496
+    },
+    "LAPOR_GANGGUAN": {
+      "count": 4,
+      "uniqueUsers": 1,
+      "lastUsed": 1761321176542
+    }
+  },
+  "errors": {},
+  "performance": {
+    "message_processing": {
+      "count": 2,
+      "avgDuration": 16,
+      "minDuration": 9,
+      "maxDuration": 23
+    }
+  },
+  "users": {
+    "total": 2,
+    "active": 2
+  },
+  "timestamp": 1761321586624
+}

@@ -1,0 +1,776 @@
+[
+  {
+    "keywords": [
+      "history wifi",
+      "riwayat wifi",
+      "historywifi",
+      "riwayatwifi",
+      "cek history wifi",
+      "cek riwayat wifi",
+      "lihat history wifi",
+      "lihat riwayat wifi",
+      "log wifi",
+      "log perubahan wifi",
+      "riwayat perubahan wifi",
+      "history perubahan wifi"
+    ],
+    "intent": "HISTORY_WIFI",
+    "category": "wifi",
+    "description": "Lihat riwayat perubahan WiFi (nama & password)",
+    "icon": "📜"
+  },
+  {
+    "keywords": [
+      "info wifi",
+      "password wifi",
+      "cek password wifi",
+      "infowifi",
+      "passwordwifi",
+      "lihat password wifi",
+      "tampilkan password wifi",
+      "apa password wifi",
+      "lupa password wifi"
+    ],
+    "intent": "INFO_WIFI",
+    "category": "wifi",
+    "description": "Lihat informasi WiFi (nama & password saat ini)",
+    "icon": "📶"
+  },
+  {
+    "keywords": [
+      "ganti sandi",
+      "ubah password",
+      "ganti password",
+      "lupa password",
+      "reset password",
+      "sandi wifi",
+      "password wifi",
+      "cara ganti password",
+      "mau ganti password",
+      "rubah sandi",
+      "ubah sandi",
+      "ganti pw",
+      "rubah pw",
+      "reset sandi",
+      "ganti kunci wifi",
+      "ganti pasport",
+      "ganti password wifi",
+      "ubah password wifi",
+      "ganti sandi wifi",
+      "ubah sandi wifi",
+      "reset password wifi",
+      "ganti password wifi saya",
+      "ubah password wifi saya",
+      "mau ganti password wifi"
+    ],
+    "intent": "GANTI_SANDI_WIFI",
+    "category": "wifi",
+    "description": "Ganti password WiFi",
+    "icon": "🔐"
+  },
+  {
+    "keywords": [
+      "ganti nama",
+      "ubah ssid",
+      "ganti ssid",
+      "nama wifi",
+      "nama hotspot",
+      "cara ganti nama wifi",
+      "ganti nama sinyal",
+      "rubah nama wifi",
+      "ubah nama sinyal",
+      "ganti nama hotspot",
+      "ganti nama wifi",
+      "ubah nama wifi",
+      "ganti nama wifi saya",
+      "ubah nama wifi saya",
+      "mau ganti nama wifi",
+      "cara ubah nama wifi"
+    ],
+    "intent": "GANTI_NAMA_WIFI",
+    "category": "wifi",
+    "description": "Ganti nama WiFi/SSID",
+    "icon": "✏️"
+  },
+  {
+    "keywords": [
+      "cek wifi",
+      "cek koneksi",
+      "status wifi",
+      "lihat wifi",
+      "info wifi",
+      "siapa saja yang pakai wifi",
+      "cek pengguna wifi",
+      "info koneksi",
+      "status modem",
+      "lihat pengguna wifi",
+      "siapa yang konek",
+      "cek pemakai wifi",
+      "info modem"
+    ],
+    "intent": "CEK_WIFI",
+    "category": "wifi",
+    "description": "Cek status WiFi dan koneksi",
+    "icon": "📡"
+  },
+  {
+    "keywords": [
+      "lapor wifi mati",
+      "lapor internet mati",
+      "lapor tidak ada koneksi",
+      "lapor internet putus",
+      "lapor tidak bisa konek",
+      "lapor koneksi terputus",
+      "lapor sinyal hilang",
+      "lapor los merah",
+      "lapor internet tidak jalan",
+      "lapor internet mati total",
+      "lapor modem mati",
+      "lapor tidak ada internet",
+      "lapor internet terputus",
+      "lapor gangguan mati",
+      "lapor mati"
+    ],
+    "intent": "LAPOR_GANGGUAN_MATI",
+    "category": "support",
+    "description": "Laporan gangguan internet mati/putus total (Prioritas TINGGI)",
+    "icon": "🚨"
+  },
+  {
+    "keywords": [
+      "lapor lemot",
+      "lapor lambat",
+      "lapor koneksi lambat",
+      "lapor jaringan lambat",
+      "lapor internet lemot",
+      "lapor wifi lemot",
+      "lapor loading lama",
+      "lapor buffering",
+      "lapor download lambat",
+      "lapor video lemot",
+      "lapor gangguan lemot",
+      "lapor internet pelan"
+    ],
+    "intent": "LAPOR_GANGGUAN_LEMOT",
+    "category": "support",
+    "description": "Laporan gangguan internet lambat/lemot (Prioritas SEDANG)",
+    "icon": "🐌"
+  },
+  {
+    "keywords": [
+      "cek tagihan",
+      "tagihan saya",
+      "info tagihan",
+      "lihat tagihan",
+      "berapa tagihan",
+      "tagihan bulan ini",
+      "jatuh tempo"
+    ],
+    "intent": "CEK_TAGIHAN",
+    "category": "customer",
+    "description": "Cek tagihan bulanan",
+    "icon": "💰"
+  },
+  {
+    "keywords": [
+      "paket bulanan",
+      "harga paket",
+      "daftar paket",
+      "paket internet",
+      "paket wifi",
+      "harga langganan",
+      "info paket"
+    ],
+    "intent": "TANYA_PAKET_BULANAN",
+    "category": "customer",
+    "description": "Tanya info paket & harga",
+    "icon": "📦"
+  },
+  {
+    "keywords": [
+      "saldo",
+      "ceksaldo",
+      "cek saldo",
+      "infosaldo",
+      "info saldo",
+      "saldo saya",
+      "sisa saldo",
+      "saldo voucher",
+      "poin saya"
+    ],
+    "intent": "CEK_SALDO",
+    "category": "saldo",
+    "description": "Cek saldo akun",
+    "icon": "💳"
+  },
+  {
+    "keywords": [
+      "harga voucher",
+      "daftar voucher",
+      "jual voucher",
+      "ada voucher apa saja",
+      "info voucher"
+    ],
+    "intent": "TANYA_HARGA_VOUCHER",
+    "category": "voucher",
+    "description": "Tanya info & harga voucher",
+    "icon": "🎫"
+  },
+  {
+    "keywords": [
+      "reboot modem",
+      "restart modem",
+      "matikan modem",
+      "nyalakan ulang modem",
+      "restart wifi"
+    ],
+    "intent": "REBOOT_MODEM",
+    "category": "wifi",
+    "description": "Restart modem/router",
+    "icon": "🔄"
+  },
+  {
+    "keywords": [
+      "ubah paket",
+      "ganti paket",
+      "upgrade paket",
+      "downgrade paket",
+      "naik paket",
+      "turun paket"
+    ],
+    "intent": "UBAH_PAKET",
+    "category": "customer",
+    "description": "Ubah/upgrade paket langganan",
+    "icon": "⬆️"
+  },
+  {
+    "keywords": [
+      "bantuan",
+      "help",
+      "tolong",
+      "panduan",
+      "cara pakai",
+      "bingung",
+      "menu"
+    ],
+    "intent": "BANTUAN",
+    "category": "help",
+    "description": "Panduan & bantuan penggunaan bot",
+    "icon": "❓"
+  },
+  {
+    "keywords": [
+      "hi",
+      "hai",
+      "halo",
+      "hallo",
+      "hello",
+      "min",
+      "kak",
+      "mas",
+      "mbak",
+      "pak",
+      "bu",
+      "selamat pagi",
+      "selamat siang",
+      "selamat sore",
+      "selamat malam",
+      "pagi",
+      "siang",
+      "sore",
+      "malam",
+      "assalamualaikum",
+      "assalamu'alaikum",
+      "p"
+    ],
+    "intent": "SAPAAN_UMUM",
+    "category": "greeting",
+    "description": "Sapaan & greeting",
+    "icon": "👋"
+  },
+  {
+    "keywords": [
+      "ganti power wifi",
+      "ubah kekuatan wifi",
+      "ganti kekuatan sinyal",
+      "power wifi",
+      "kekuatan wifi"
+    ],
+    "intent": "GANTI_POWER_WIFI",
+    "category": "wifi",
+    "description": "Ubah kekuatan sinyal WiFi",
+    "icon": "📶"
+  },
+  {
+    "keywords": [
+      "topup",
+      "top up",
+      "isi saldo",
+      "tambah saldo",
+      "topup saldo"
+    ],
+    "intent": "TOPUP_SALDO",
+    "category": "saldo",
+    "description": "Topup/isi saldo akun",
+    "icon": "💰"
+  },
+  {
+    "keywords": [
+      "batal topup",
+      "cancel topup",
+      "batalkan topup"
+    ],
+    "intent": "BATAL_TOPUP",
+    "category": "saldo",
+    "description": "Batalkan topup yang pending",
+    "icon": "❌"
+  },
+  {
+    "keywords": [
+      "beli voucher",
+      "belivoucher",
+      "buy voucher",
+      "voucher"
+    ],
+    "intent": "BELI_VOUCHER",
+    "category": "voucher",
+    "description": "Beli voucher dengan saldo",
+    "icon": "🎫"
+  },
+  {
+    "keywords": [
+      "transfer"
+    ],
+    "intent": "TRANSFER_SALDO",
+    "category": "saldo",
+    "description": "Transfer saldo ke user lain",
+    "icon": "💸"
+  },
+  {
+    "keywords": [
+      "cek tiket",
+      "cektiket",
+      "status tiket",
+      "tiket saya"
+    ],
+    "intent": "CEK_TIKET",
+    "category": "support",
+    "description": "Cek status tiket laporan",
+    "icon": "🎫"
+  },
+  {
+    "keywords": [
+      "batal tiket",
+      "batalkan tiket",
+      "bataltiket",
+      "batalkantiket",
+      "cancel tiket",
+      "cancel ticket"
+    ],
+    "intent": "BATALKAN_TIKET",
+    "category": "support",
+    "description": "Batalkan tiket laporan",
+    "icon": "🚫"
+  },
+  {
+    "keywords": [
+      "cek paket",
+      "paket saya",
+      "info paket saya",
+      "cekpaket"
+    ],
+    "intent": "CEK_PAKET",
+    "category": "customer",
+    "description": "Cek paket langganan saya",
+    "icon": "📦"
+  },
+  {
+    "keywords": [
+      "keluhan",
+      "saran",
+      "kritik",
+      "komplain"
+    ],
+    "intent": "KELUHAN_SARAN",
+    "category": "customer",
+    "description": "Sampaikan keluhan atau saran",
+    "icon": "💬"
+  },
+  {
+    "keywords": [
+      "info layanan",
+      "layanan",
+      "service info"
+    ],
+    "intent": "INFO_LAYANAN",
+    "category": "customer",
+    "description": "Informasi layanan tersedia",
+    "icon": "ℹ️"
+  },
+  {
+    "keywords": [
+      "agent",
+      "agen",
+      "outlet",
+      "daftar agent",
+      "list agent"
+    ],
+    "intent": "LIST_AGENT",
+    "category": "agent",
+    "description": "Lihat daftar agent/outlet",
+    "icon": "🏪"
+  },
+  {
+    "keywords": [
+      "layanan agent",
+      "agent service",
+      "layanan",
+      "service agent"
+    ],
+    "intent": "LAYANAN_AGENT",
+    "category": "agent",
+    "description": "Lihat layanan yang tersedia di agent",
+    "icon": "🛎️"
+  },
+  {
+    "keywords": [
+      "cari agent",
+      "search agent",
+      "cari agen"
+    ],
+    "intent": "CARI_AGENT",
+    "category": "agent",
+    "description": "Cari agent berdasarkan lokasi",
+    "icon": "🔍"
+  },
+  {
+    "keywords": [
+      "konfirmasi",
+      "confirm",
+      "konfirmasi topup"
+    ],
+    "intent": "KONFIRMASI_AGENT",
+    "category": "agent",
+    "description": "Konfirmasi transaksi agent (with PIN)",
+    "icon": "✅"
+  },
+  {
+    "keywords": [
+      "transaksi hari ini",
+      "transaksi hariini",
+      "today transactions",
+      "transaksi"
+    ],
+    "intent": "TRANSAKSI_HARI_INI",
+    "category": "agent",
+    "description": "Lihat transaksi agent hari ini",
+    "icon": "📊"
+  },
+  {
+    "keywords": [
+      "ganti pin"
+    ],
+    "intent": "GANTI_PIN_AGENT",
+    "category": "agent",
+    "description": "Ganti PIN agent",
+    "icon": "🔑"
+  },
+  {
+    "keywords": [
+      "update alamat"
+    ],
+    "intent": "UPDATE_ALAMAT_AGENT",
+    "category": "agent",
+    "description": "Update alamat outlet agent",
+    "icon": "📍"
+  },
+  {
+    "keywords": [
+      "update jam"
+    ],
+    "intent": "UPDATE_JAM_AGENT",
+    "category": "agent",
+    "description": "Update jam operasional agent",
+    "icon": "🕐"
+  },
+  {
+    "keywords": [
+      "update phone",
+      "update telepon"
+    ],
+    "intent": "UPDATE_PHONE_AGENT",
+    "category": "agent",
+    "description": "Update nomor telepon agent",
+    "icon": "📞"
+  },
+  {
+    "keywords": [
+      "tutup sementara",
+      "close temporarily"
+    ],
+    "intent": "TUTUP_SEMENTARA_AGENT",
+    "category": "agent",
+    "description": "Tutup outlet sementara",
+    "icon": "🔒"
+  },
+  {
+    "keywords": [
+      "buka kembali",
+      "open again"
+    ],
+    "intent": "BUKA_KEMBALI_AGENT",
+    "category": "agent",
+    "description": "Buka kembali outlet",
+    "icon": "🔓"
+  },
+  {
+    "keywords": [
+      "profil agent",
+      "info agent",
+      "agent info"
+    ],
+    "intent": "PROFIL_AGENT",
+    "category": "agent",
+    "description": "Lihat profil & statistik agent",
+    "icon": "👤"
+  },
+  {
+    "keywords": [
+      "statusppp"
+    ],
+    "intent": "STATUS_PPP",
+    "category": "admin",
+    "description": "Statistik PPPoE (Admin)",
+    "icon": "📊"
+  },
+  {
+    "keywords": [
+      "statushotspot"
+    ],
+    "intent": "STATUS_HOTSPOT",
+    "category": "admin",
+    "description": "Statistik Hotspot (Admin)",
+    "icon": "📡"
+  },
+  {
+    "keywords": [
+      "statusap"
+    ],
+    "intent": "STATUS_AP",
+    "category": "admin",
+    "description": "Status Access Point (Admin)",
+    "icon": "📶"
+  },
+  {
+    "keywords": [
+      "alluser"
+    ],
+    "intent": "ALL_USER",
+    "category": "admin",
+    "description": "Lihat semua user (Admin)",
+    "icon": "👥"
+  },
+  {
+    "keywords": [
+      "tiketdone",
+      "selesaikan tiket"
+    ],
+    "intent": "SELESAIKAN_TIKET",
+    "category": "admin",
+    "description": "Tandai tiket selesai (Teknisi)",
+    "icon": "✔️"
+  },
+  {
+    "keywords": [
+      "help",
+      "menu wifi",
+      "menuwifi"
+    ],
+    "intent": "MENU_UTAMA",
+    "category": "menu",
+    "description": "Menu utama bot",
+    "icon": "📋"
+  },
+  {
+    "keywords": [
+      "menupelanggan"
+    ],
+    "intent": "MENU_PELANGGAN",
+    "category": "menu",
+    "description": "Menu khusus pelanggan",
+    "icon": "👤"
+  },
+  {
+    "keywords": [
+      "menuteknisi"
+    ],
+    "intent": "MENU_TEKNISI",
+    "category": "menu",
+    "description": "Menu khusus teknisi",
+    "icon": "🔧"
+  },
+  {
+    "keywords": [
+      "menuowner"
+    ],
+    "intent": "MENU_OWNER",
+    "category": "menu",
+    "description": "Menu khusus owner",
+    "icon": "👑"
+  },
+  {
+    "keywords": [
+      "cekspeed",
+      "statusboost",
+      "statusspeed"
+    ],
+    "intent": "STATUS_SPEED",
+    "category": "speedboost",
+    "description": "Cek status speed boost request",
+    "icon": "⚡"
+  },
+  {
+    "keywords": [
+      "speedboost",
+      "requestspeed",
+      "requestboost"
+    ],
+    "intent": "REQUEST_SPEED_BOOST",
+    "category": "speedboost",
+    "description": "Request speed boost sementara",
+    "icon": "🚀"
+  },
+  {
+    "keywords": [
+      "clear speed boost"
+    ],
+    "intent": "CLEAR_SPEED_BOOST",
+    "category": "admin",
+    "description": "Clear speed boost status (Admin)",
+    "icon": "🧹"
+  },
+  {
+    "keywords": [
+      "lokasi",
+      "posisi teknisi",
+      "dimana teknisi",
+      "track",
+      "tracking"
+    ],
+    "intent": "CEK_LOKASI_TEKNISI",
+    "category": "all",
+    "description": "Cek lokasi teknisi untuk tiket",
+    "icon": "📍"
+  },
+  {
+    "keywords": [
+      "sampai",
+      "tiba",
+      "arrived"
+    ],
+    "intent": "SAMPAI_LOKASI",
+    "category": "teknisi",
+    "description": "Teknisi sampai di lokasi",
+    "icon": "✅"
+  },
+  {
+    "keywords": [
+      "tiket saya",
+      "tiketsaya",
+      "my ticket",
+      "tiket aktif"
+    ],
+    "intent": "TIKET_SAYA",
+    "category": "pelanggan",
+    "description": "Lihat semua tiket aktif",
+    "icon": "📋"
+  },
+  {
+    "keywords": [
+      "list tiket",
+      "tiket tersedia",
+      "daftar tiket",
+      "cek tiket"
+    ],
+    "intent": "LIST_TIKET",
+    "category": "teknisi",
+    "description": "Lihat daftar tiket tersedia",
+    "icon": "📋"
+  },
+  {
+    "keywords": [
+      "proses"
+    ],
+    "intent": "PROSES_TIKET",
+    "category": "teknisi",
+    "description": "Teknisi proses tiket",
+    "icon": "🔧"
+  },
+  {
+    "keywords": [
+      "otw",
+      "mulai perjalanan",
+      "start perjalanan",
+      "berangkat",
+      "on the way",
+      "jalan"
+    ],
+    "intent": "OTW_TIKET",
+    "category": "teknisi",
+    "description": "Teknisi mulai perjalanan ke lokasi",
+    "icon": "🚗",
+    "customizable": true
+  },
+  {
+    "keywords": [
+      "sampai",
+      "sampai lokasi",
+      "tiba",
+      "arrived",
+      "sudah sampai"
+    ],
+    "intent": "SAMPAI_LOKASI",
+    "category": "teknisi",
+    "description": "Teknisi sampai di lokasi pelanggan",
+    "icon": "📍",
+    "customizable": true
+  },
+  {
+    "keywords": [
+      "verifikasi",
+      "verify",
+      "konfirmasi otp",
+      "kode otp"
+    ],
+    "intent": "VERIFIKASI_OTP",
+    "category": "teknisi",
+    "description": "Verifikasi kode OTP dari pelanggan",
+    "icon": "🔐",
+    "customizable": false
+  },
+  {
+    "keywords": [
+      "done",
+      "lanjut",
+      "next"
+    ],
+    "intent": "DONE_UPLOAD_PHOTOS",
+    "category": "teknisi",
+    "description": "Selesai upload foto, lanjut ke resolusi",
+    "icon": "📸",
+    "customizable": true
+  },
+  {
+    "keywords": [
+      "selesai",
+      "complete",
+      "finish",
+      "completed"
+    ],
+    "intent": "SELESAI_TIKET",
+    "category": "teknisi",
+    "description": "Selesaikan tiket perbaikan (final)",
+    "icon": "✅",
+    "customizable": true
+  }
+]
