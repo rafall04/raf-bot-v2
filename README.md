@@ -4,6 +4,10 @@
 
 Automated customer service bot for managing internet subscriptions, WiFi configurations, billing, and technical support via WhatsApp.
 
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-blue)](https://github.com/rafall04/raf-bot-v2)
+[![Auto-Commit](https://img.shields.io/badge/Auto--Commit-Active-green)](https://github.com/rafall04/raf-bot-v2/commits/main)
+[![Version](https://img.shields.io/badge/Version-2.0.0-orange)](https://github.com/rafall04/raf-bot-v2)
+
 ---
 
 ## 🌟 Key Features
