@@ -27,14 +27,43 @@ function generateTicketId(length = 7) {
 async function handleGangguanMati({ sender, pushname, userPelanggan, reply, findUserByPhone }) {
     try {
         // Find user
+        // Get sender phone number without @s.whatsapp.net
+        const senderPhone = sender.replace('@s.whatsapp.net', '');
+        
+        // Find user with proper phone format matching
         const user = findUserByPhone ? 
-            findUserByPhone(sender.replace('@s.whatsapp.net', '')) : 
-            global.users.find(u => 
-                u.phone_number && u.phone_number.split("|").some(num =>
-                    num.trim() === sender.replace('@s.whatsapp.net', '') || 
-                    `62${num.trim().substring(1)}` === sender.replace('@s.whatsapp.net', '')
-                )
-            );
+            findUserByPhone(senderPhone) : 
+            global.users.find(u => {
+                if (!u.phone_number) return false;
+                
+                // Split multiple phone numbers
+                const phones = u.phone_number.split("|");
+                
+                // Check each phone number
+                return phones.some(phone => {
+                    const cleanPhone = phone.trim();
+                    
+                    // If sender has 62 prefix (6285233047094)
+                    if (senderPhone.startsWith('62')) {
+                        // Compare with phone converted to 62 format
+                        if (cleanPhone.startsWith('0')) {
+                            // Convert 085233047094 to 6285233047094
+                            return `62${cleanPhone.substring(1)}` === senderPhone;
+                        } else if (cleanPhone.startsWith('62')) {
+                            // Already has 62 prefix
+                            return cleanPhone === senderPhone;
+                        } else {
+                            // No prefix, add 62
+                            return `62${cleanPhone}` === senderPhone;
+                        }
+                    }
+                    
+                    // Direct match
+                    return cleanPhone === senderPhone;
+                });
+            });
+        
+        console.log(`[USER_SEARCH] Sender: ${senderPhone}, Found: ${user ? user.name : 'NOT FOUND'}`);
         
         if (!user) {
             return { 
@@ -315,14 +344,43 @@ Balas dengan *angka* (1/2/3/0)`;
 async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, findUserByPhone }) {
     try {
         // Find user
+        // Get sender phone number without @s.whatsapp.net
+        const senderPhone = sender.replace('@s.whatsapp.net', '');
+        
+        // Find user with proper phone format matching
         const user = findUserByPhone ? 
-            findUserByPhone(sender.replace('@s.whatsapp.net', '')) : 
-            global.users.find(u => 
-                u.phone_number && u.phone_number.split("|").some(num =>
-                    num.trim() === sender.replace('@s.whatsapp.net', '') || 
-                    `62${num.trim().substring(1)}` === sender.replace('@s.whatsapp.net', '')
-                )
-            );
+            findUserByPhone(senderPhone) : 
+            global.users.find(u => {
+                if (!u.phone_number) return false;
+                
+                // Split multiple phone numbers
+                const phones = u.phone_number.split("|");
+                
+                // Check each phone number
+                return phones.some(phone => {
+                    const cleanPhone = phone.trim();
+                    
+                    // If sender has 62 prefix (6285233047094)
+                    if (senderPhone.startsWith('62')) {
+                        // Compare with phone converted to 62 format
+                        if (cleanPhone.startsWith('0')) {
+                            // Convert 085233047094 to 6285233047094
+                            return `62${cleanPhone.substring(1)}` === senderPhone;
+                        } else if (cleanPhone.startsWith('62')) {
+                            // Already has 62 prefix
+                            return cleanPhone === senderPhone;
+                        } else {
+                            // No prefix, add 62
+                            return `62${cleanPhone}` === senderPhone;
+                        }
+                    }
+                    
+                    // Direct match
+                    return cleanPhone === senderPhone;
+                });
+            });
+        
+        console.log(`[USER_SEARCH] Sender: ${senderPhone}, Found: ${user ? user.name : 'NOT FOUND'}`);
         
         if (!user) {
             return { 
