@@ -148,15 +148,22 @@ async function handleTeknisiShareLocation(sender, location, reply) {
     try {
         const state = getUserState(sender);
         
-        if (!state || state.step !== 'AWAITING_LOCATION_FOR_JOURNEY') {
-            // Cek apakah teknisi punya tiket aktif
+        // Check if teknisi is in valid state for location sharing
+        const validStates = [
+            'AWAITING_LOCATION_FOR_JOURNEY',
+            'TICKET_PROCESSING_WITH_LOCATION'
+        ];
+        
+        if (!state || !validStates.includes(state.step)) {
+            // Check if teknisi has active ticket with various status
             const activeTicket = global.reports.find(r => 
-                r.processedByTeknisiId === sender && 
-                r.status === 'diproses teknisi'
+                (r.processedByTeknisiId === sender || r.teknisiId === sender) && 
+                (r.status === 'otw' || r.status === 'arrived' || r.status === 'process' || r.status === 'diproses teknisi' || r.status === 'working')
             );
             
             if (activeTicket) {
                 // Auto-update untuk tiket aktif
+                console.log(`[LOCATION] Auto-update for active ticket ${activeTicket.ticketId} status ${activeTicket.status}`);
                 return updateTeknisiLocation(sender, activeTicket.ticketId, location, activeTicket);
             }
             

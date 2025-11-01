@@ -127,6 +127,12 @@ module.exports = async(raf, msg, m) => {
     //         prefix = raf.prefa
     //     }
     // }
+    // Safety check: ensure chats is never undefined
+    if (!chats && chats !== '') {
+        console.log('[WARNING] chats is undefined, using empty string');
+        return; // Skip processing if no valid message
+    }
+    
     const args = chats.split(' ')
     const command = chats.toLowerCase().split(' ')[0] || ''
     const isGroup = msg.key.remoteJid.endsWith('@g.us')

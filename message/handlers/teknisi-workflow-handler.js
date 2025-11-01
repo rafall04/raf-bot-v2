@@ -77,7 +77,7 @@ async function handleProsesTicket(sender, ticketId, reply) {
         const reportsPath = path.join(__dirname, '../../database/reports.json');
         fs.writeFileSync(reportsPath, JSON.stringify(global.reports, null, 2));
         
-        // Notify customer with OTP
+        // Notify customer with OTP - Send to ALL registered numbers
         const customerJid = ticket.pelangganId;
         const customerMessage = `✅ *TIKET DIPROSES*
 
@@ -98,8 +98,46 @@ Teknisi akan segera menuju lokasi Anda.
 
 _Estimasi kedatangan akan diinformasikan._`;
 
+        // Send to main customer (yang lapor)
         if (global.raf && global.raf.sendMessage) {
-            await global.raf.sendMessage(customerJid, { text: customerMessage });
+            try {
+                await global.raf.sendMessage(customerJid, { text: customerMessage });
+                console.log(`[PROSES_NOTIF] OTP sent to main customer: ${customerJid}`);
+            } catch (err) {
+                console.error('[PROSES_NOTIF] Failed to notify main customer:', err);
+            }
+        }
+        
+        // IMPORTANT: Also send OTP to ALL registered phone numbers
+        if (ticket.pelangganPhone) {
+            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+            console.log(`[PROSES_NOTIF] Sending OTP to ${phones.length} phone numbers: ${phones.join(', ')}`);
+            
+            for (const phone of phones) {
+                let phoneJid = phone;
+                if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                    if (phoneJid.startsWith('0')) {
+                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                    } else if (phoneJid.startsWith('62')) {
+                        phoneJid = `${phoneJid}@s.whatsapp.net`;
+                    } else {
+                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                    }
+                }
+                
+                // Skip if this is the main customer (already sent)
+                if (phoneJid === customerJid) {
+                    console.log(`[PROSES_NOTIF] Skipping ${phoneJid} (already sent as main customer)`);
+                    continue;
+                }
+                
+                try {
+                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
+                    console.log(`[PROSES_NOTIF] OTP sent to additional number: ${phoneJid}`);
+                } catch (err) {
+                    console.error(`[PROSES_NOTIF] Failed to notify ${phoneJid}:`, err);
+                }
+            }
         }
         
         return {
