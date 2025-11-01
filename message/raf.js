@@ -708,8 +708,8 @@ _Foto akan membantu teknisi diagnosis masalah_`);
             if ((type === 'locationMessage' || type === 'liveLocationMessage')) {
                 const reports = global.reports || [];
                 const activeTicket = reports.find(r => 
-                    r.processedByTeknisiId === sender && 
-                    r.status === 'diproses teknisi'
+                    (r.processedByTeknisiId === sender || r.teknisiId === sender) && 
+                    (r.status === 'otw' || r.status === 'arrived' || r.status === 'diproses teknisi' || r.status === 'process')
                 );
                 
                 if (activeTicket) {
@@ -726,7 +726,7 @@ _Foto akan membantu teknisi diagnosis masalah_`);
                         return; // Silent fail for auto-update
                     }
                     
-                    // Auto update location for active ticket
+                    // Auto update location for active ticket (will notify customer)
                     const locationResult = await handleTeknisiShareLocation(
                         sender,
                         {
@@ -2174,63 +2174,6 @@ case 'CONFIRM_GANTI_SANDI_BULK': {
                 break;
             }
             break;
-            case 'PROSES_TIKET': {
-                if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
-                if (!q) return reply("Mohon sertakan nomor tiket yang ingin diproses. Contoh: proses [ID_TIKET]");
-                
-                const ticketIdToProcess = q.trim();
-                const result = await handleProsesTicket(
-                    sender,
-                    ticketIdToProcess,
-                    isTeknisi,
-                    reply
-                );
-                
-                if (result.message) {
-                    await reply(result.message);
-                }
-                break;
-            }
-            
-            case 'REMOTE_VERIFICATION': {
-                if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
-                if (!q) return reply("Mohon sertakan nomor tiket. Contoh: remote [ID_TIKET]");
-                
-                const ticketIdForRemote = q.trim();
-                const result = await handleRemoteRequest({
-                    sender,
-                    ticketId: ticketIdForRemote,
-                    reply
-                });
-                
-                if (result.message) {
-                    await reply(result.message);
-                }
-                break;
-            }
-            
-            case 'VERIFIKASI_OTP': {
-                if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
-                
-                // Skip matched keyword words to get actual arguments
-                const commandArgs = chats.split(' ').slice(matchedKeywordLength || 1);
-                if (commandArgs.length < 2) return reply("Format: verifikasi [ID_TIKET] [OTP]\n\nContoh: verifikasi UH4P8XJ 123456");
-                
-                const ticketId = commandArgs[0];
-                const otp = commandArgs[1];
-                
-                const result = await handleVerifikasiOTP(
-                    sender,
-                    ticketId,
-                    otp,
-                    reply
-                );
-                
-                if (result.message) {
-                    await reply(result.message);
-                }
-                break;
-            }
             
             case 'KONFIRMASI_SELESAI': {
                 if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);

@@ -908,7 +908,7 @@ Balas dengan *angka* (1/2/0)`
             ticketId: ticketId,
             pelangganUserId: state.targetUser.id, // IMPORTANT: User ID untuk filter
             pelangganId: sender,
-            pelangganName: state.targetUser.name || state.targetUser.full_name || 'Customer',
+            pelangganName: state.targetUser.name || 'Customer',
             pelangganPhone: state.targetUser.phone_number,
             pelangganAddress: state.targetUser.address || '',
             pelangganSubscription: state.targetUser.subscription || 'Tidak terinfo', // ADD SUBSCRIPTION
@@ -1022,7 +1022,7 @@ Terima kasih atas kesabarannya! 🙏`
             ticketId: ticketId,
             pelangganUserId: state.targetUser.id, // IMPORTANT: User ID untuk filter
             pelangganId: sender,
-            pelangganName: state.targetUser.name || state.targetUser.full_name || 'Customer',
+            pelangganName: state.targetUser.name || 'Customer',
             pelangganPhone: state.targetUser.phone_number,
             pelangganAddress: state.targetUser.address || '',
             pelangganSubscription: state.targetUser.subscription || 'Tidak terinfo', // ADD SUBSCRIPTION

@@ -311,13 +311,14 @@ async function handleSampaiLokasi(sender, ticketId, reply) {
         const reportsPath = path.join(__dirname, '../../database/reports.json');
         fs.writeFileSync(reportsPath, JSON.stringify(global.reports, null, 2));
         
-        // Notify customer
+        // Notify customer (same pattern as OTW notification)
         const customerJid = ticket.pelangganId;
+        const teknisiName = ticket.teknisiName || ticket.processedByTeknisiName || 'Teknisi';
         const customerMessage = `🎉 *TEKNISI SUDAH TIBA*
 
 ━━━━━━━━━━━━━━━━
-📋 ID Tiket: *${ticketId}*
-🔧 Teknisi: *${ticket.teknisiName}*
+📋 ID Tiket: *${ticketId.toUpperCase()}*
+🔧 Teknisi: *${teknisiName}*
 ━━━━━━━━━━━━━━━━
 
 ✅ Teknisi sudah di lokasi Anda
@@ -328,8 +329,40 @@ kepada teknisi untuk verifikasi.
 
 _Perbaikan akan segera dimulai._`;
 
+        // Send to main customer
         if (global.raf && global.raf.sendMessage) {
-            await global.raf.sendMessage(customerJid, { text: customerMessage });
+            try {
+                await global.raf.sendMessage(customerJid, { text: customerMessage });
+                console.log(`[SAMPAI_NOTIF] Sent arrival notification to ${customerJid}`);
+            } catch (err) {
+                console.error('[SAMPAI_NOTIF] Failed to notify main customer:', err);
+            }
+        }
+        
+        // Also notify other registered numbers (same as OTW)
+        if (ticket.pelangganPhone) {
+            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+            for (const phone of phones) {
+                let phoneJid = phone;
+                if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                    if (phoneJid.startsWith('0')) {
+                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                    } else if (phoneJid.startsWith('62')) {
+                        phoneJid = `${phoneJid}@s.whatsapp.net`;
+                    } else {
+                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                    }
+                }
+                
+                if (phoneJid === customerJid) continue;
+                
+                try {
+                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
+                    console.log(`[SAMPAI_NOTIF] Sent to additional number: ${phoneJid}`);
+                } catch (err) {
+                    console.error(`[SAMPAI_NOTIF] Failed to notify ${phoneJid}:`, err);
+                }
+            }
         }
         
         return {
