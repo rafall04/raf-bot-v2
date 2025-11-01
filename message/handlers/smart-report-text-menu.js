@@ -239,7 +239,7 @@ async function handleInternetMati({ sender, pushname, reply }) {
 }
 
 /**
- * Handle Internet Lemot
+ * Handle Internet Lemot with Auto-Redirect if Device Offline
  */
 async function handleInternetLemot({ sender, pushname, reply }) {
     try {
@@ -256,9 +256,103 @@ async function handleInternetLemot({ sender, pushname, reply }) {
             };
         }
         
-        // Check device status
+        // Check device status FIRST
         const deviceId = user.device_id || `DEVICE-${user.id}`;
         const deviceStatus = await isDeviceOnline(deviceId);
+        
+        // IMPORTANT: Check if device is OFFLINE and auto-redirect to MATI flow
+        if (deviceStatus.online === false) {
+            console.log('[AUTO-REDIRECT] User selected LEMOT but device is OFFLINE - redirecting to MATI flow');
+            
+            // Get offline duration
+            let lastOnlineText = 'Tidak diketahui';
+            let offlineMinutes = null;
+            
+            if (deviceStatus.lastInform) {
+                const lastSeenDate = new Date(deviceStatus.lastInform);
+                const now = new Date();
+                offlineMinutes = Math.floor((now - lastSeenDate) / 1000 / 60);
+                const diffHours = Math.floor(offlineMinutes / 60);
+                const diffDays = Math.floor(diffHours / 24);
+                
+                if (diffDays > 0) {
+                    lastOnlineText = `${diffDays} hari yang lalu`;
+                } else if (diffHours > 0) {
+                    lastOnlineText = `${diffHours} jam ${offlineMinutes % 60} menit yang lalu`;
+                } else if (offlineMinutes > 0) {
+                    lastOnlineText = `${offlineMinutes} menit yang lalu`;
+                } else {
+                    lastOnlineText = 'Baru saja (< 1 menit)';
+                }
+            }
+            
+            // Get estimation time for HIGH priority
+            const estimasi = getResponseTimeMessage('HIGH');
+            const workingStatus = isWithinWorkingHours();
+            let targetTime = '';
+            
+            if (workingStatus.isWithinHours) {
+                const now = new Date();
+                const target = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+                targetTime = `Hari ini sebelum ${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')} WIB`;
+            } else {
+                if (workingStatus.nextWorkingTime) {
+                    const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                    const next = workingStatus.nextWorkingTime;
+                    targetTime = `${dayNames[next.getDay()]} pukul ${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')} WIB`;
+                }
+            }
+            
+            // Save state for MATI flow instead of LEMOT
+            setUserState(sender, {
+                step: 'MATI_TROUBLESHOOT_OPTIONS',
+                userData: user,
+                deviceStatus: deviceStatus,
+                issueType: 'MATI',
+                lastOnlineText: lastOnlineText,
+                autoRedirected: true,
+                originalSelection: 'LEMOT',
+                estimatedTime: estimasi,
+                targetTime: targetTime
+            });
+            
+            // Return MATI flow message instead of LEMOT
+            return {
+                success: true,
+                message: `🔴 *KOREKSI: DEVICE ANDA OFFLINE!*
+
+Anda memilih "Internet Lemot", namun sistem mendeteksi perangkat Anda *OFFLINE TOTAL*.
+
+📡 Status Modem: *OFFLINE* 🔴
+⏰ Terakhir Online: *${lastOnlineText}*
+
+📊 *Analisis Otomatis:*
+• Gangguan: *Internet Mati Total*
+• Prioritas: *HIGH (Urgent)* 🚨
+• Estimasi: *${estimasi}*
+${targetTime ? `• Target: *${targetTime}*` : ''}
+
+🔧 *LANGKAH TROUBLESHOOTING*
+
+Silakan pilih kondisi Anda:
+
+*1️⃣ SUDAH COBA, MASIH MATI*
+   Sudah restart modem tapi tetap tidak ada internet
+
+*2️⃣ BELUM COBA RESTART*
+   Belum sempat restart modem
+
+*3️⃣ SUDAH NORMAL KEMBALI*
+   Sudah restart dan internet kembali normal
+
+━━━━━━━━━━━━━━━━
+Balas dengan angka pilihan Anda (1/2/3)`
+            };
+        }
+        
+        // Device is ONLINE - continue with normal LEMOT flow
+        // Get estimation for MEDIUM priority
+        const estimasiLemot = getResponseTimeMessage('MEDIUM');
         
         // Initialize or get state
         let state = getUserState(sender) || {};
@@ -266,11 +360,16 @@ async function handleInternetLemot({ sender, pushname, reply }) {
         state.issueType = 'LEMOT';
         state.deviceStatus = deviceStatus;
         state.userData = user;
+        state.estimatedTime = estimasiLemot;
         setUserState(sender, state);
         
         return {
             success: true,
-            message: `🔍 *TROUBLESHOOTING INTERNET LEMOT*
+            message: `🐌 *TROUBLESHOOTING INTERNET LEMOT*
+
+📊 Status Device: *ONLINE* ✅
+⚠️ Prioritas jika buat tiket: *MEDIUM*
+⏰ Estimasi penanganan: *${estimasiLemot}*
 
 Sebelum membuat laporan, mari coba langkah berikut:
 

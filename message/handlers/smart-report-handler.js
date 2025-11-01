@@ -207,6 +207,108 @@ Balas dengan *angka* (1/2/0)`
 }
 
 /**
+ * Handle Auto-Redirect from LEMOT to MATI when device is offline
+ * This function is called automatically when user reports "lemot" but device is actually offline
+ */
+async function handleGangguanMatiAutoRedirect({ sender, pushname, userPelanggan, reply, findUserByPhone, deviceStatus, targetUser, originalReport }) {
+    try {
+        const user = targetUser;  // User already found and passed from lemot handler
+        const minutesAgo = deviceStatus.minutesAgo || 'lebih dari 30';
+        
+        // Get dynamic estimation based on working hours
+        const estimasi = getResponseTimeMessage('HIGH');
+        
+        // Check working hours status for additional context
+        const workingStatus = isWithinWorkingHours();
+        let outOfHoursNotice = '';
+        let targetTime = '';
+        
+        if (workingStatus.isWithinHours) {
+            // Calculate target time (current + 2 hours for HIGH priority)
+            const now = new Date();
+            const target = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+            targetTime = `Hari ini sebelum ${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')} WIB`;
+        } else {
+            // Outside working hours
+            const config = global.config.teknisiWorkingHours;
+            outOfHoursNotice = `\n\n⏰ *PERHATIAN:*\n${config.outOfHoursMessage || 'Laporan diterima di luar jam kerja. Akan diproses pada jam kerja berikutnya.'}\n`;
+            
+            if (workingStatus.nextWorkingTime) {
+                const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                const next = workingStatus.nextWorkingTime;
+                const dayName = dayNames[next.getDay()];
+                targetTime = `${dayName} pukul ${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')} WIB`;
+                
+                if (outOfHoursNotice) {
+                    outOfHoursNotice += `Teknisi akan mulai: ${targetTime}`;
+                }
+            }
+        }
+        
+        // Set state for MATI flow
+        setUserState(sender, {
+            step: 'GANGGUAN_MATI_DEVICE_OFFLINE',
+            targetUser: user,
+            deviceStatus: deviceStatus,
+            issueType: 'MATI_OFFLINE',
+            priority: 'HIGH',
+            autoRedirected: true,
+            originalReport: originalReport,
+            estimatedTime: estimasi,
+            targetTime: targetTime
+        });
+        
+        // Construct the auto-redirect message
+        const message = `🔴 *GANGGUAN TERDETEKSI: DEVICE OFFLINE*
+
+Anda melaporkan internet *lemot*, namun sistem mendeteksi perangkat Anda *OFFLINE TOTAL*.
+
+📊 *Analisis Otomatis:*
+• Status Device: *OFFLINE* ❌
+• Terakhir Online: *${minutesAgo} menit yang lalu*
+• Jenis Gangguan: *Internet Mati Total*
+• Prioritas: *HIGH (Urgent)* 🚨
+• Estimasi Penanganan: *${estimasi}*
+${targetTime ? `• Target Waktu: *${targetTime}*` : ''}${outOfHoursNotice}
+
+*Kemungkinan Penyebab:*
+⚡ Listrik mati / modem tidak menyala
+🔌 Kabel power lepas
+📡 Kabel fiber optik lepas/putus/bengkok
+⚠️ Modem/ONT rusak
+
+*Langkah Troubleshooting:*
+1️⃣ Cek lampu indikator modem/ONT
+2️⃣ Cek kabel power terpasang baik
+3️⃣ Cek kabel fiber tidak lepas/bengkok
+4️⃣ Restart modem (cabut-pasang power)
+5️⃣ Tunggu 2 menit hingga lampu stabil
+
+Apakah sudah mencoba langkah di atas?
+
+*Pilih salah satu:*
+1️⃣ Sudah dicoba, masih mati
+2️⃣ Belum dicoba
+3️⃣ Sudah normal kembali
+0️⃣ Batal proses
+
+Balas dengan *angka* (1/2/3/0)`;
+        
+        return {
+            success: true,
+            message: message
+        };
+        
+    } catch (error) {
+        console.error('[handleGangguanMatiAutoRedirect] Error:', error);
+        return {
+            success: false,
+            message: `❌ Maaf, terjadi kesalahan saat memproses laporan. Silakan coba lagi.`
+        };
+    }
+}
+
+/**
  * Handle GANGGUAN_LEMOT - Internet lambat (MEDIUM Priority)
  * Check device status and provide intelligent troubleshooting
  */
@@ -249,70 +351,97 @@ async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, fin
         const deviceStatus = await isDeviceOnline(user.device_id);
         
         if (!deviceStatus.online) {
-            // Device offline - redirect to MATI handler
-            return {
-                success: false,
-                message: `❌ *Koreksi Analisis*
-
-Perangkat Anda terdeteksi *OFFLINE* di sistem kami.
-
-Sepertinya bukan masalah "lemot", tapi koneksi terputus total.
-
-Silakan ketik: *lapor wifi mati* atau *lapor internet mati*
-untuk troubleshooting gangguan mati/putus.`
-            };
+            // Device OFFLINE - AUTO-REDIRECT ke flow MATI tanpa suruh user ketik ulang
+            console.log('[AUTO-REDIRECT] Lemot → Mati (device offline detected)');
+            
+            // Langsung panggil handler MATI dengan flag autoRedirected
+            const result = await handleGangguanMatiAutoRedirect({
+                sender,
+                pushname,
+                userPelanggan,
+                reply,
+                findUserByPhone,
+                deviceStatus,  // Pass existing device status
+                targetUser: user,  // Pass user yang sudah ditemukan
+                originalReport: 'LEMOT'  // Track asal laporan
+            });
+            
+            return result;
         }
         
         // Device ONLINE - Continue with lemot troubleshooting
+        // Get dynamic estimation for MEDIUM priority
+        const estimasiLemot = getResponseTimeMessage('MEDIUM');
+        
+        // Calculate target time for MEDIUM priority (24 working hours)
+        const workingStatus = isWithinWorkingHours();
+        let targetTimeLemot = '';
+        
+        if (workingStatus.isWithinHours) {
+            // Calculate next day same time
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+            targetTimeLemot = `${dayNames[tomorrow.getDay()]} sebelum pukul ${String(tomorrow.getHours()).padStart(2, '0')}:${String(tomorrow.getMinutes()).padStart(2, '0')} WIB`;
+        } else {
+            // If reported outside hours, count from next working day
+            if (workingStatus.nextWorkingTime) {
+                const nextWork = new Date(workingStatus.nextWorkingTime);
+                nextWork.setDate(nextWork.getDate() + 1);
+                const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                targetTimeLemot = `${dayNames[nextWork.getDay()]} jam kerja`;
+            }
+        }
+        
         setUserState(sender, {
             step: 'GANGGUAN_LEMOT_AWAITING_RESPONSE',
             targetUser: user,
             deviceStatus: deviceStatus,
             issueType: 'LEMOT',
-            priority: 'MEDIUM'
+            priority: 'MEDIUM',
+            estimatedTime: estimasiLemot,
+            targetTime: targetTimeLemot
         });
 
         const paketUser = user.subscription || 'Tidak diketahui';
         
         return {
             success: true,
-            message: `🐌 *ANALISIS GANGGUAN LEMOT*
+            message: `🐌 *TROUBLESHOOTING INTERNET LEMOT*
 
-Status Device: *ONLINE* ✅
-Paket Anda: *${paketUser}*
+📊 *Status Sistem:*
+• Device: *ONLINE* ✅
+• Paket: *${paketUser}*
+• Prioritas jika buat tiket: *MEDIUM*
+• Estimasi penanganan: *${estimasiLemot}*
+${targetTimeLemot ? `• Target selesai: *${targetTimeLemot}*` : ''}
 
-*Troubleshooting Awal - Cek Hal Ini:*
+*Langkah Diagnosa:*
 
-1️⃣ *Terlalu Banyak Perangkat Terhubung?*
-   Ketik: *cek wifi*
-   Untuk lihat berapa device yang konek
+1️⃣ *Cek Banyak Device Terhubung*
+   Ketik: *cek wifi* untuk lihat jumlah device
 
-2️⃣ *Aplikasi Berat Berjalan?*
+2️⃣ *Matikan Aplikasi Berat:*
    • Download torrent/file besar
-   • Streaming video HD
-   • Update Windows/Apps
-   Tutup yang tidak perlu
-
-3️⃣ *Jarak dari Modem Terlalu Jauh?*
+   • Streaming video HD/4K
+   • Update Windows/Game
+   
+3️⃣ *Test Jarak dari Modem:*
    Coba dekat ke modem, apakah lebih cepat?
 
-4️⃣ *Jam Sibuk (Peak Hours)?*
-   Jam 7-10 malam biasanya ramai pengguna
+4️⃣ *Lakukan Speed Test:*
+   • Buka fast.com atau speedtest.net
+   • Screenshot atau catat hasilnya
+   • Bandingkan dengan paket Anda
 
-5️⃣ *Speed Test*
-   Coba test: speedtest.net atau fast.com
-   Share hasil di sini
+*Setelah troubleshooting, pilih:*
 
-Setelah dicoba:
+1️⃣ Tetap lemot → Buat tiket teknisi
+2️⃣ Sudah normal kembali
+3️⃣ Kirim hasil speedtest: *speedtest [hasil]*
+0️⃣ Batal proses
 
-*Pilih salah satu:*
-1️⃣ Tetap lemot, buat tiket
-2️⃣ Sudah cepat kembali
-3️⃣ Kirim hasil speedtest
-0️⃣ Batal
-
-Balas dengan *angka* (1/2/0) atau *speedtest [mbps]*
-Contoh: speedtest 20`
+Balas dengan angka atau contoh: *speedtest 5mbps*`
         };
         
     } catch (error) {
@@ -354,6 +483,16 @@ async function handleGangguanMatiOfflineResponse({ sender, body, reply, findUser
         // User sudah troubleshoot tapi masih mati - CREATE HIGH PRIORITY TICKET
             // Set state for optional photo upload
             const ticketId = generateTicketId();
+            
+            // Get estimation time from state or calculate new
+            const estimasi = state.estimatedTime || getResponseTimeMessage('HIGH');
+            const targetTime = state.targetTime || '';
+            
+            // Check if this is auto-redirected from LEMOT report
+            const reportSource = state.autoRedirected ? 
+                `User lapor ${state.originalReport}, sistem deteksi device OFFLINE` : 
+                'User lapor internet mati';
+            
             setUserState(sender, {
                 step: 'GANGGUAN_MATI_AWAITING_PHOTO',
                 targetUser: state.targetUser,
@@ -366,13 +505,17 @@ async function handleGangguanMatiOfflineResponse({ sender, body, reply, findUser
                     pelangganName: state.targetUser.name || state.targetUser.username,
                     pelangganPhone: state.targetUser.phone_number || '',
                     pelangganAddress: state.targetUser.address || '',
-                    laporanText: `Internet mati total - Device OFFLINE\nTerakhir online: ${state.deviceStatus.minutesAgo || 'lebih dari 30'} menit yang lalu\nTroubleshooting sudah dilakukan.`,
+                    pelangganSubscription: state.targetUser.subscription || 'Tidak diketahui',
+                    laporanText: `Internet mati total - Device OFFLINE\nTerakhir online: ${state.deviceStatus.minutesAgo || 'lebih dari 30'} menit yang lalu\nTroubleshooting sudah dilakukan.\nSumber: ${reportSource}`,
                     status: 'baru',
                     priority: 'HIGH',
+                    estimatedTime: estimasi,
+                    targetTime: targetTime,
                     createdAt: new Date().toISOString(),
                     deviceOnline: false,
                     issueType: 'MATI',
-                    troubleshootingDone: true
+                    troubleshootingDone: true,
+                    autoRedirected: state.autoRedirected || false
                 },
                 uploadedPhotos: []
             });
@@ -476,11 +619,41 @@ Terima kasih atas kesabarannya. 🙏`
         };
     }
     
-    // 2 = belum dicoba
+    // 2 = belum dicoba - Show detailed troubleshooting guide
     if (response === '2' || response.includes('belum')) {
+        // Keep state but don't create ticket yet
         return { 
             success: true, 
-            message: `Baik Kak, silakan coba langkah troubleshooting di atas terlebih dahulu ya.\n\nJika setelah dicoba masih mati, balas dengan angka *1* untuk saya buatkan tiket teknisi segera. 🙏` 
+            message: `📖 *PANDUAN TROUBLESHOOTING DETAIL*
+
+*Step 1: Cek Lampu Indikator Modem/ONT*
+🟢 Power (hijau) = Normal
+🔴 Power (merah/mati) = Ada masalah listrik
+🟡 PON/LOS (berkedip) = Kabel fiber bermasalah
+🟢 Internet (hijau) = Koneksi normal
+
+*Step 2: Restart Modem/ONT*
+1. Cabut kabel power modem
+2. Tunggu 10 detik
+3. Pasang kembali kabel power
+4. Tunggu 2-3 menit hingga lampu stabil
+5. Cek apakah internet sudah kembali
+
+*Step 3: Cek Kabel*
+• Pastikan kabel fiber tidak tertekuk/patah
+• Cek kabel LAN terpasang dengan benar
+• Pastikan konektor tidak longgar
+
+*Step 4: Test dengan Kabel LAN*
+• Hubungkan laptop/PC langsung ke modem pakai kabel LAN
+• Jika pakai kabel bisa, berarti masalah di WiFi
+
+Setelah mencoba langkah di atas:
+1️⃣ Masih mati → Buat tiket teknisi
+3️⃣ Sudah normal kembali
+0️⃣ Batal
+
+_Troubleshooting biasanya memakan waktu 5-10 menit_` 
         };
     }
     
@@ -727,6 +900,10 @@ Balas dengan *angka* (1/2/0)`
         const ticketId = generateTicketId();
         const speedInfo = state.speedTest ? `Speed test: ${state.speedTest} Mbps` : 'Belum speed test';
         
+        // Get estimation time for MEDIUM priority
+        const estimasi = state.estimatedTime || getResponseTimeMessage('MEDIUM');
+        const targetTime = state.targetTime || '';
+        
         const newReport = {
             ticketId: ticketId,
             pelangganUserId: state.targetUser.id, // IMPORTANT: User ID untuk filter
@@ -738,6 +915,8 @@ Balas dengan *angka* (1/2/0)`
             laporanText: `Internet lemot/lambat - Device ONLINE\n${speedInfo}\nTroubleshooting sudah dilakukan.`,
             status: 'pending',  // Use new status format
             priority: 'MEDIUM',
+            estimatedTime: estimasi,  // Add estimation time
+            targetTime: targetTime,    // Add target completion time
             createdAt: new Date().toISOString(),
             deviceOnline: true,
             deviceStatus: state.deviceStatus || {},  // Include full device status
@@ -812,26 +991,32 @@ Untuk proses tiket, ketik:
 
         deleteUserState(sender);
         
-        const responseTime = getResponseTimeMessage('MEDIUM');
-        
         return {
             success: true,
-            message: `✅ *TIKET DIBUAT*
+            message: `✅ *TIKET INTERNET LEMOT DIBUAT*
 
-Nomor Tiket: *${ticketId}*
-Prioritas: *⚠️ MEDIUM*
+📋 Nomor Tiket: *${ticketId}*
+⚠️ Prioritas: *MEDIUM*
+⏰ Estimasi Penanganan: *${estimasi}*
+${targetTime ? `📅 Target Selesai: *${targetTime}*` : ''}
 
-Teknisi akan menghubungi untuk pengecekan lebih lanjut dalam ${responseTime}.
+Teknisi akan menganalisis dan menghubungi Anda untuk pengecekan lebih lanjut.
 
-Terima kasih! 🙏`
+Mohon pastikan HP aktif untuk koordinasi dengan teknisi.
+
+Terima kasih atas kesabarannya! 🙏`
         };
     }
     
     // Handle "buat tiket" response after speed test (also accept "1")
-    if (response === '1' || response.includes('buat tiket') || response.includes('buattiket')) {
+    if (state.step === 'GANGGUAN_LEMOT_CONFIRM_TICKET' && (response === '1' || response.includes('buat tiket') || response.includes('buattiket'))) {
         // User confirm create ticket after speed test
         const ticketId = generateTicketId();
         const speedInfo = state.speedTest ? `Speed test: ${state.speedTest} Mbps (seharusnya ${state.packageSpeed} Mbps)` : '';
+        
+        // Get estimation time for MEDIUM priority
+        const estimasi = state.estimatedTime || getResponseTimeMessage('MEDIUM');
+        const targetTime = state.targetTime || '';
         
         const newReport = {
             ticketId: ticketId,
@@ -844,6 +1029,8 @@ Terima kasih! 🙏`
             laporanText: `Internet lemot - Speed di bawah 50% paket\n${speedInfo}`,
             status: 'pending',  // Use new status format
             priority: 'MEDIUM',
+            estimatedTime: estimasi,  // Add estimation time
+            targetTime: targetTime,    // Add target completion time
             createdAt: new Date().toISOString(),
             deviceOnline: true,
             deviceStatus: state.deviceStatus || {},  // Include full device status
@@ -864,15 +1051,18 @@ Terima kasih! 🙏`
 
         deleteUserState(sender);
         
-        const responseTime = getResponseTimeMessage('MEDIUM');
-        
         return {
             success: true,
-            message: `✅ *TIKET DIBUAT*
+            message: `✅ *TIKET SPEED ISSUE DIBUAT*
 
-Nomor Tiket: *${ticketId}*
+📋 Nomor Tiket: *${ticketId}*
+⚠️ Prioritas: *MEDIUM*
+📉 Speed Test: *${state.speedTest || 'N/A'} Mbps*
+📦 Paket: *${state.packageSpeed || 'N/A'} Mbps*
+⏰ Estimasi: *${estimasi}*
+${targetTime ? `📅 Target: *${targetTime}*` : ''}
 
-Teknisi akan menghubungi untuk pengecekan dalam ${responseTime}.
+Teknisi akan menganalisis penyebab speed rendah.
 
 Terima kasih! 🙏`
         };
@@ -896,6 +1086,7 @@ Terima kasih! 🙏`
 
 module.exports = {
     handleGangguanMati,
+    handleGangguanMatiAutoRedirect,
     handleGangguanLemot,
     handleGangguanMatiOfflineResponse,
     handleGangguanMatiOnlineResponse,
