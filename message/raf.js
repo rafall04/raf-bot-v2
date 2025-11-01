@@ -4114,7 +4114,9 @@ Contoh: proses ${pendingTickets[0].ticketId}
             case 'PROSES_TIKET': {
                 if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
                 
-                const ticketId = chats.split(' ')[1];
+                // Extract ticket ID after matched keywords (support multi-word keywords)
+                const words = chats.split(' ');
+                const ticketId = words[matchedKeywordLength] || words[1];
                 if (!ticketId) {
                     return reply('❌ Format: proses [ID_TIKET]\n\nContoh: proses ABC123');
                 }
@@ -4127,9 +4129,11 @@ Contoh: proses ${pendingTickets[0].ticketId}
             case 'OTW_TIKET': {
                 if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
                 
-                const ticketId = chats.split(' ')[1];
+                // Extract ticket ID after matched keywords (support multi-word keywords like "mulai perjalanan")
+                const words = chats.split(' ');
+                const ticketId = words[matchedKeywordLength] || words[1];
                 if (!ticketId) {
-                    return reply('❌ Format: otw [ID_TIKET]\n\nContoh: otw ABC123\n\nTips: Share lokasi setelah ketik otw');
+                    return reply('❌ Format: otw/mulai perjalanan [ID_TIKET]\n\nContoh:\n• otw ABC123\n• mulai perjalanan ABC123\n\nTips: Share lokasi setelah perintah');
                 }
                 
                 const { handleOTW } = require('./handlers/teknisi-workflow-handler');
@@ -4140,9 +4144,11 @@ Contoh: proses ${pendingTickets[0].ticketId}
             case 'SAMPAI_LOKASI': {
                 if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
                 
-                const ticketId = chats.split(' ')[1];
+                // Extract ticket ID after matched keywords (support multi-word keywords like "sampai lokasi")
+                const words = chats.split(' ');
+                const ticketId = words[matchedKeywordLength] || words[1];
                 if (!ticketId) {
-                    return reply('❌ Format: sampai [ID_TIKET]\n\nContoh: sampai ABC123');
+                    return reply('❌ Format: sampai/sampai lokasi [ID_TIKET]\n\nContoh:\n• sampai ABC123\n• sampai lokasi ABC123');
                 }
                 
                 const { handleSampaiLokasi } = require('./handlers/teknisi-workflow-handler');
@@ -4153,9 +4159,10 @@ Contoh: proses ${pendingTickets[0].ticketId}
             case 'VERIFIKASI_OTP': {
                 if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
                 
+                // Extract parameters after matched keywords
                 const args = chats.split(' ');
-                const ticketId = args[1];
-                const otp = args[2];
+                const ticketId = args[matchedKeywordLength] || args[1];
+                const otp = args[matchedKeywordLength + 1] || args[2];
                 
                 if (!ticketId || !otp) {
                     return reply('❌ Format: verifikasi [ID_TIKET] [OTP]\n\nContoh: verifikasi ABC123 456789');
