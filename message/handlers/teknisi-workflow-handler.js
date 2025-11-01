@@ -68,8 +68,8 @@ async function handleProsesTicket(sender, ticketId, reply) {
         ticket.teknisiId = sender;
         ticket.processedByTeknisiId = sender;  // For old workflow compatibility
         ticket.processedByTeknisi = sender;     // For general-steps compatibility
-        ticket.teknisiName = teknisi.username;
-        ticket.processedByTeknisiName = teknisi.username;  // For old workflow
+        ticket.teknisiName = teknisi.name || teknisi.username;  // Use name field first
+        ticket.processedByTeknisiName = teknisi.name || teknisi.username;  // For old workflow
         ticket.otp = otp;
         ticket.processedAt = new Date().toISOString();
         
@@ -475,7 +475,7 @@ async function handleVerifikasiOTP(sender, ticketId, otp, reply) {
         const reportsPath = path.join(__dirname, '../../database/reports.json');
         fs.writeFileSync(reportsPath, JSON.stringify(global.reports, null, 2));
         
-        // Notify customer
+        // Notify customer - Send to ALL registered numbers
         const customerJid = ticket.pelangganId;
         const customerMessage = `🔧 *PENGERJAAN DIMULAI*
 
@@ -489,8 +489,40 @@ async function handleVerifikasiOTP(sender, ticketId, otp, reply) {
 
 _Anda akan diinformasikan saat selesai._`;
 
+        // Send to main customer
         if (global.raf && global.raf.sendMessage) {
-            await global.raf.sendMessage(customerJid, { text: customerMessage });
+            try {
+                await global.raf.sendMessage(customerJid, { text: customerMessage });
+                console.log(`[VERIF_NOTIF] Sent to main customer: ${customerJid}`);
+            } catch (err) {
+                console.error('[VERIF_NOTIF] Failed to notify main customer:', err);
+            }
+        }
+        
+        // IMPORTANT: Also send to ALL registered phone numbers
+        if (ticket.pelangganPhone) {
+            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+            for (const phone of phones) {
+                let phoneJid = phone;
+                if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                    if (phoneJid.startsWith('0')) {
+                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                    } else if (phoneJid.startsWith('62')) {
+                        phoneJid = `${phoneJid}@s.whatsapp.net`;
+                    } else {
+                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                    }
+                }
+                
+                if (phoneJid === customerJid) continue;
+                
+                try {
+                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
+                    console.log(`[VERIF_NOTIF] Sent to additional number: ${phoneJid}`);
+                } catch (err) {
+                    console.error(`[VERIF_NOTIF] Failed to notify ${phoneJid}:`, err);
+                }
+            }
         }
         
         // Set state for photo upload
@@ -602,7 +634,7 @@ Silakan kirim foto dulu.`
         // Clear teknisi state
         delete global.teknisiStates[sender];
         
-        // Notify customer
+        // Notify customer - Send to ALL registered numbers
         const customerJid = ticket.pelangganId;
         const customerMessage = `✅ *PERBAIKAN SELESAI*
 
@@ -621,8 +653,43 @@ Jika ada masalah lagi, silakan lapor kembali.
 
 _Tiket telah ditutup._`;
 
+        // Send to main customer
         if (global.raf && global.raf.sendMessage) {
-            await global.raf.sendMessage(customerJid, { text: customerMessage });
+            try {
+                await global.raf.sendMessage(customerJid, { text: customerMessage });
+                console.log(`[SELESAI_NOTIF] Sent completion to main customer: ${customerJid}`);
+            } catch (err) {
+                console.error('[SELESAI_NOTIF] Failed to notify main customer:', err);
+            }
+        }
+        
+        // IMPORTANT: Also send to ALL registered phone numbers
+        if (ticket.pelangganPhone) {
+            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+            console.log(`[SELESAI_NOTIF] Sending completion to ${phones.length} phone numbers`);
+            
+            for (const phone of phones) {
+                let phoneJid = phone;
+                if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                    if (phoneJid.startsWith('0')) {
+                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                    } else if (phoneJid.startsWith('62')) {
+                        phoneJid = `${phoneJid}@s.whatsapp.net`;
+                    } else {
+                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                    }
+                }
+                
+                // Skip if this is the main customer
+                if (phoneJid === customerJid) continue;
+                
+                try {
+                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
+                    console.log(`[SELESAI_NOTIF] Sent to additional number: ${phoneJid}`);
+                } catch (err) {
+                    console.error(`[SELESAI_NOTIF] Failed to notify ${phoneJid}:`, err);
+                }
+            }
         }
         
         return {
