@@ -47,18 +47,35 @@ async function handleProsesTicket(sender, ticketId, reply) {
             };
         }
         
-        // Get teknisi info
+        // Get teknisi info - handle phone number format
         const senderNumber = sender.replace('@s.whatsapp.net', '');
-        const teknisi = global.accounts.find(acc => 
-            acc.phone_number === senderNumber && acc.role === 'teknisi'
-        );
+        
+        // Remove 62 prefix if exists to match database format
+        let phoneToMatch = senderNumber;
+        if (senderNumber.startsWith('62')) {
+            phoneToMatch = senderNumber.substring(2);
+        }
+        
+        // Find teknisi by matching phone number (with or without 62)
+        const teknisi = global.accounts.find(acc => {
+            if (acc.role !== 'teknisi') return false;
+            
+            // Match either with or without 62 prefix
+            return acc.phone_number === phoneToMatch || 
+                   acc.phone_number === senderNumber ||
+                   `62${acc.phone_number}` === senderNumber;
+        });
         
         if (!teknisi) {
+            console.error(`[TEKNISI_NOT_FOUND] Sender: ${senderNumber}, phoneToMatch: ${phoneToMatch}`);
+            console.error(`[TEKNISI_NOT_FOUND] Available teknisi:`, global.accounts.filter(a => a.role === 'teknisi').map(a => a.phone_number));
             return {
                 success: false,
                 message: '❌ Anda tidak terdaftar sebagai teknisi.'
             };
         }
+        
+        console.log(`[TEKNISI_FOUND] Name: ${teknisi.name || teknisi.username}, Phone: ${teknisi.phone_number}`);
         
         // Generate OTP
         const otp = generateOTP();
