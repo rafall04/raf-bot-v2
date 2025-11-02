@@ -482,7 +482,7 @@ Apakah perbaikan sudah selesai dan data di atas sudah benar?
                 global.teknisiStates[sender].step === 'AWAITING_COMPLETION_PHOTOS' && 
                 type === 'imageMessage') {
                 const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
-                const { handleTeknisiPhotoUpload } = require('./handlers/teknisi-photo-handler');
+                const { handleTeknisiPhotoUpload } = require('./handlers/teknisi-photo-handler-v3');
                 
                 try {
                     // Download the image

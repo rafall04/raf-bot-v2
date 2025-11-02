@@ -679,7 +679,7 @@ async function handleSelesaiTicket(sender, ticketId, reply) {
         }
         
         // Also check photo queue for accurate count
-        const { getUploadQueue } = require('./teknisi-photo-handler');
+        const { getUploadQueue } = require('./teknisi-photo-handler-v3');
         const queue = getUploadQueue(sender);
         
         // Sync uploaded photos from queue if exists
@@ -733,7 +733,7 @@ Silakan kirim foto dulu.`
         delete global.teknisiStates[sender];
         
         // Clear photo upload queue
-        const { clearUploadQueue } = require('./teknisi-photo-handler');
+        const { clearUploadQueue } = require('./teknisi-photo-handler-v3');
         clearUploadQueue(sender);
         
         // Notify customer - Send to ALL registered numbers

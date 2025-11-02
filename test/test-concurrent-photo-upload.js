@@ -8,7 +8,7 @@ console.log('=' .repeat(50) + '\n');
 
 // Import required modules
 const { initializeDatabase } = require('../lib/database');
-const { handleTeknisiPhotoUpload, getUploadQueue, clearUploadQueue } = require('../message/handlers/teknisi-photo-handler');
+const { handleTeknisiPhotoUpload, getUploadQueue, clearUploadQueue } = require('../message/handlers/teknisi-photo-handler-v2');
 
 async function testConcurrentUpload() {
     try {
@@ -159,7 +159,7 @@ async function testConcurrentUpload() {
         clearUploadQueue(teknisiSender);
         global.teknisiStates[teknisiSender].uploadedPhotos = [];
         
-        // Upload 2 photos concurrently
+        // Upload 2 photos concurrently...
         console.log('Uploading 2 photos concurrently...');
         const mixed1 = handleTeknisiPhotoUpload(
             teknisiSender,
@@ -175,31 +175,29 @@ async function testConcurrentUpload() {
         );
         
         try {
-            await Promise.race([
-                Promise.all([mixed1, mixed2]),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Mixed upload timeout')), 10000)
-                )
-            ]);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait for first batch
+            const [r1, r2] = await Promise.all([mixed1, mixed2]);
+            console.log(`First batch completed: ${r1.photoCount} and ${r2.photoCount} photos`);
+            
+            // Wait a bit before next upload
+            await new Promise(resolve => setTimeout(resolve, 2000));
             
             // Then upload 1 more
             console.log('Uploading 1 more photo...');
-            await Promise.race([
-                handleTeknisiPhotoUpload(
-                    teknisiSender,
-                    'mixed_3.jpg',
-                    Buffer.from('data3'),
-                    mockReply
-                ),
-                new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Final upload timeout')), 10000)
-                )
-            ]);
+            const r3 = await handleTeknisiPhotoUpload(
+                teknisiSender,
+                'mixed_3.jpg',
+                Buffer.from('data3'),
+                mockReply
+            );
             
+            console.log(`Third photo completed: ${r3.photoCount} photos`);
+            
+            // Wait for processing
             await new Promise(resolve => setTimeout(resolve, 1000));
+            
         } catch (err) {
-            console.error('Mixed upload error:', err.message);
+            console.error('Mixed upload error:', err);
         }
         
         const queueMixed = getUploadQueue(teknisiSender);

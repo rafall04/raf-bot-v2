@@ -30,8 +30,27 @@ function getUploadQueue(sender) {
 async function processPhotoQueue(sender) {
     const queue = getUploadQueue(sender);
     
-    // If already processing, exit (another process will handle)
+    // Wait if another process is handling
     if (queue.processing) {
+        // Wait for current processing to finish
+        await new Promise((resolve) => {
+            const checkInterval = setInterval(() => {
+                if (!queue.processing) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 50);
+            
+            // Safety timeout
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                resolve();
+            }, 5000);
+        });
+    }
+    
+    // Check again if there's something to process
+    if (queue.queue.length === 0) {
         return;
     }
     
@@ -143,27 +162,34 @@ async function handleTeknisiPhotoUpload(sender, fileName, buffer, reply) {
             timestamp: Date.now()
         });
         
-        console.log(`[PHOTO_QUEUE] Added photo to queue. Queue size: ${queue.queue.length}`);
+        const totalQueued = queue.queue.length;
+        const totalUploaded = queue.uploadedPhotos.length;
+        console.log(`[PHOTO_QUEUE] Added photo. Queue: ${totalQueued}, Uploaded: ${totalUploaded}`);
         
-        // Process the queue
-        await processPhotoQueue(sender);
+        // Process the queue (will wait if already processing)
+        const processPromise = processPhotoQueue(sender);
         
-        // Determine response
+        // Determine response timing
         const photoCount = queue.uploadedPhotos.length;
         const pendingCount = queue.queue.length;
         
-        // Clear response timeout if exists
+        // Clear existing response timeout if any
         if (queue.responseTimeout) {
             clearTimeout(queue.responseTimeout);
+            queue.responseTimeout = null;
         }
         
-        // Check if should respond immediately or wait for batch
-        const shouldWaitForBatch = photoCount === 1 && pendingCount === 0;
+        // Only send response for the last photo in a batch
+        const isFirstPhoto = photoCount === 0 && pendingCount === 1;
         
-        if (!shouldWaitForBatch) {
-            // Already have multiple photos or queue is processing, respond immediately
-            const message = getResponseMessage(photoCount);
+        if (isFirstPhoto) {
+            // This is the first photo, wait for more
+            console.log('[PHOTO_QUEUE] First photo, waiting for batch...');
+        } else if (queue.uploadedPhotos.length >= 5) {
+            // Max photos reached, respond immediately after processing
+            await processPromise;
             
+            const message = getResponseMessage(queue.uploadedPhotos.length);
             if (reply && message) {
                 reply(message).catch(err => {
                     console.error('[PHOTO_REPLY_ERROR]', err);
@@ -172,7 +198,7 @@ async function handleTeknisiPhotoUpload(sender, fileName, buffer, reply) {
             
             return Promise.resolve({
                 success: true,
-                photoCount: photoCount,
+                photoCount: queue.uploadedPhotos.length,
                 message: null
             });
         }
@@ -192,10 +218,14 @@ async function handleTeknisiPhotoUpload(sender, fileName, buffer, reply) {
                 try {
                     clearTimeout(safetyTimeout);
                     
-                    // Process any remaining photos
+                    // Wait for any ongoing processing to complete
+                    await processPromise;
+                    
+                    // Process any remaining photos that might have been added
                     await processPhotoQueue(sender);
                     
                     const finalCount = queue.uploadedPhotos.length;
+                    console.log(`[PHOTO_QUEUE] Batch complete. Total photos: ${finalCount}`);
                     const message = getResponseMessage(finalCount);
                 
                     // Send response only once for batch upload
