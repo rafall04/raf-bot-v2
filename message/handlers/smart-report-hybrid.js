@@ -197,7 +197,7 @@ async function createDirectTicket({ user, issueType, priority, deviceStatus, des
         ticketId: ticketId,
         pelangganUserId: user.id,
         pelangganId: sender,
-        pelangganName: user.full_name || user.username || 'Customer',
+        pelangganName: user.name || user.username || 'Customer',  // Use 'name' field from SQLite
         pelangganPhone: user.phone_number || '',
         pelangganAddress: user.address || '',
         laporanText: description,
