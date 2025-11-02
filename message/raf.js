@@ -1838,6 +1838,7 @@ case 'CONFIRM_GANTI_SANDI_BULK': {
             'tiketdone': 'SELESAIKAN_TIKET',
             'selesaikantiket': 'SELESAIKAN_TIKET',
             'proses': 'PROSES_TIKET',
+            'prosestiket': 'PROSES_TIKET',  // Support both formats
             'remote': 'REMOTE_VERIFICATION',
             'verifikasi': 'VERIFIKASI_OTP',
             'konfirmasi': 'KONFIRMASI_SELESAI',

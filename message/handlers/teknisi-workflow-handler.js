@@ -100,7 +100,7 @@ async function handleProsesTicket(sender, ticketId, reply) {
 
 ━━━━━━━━━━━━━━━━
 📋 ID Tiket: *${ticketId}*
-🔧 Teknisi: *${teknisi.username}*
+🔧 Teknisi: *${teknisi.name || teknisi.username}*
 ━━━━━━━━━━━━━━━━
 
 🔐 *KODE OTP: ${otp}*
