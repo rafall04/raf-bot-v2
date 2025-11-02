@@ -43,7 +43,6 @@ const {
     handleMulaiPerjalanan,
     handleTeknisiShareLocation,
     handleCekLokasiTeknisi,
-    handleSampaiLokasi,
     handleTiketSaya
 } = require('./handlers/simple-location-handler');
 const qr = require('qr-image')
@@ -3970,24 +3969,8 @@ break;
                 return reply(lokasiResult.message);
             }
             
-            case 'SAMPAI_LOKASI': {
-                if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
-                
-                // Skip matched keyword words to get the actual argument
-                const commandArgs = chats.split(' ').slice(matchedKeywordLength || 1);
-                const ticketIdSampai = commandArgs[0];
-                
-                if (!ticketIdSampai) {
-                    return reply('❌ Format: sampai [ID_TIKET]\n\nContoh: sampai UH4P8XJ');
-                }
-                
-                const sampaiResult = await handleSampaiLokasi(
-                    sender,
-                    ticketIdSampai,
-                    reply
-                );
-                return reply(sampaiResult.message);
-            }
+            // REMOVED - Using the one from teknisi-workflow-handler below
+            // case 'SAMPAI_LOKASI' handled in TEKNISI WORKFLOW section
             
             case 'TIKET_SAYA': {
                 const tiketResult = await handleTiketSaya(sender, reply);

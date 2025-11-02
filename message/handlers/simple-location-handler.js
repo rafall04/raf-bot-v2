@@ -244,22 +244,35 @@ async function updateTeknisiLocation(teknisiId, ticketId, location, reportData) 
         // Also save to file for persistence
         saveLocationToFile(ticketId, locationData);
         
-        // Get teknisi name
-        const teknisiName = reportData.processedByTeknisiName || 'Teknisi';
+        // Get teknisi name and OTP
+        const teknisiName = reportData.processedByTeknisiName || reportData.teknisiName || 'Teknisi';
+        const otp = reportData.otp || 'XXXXXX';
         
         // Notify pelanggan
         if (reportData.pelangganId && global.raf) {
-            const customerMessage = `📍 *LOKASI TEKNISI*
+            const customerMessage = `📍 *LOKASI TEKNISI TERBARU*
 
-Teknisi *${teknisiName}* sedang dalam perjalanan untuk tiket *${ticketId}*.
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticketId}*
+🔧 Teknisi: *${teknisiName}*
+━━━━━━━━━━━━━━━━
+
+Teknisi sedang dalam perjalanan ke lokasi Anda.
 
 📱 *Lihat di Google Maps:*
 ${locationData.googleMapsUrl}
 
 ⏱️ Update: ${new Date().toLocaleTimeString('id-ID')}
 
-Untuk update lokasi terbaru, ketik:
-*lokasi ${ticketId}*`;
+🔐 *KODE VERIFIKASI:*
+╔════════════════╗
+║  *${otp}*  ║
+╚════════════════╝
+
+⚠️ *PENTING:*
+• Siapkan kode ini untuk teknisi
+• Untuk cek lokasi terbaru, ketik:
+  *lokasi ${ticketId}*`;
 
             try {
                 await global.raf.sendMessage(reportData.pelangganId, { text: customerMessage });
@@ -270,13 +283,16 @@ Untuk update lokasi terbaru, ketik:
             // Send to all phone numbers if multiple
             if (reportData.pelangganPhone) {
                 const phones = reportData.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+                console.log(`[LOCATION_NOTIF] Sending to ${phones.length} phone numbers: ${phones.join(', ')}`);
+                
                 for (const phone of phones) {
                     let phoneJid = formatPhoneToJid(phone);
                     if (phoneJid !== reportData.pelangganId) {
                         try {
                             await global.raf.sendMessage(phoneJid, { text: customerMessage });
+                            console.log(`[LOCATION_NOTIF] Sent to additional number: ${phoneJid}`);
                         } catch (err) {
-                            console.error(`Failed to notify ${phoneJid}:`, err);
+                            console.error(`[LOCATION_NOTIF] Failed to notify ${phoneJid}:`, err);
                         }
                     }
                 }
@@ -384,92 +400,6 @@ ${locationData.googleMapsUrl}
         return {
             success: false,
             message: '❌ Terjadi kesalahan saat mengambil lokasi.'
-        };
-    }
-}
-
-/**
- * Teknisi sampai di lokasi
- */
-async function handleSampaiLokasi(sender, ticketId, reply) {
-    try {
-        ticketId = ticketId.toUpperCase();
-        
-        // Validate ticket
-        const report = global.reports.find(r => r.ticketId === ticketId);
-        
-        if (!report) {
-            return {
-                success: false,
-                message: `❌ Tiket *${ticketId}* tidak ditemukan.`
-            };
-        }
-        
-        if (report.processedByTeknisiId !== sender) {
-            return {
-                success: false,
-                message: `❌ Tiket ini bukan ditangani oleh Anda.`
-            };
-        }
-        
-        // Update status
-        report.arrivedAt = new Date().toISOString();
-        
-        // Save to file
-        const reportsPath = path.join(__dirname, '../../database/reports.json');
-        fs.writeFileSync(reportsPath, JSON.stringify(reports, null, 2));
-        
-        // Clear location from memory
-        teknisiLocations.delete(ticketId);
-        
-        // Notify customer
-        if (report.pelangganId && global.raf) {
-            const customerMessage = `✅ *TEKNISI SUDAH SAMPAI*
-
-Teknisi *${report.processedByTeknisiName}* sudah tiba di lokasi Anda untuk tiket *${ticketId}*.
-
-Perbaikan akan segera dimulai.
-
-Mohon berikan akses dan informasi yang diperlukan kepada teknisi.`;
-
-            await global.raf.sendMessage(report.pelangganId, { text: customerMessage });
-        }
-        
-        return {
-            success: true,
-            message: `✅ *SAMPAI DI LOKASI*
-
-Tiket: *${ticketId}*
-Pelanggan: ${report.pelangganName}
-
-✅ Pelanggan telah diberitahu Anda tiba.
-
-━━━━━━━━━━━━━━━━━━━━━━
-📋 *LANGKAH SELANJUTNYA:*
-
-1️⃣ *VERIFIKASI OTP:*
-   • Minta kode OTP ke pelanggan
-   • Ketik: *verifikasi ${ticketId} [OTP]*
-   
-2️⃣ *DOKUMENTASI FOTO:*
-   • Upload minimal 2 foto perbaikan
-   • Kirim foto satu per satu
-   
-3️⃣ *SELESAIKAN:*
-   • Ketik *done* setelah upload foto
-   • Tulis catatan perbaikan
-   • Dapatkan kode selesai dari pelanggan
-
-━━━━━━━━━━━━━━━━━━━━━━
-⚠️ *PENTING:*
-Jangan lupa verifikasi OTP dulu!`
-        };
-        
-    } catch (error) {
-        console.error('[SAMPAI_LOKASI_ERROR]', error);
-        return {
-            success: false,
-            message: '❌ Gagal update status.'
         };
     }
 }
@@ -588,6 +518,5 @@ module.exports = {
     handleMulaiPerjalanan,
     handleTeknisiShareLocation,
     handleCekLokasiTeknisi,
-    handleSampaiLokasi,
     handleTiketSaya
 };
