@@ -94,6 +94,18 @@ async function handleProsesTicket(sender, ticketId, reply) {
         const reportsPath = path.join(__dirname, '../../database/reports.json');
         fs.writeFileSync(reportsPath, JSON.stringify(global.reports, null, 2));
         
+        // Get teknisi phone number for customer contact
+        const teknisiPhone = (() => {
+            const senderNum = sender.replace('@s.whatsapp.net', '');
+            if (senderNum.startsWith('62')) {
+                return senderNum;
+            } else if (senderNum.startsWith('0')) {
+                return '62' + senderNum.substring(1);
+            } else {
+                return '62' + senderNum;
+            }
+        })();
+        
         // Notify customer with OTP - Send to ALL registered numbers
         const customerJid = ticket.pelangganId;
         const customerMessage = `✅ *TIKET DIPROSES*
@@ -101,6 +113,7 @@ async function handleProsesTicket(sender, ticketId, reply) {
 ━━━━━━━━━━━━━━━━
 📋 ID Tiket: *${ticketId}*
 🔧 Teknisi: *${teknisi.name || teknisi.username}*
+📱 Kontak: wa.me/${teknisiPhone}
 ━━━━━━━━━━━━━━━━
 
 🔐 *KODE OTP: ${otp}*
@@ -247,19 +260,41 @@ async function handleOTW(sender, ticketId, locationUrl, reply) {
         const reportsPath = path.join(__dirname, '../../database/reports.json');
         fs.writeFileSync(reportsPath, JSON.stringify(global.reports, null, 2));
         
+        // Get teknisi phone for customer contact
+        const teknisiPhone = (() => {
+            const senderNum = sender.replace('@s.whatsapp.net', '');
+            if (senderNum.startsWith('62')) {
+                return senderNum;
+            } else if (senderNum.startsWith('0')) {
+                return '62' + senderNum.substring(1);
+            } else {
+                return '62' + senderNum;
+            }
+        })();
+        
         // Notify customer with SAME MESSAGE as mulai perjalanan
         const customerMessage = `🚗 *TEKNISI BERANGKAT*
 
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticketId.toUpperCase()}*
+🔧 Teknisi: *${ticket.teknisiName || ticket.processedByTeknisiName || 'Teknisi'}*
+📱 Kontak: wa.me/${teknisiPhone}
+━━━━━━━━━━━━━━━━
+
 Teknisi sedang menuju lokasi Anda.
 
-Tiket: *${ticketId.toUpperCase()}*
-Teknisi: ${ticket.teknisiName || ticket.processedByTeknisiName || 'Teknisi'}
+⏱️ *Estimasi Tiba:* 30-60 menit
+_Waktu dapat berubah tergantung kondisi_
 
-Anda dapat cek posisi teknisi dengan mengetik:
-*lokasi ${ticketId.toUpperCase()}*
+📍 Cek posisi teknisi:
+Ketik: *lokasi ${ticketId.toUpperCase()}*
 
-Estimasi tiba: 30-60 menit
-_Waktu dapat berubah tergantung kondisi lalu lintas_`;
+🔐 *KODE VERIFIKASI:*
+╔════════════════╗
+║  *${ticket.otp}*  ║
+╚════════════════╝
+
+Berikan kode ini saat teknisi tiba.`;
         
         // Notify main customer
         if (global.raf && global.raf.sendMessage) {
@@ -369,18 +404,38 @@ async function handleSampaiLokasi(sender, ticketId, reply) {
         // Notify customer (same pattern as OTW notification)
         const customerJid = ticket.pelangganId;
         const teknisiName = ticket.teknisiName || ticket.processedByTeknisiName || 'Teknisi';
+        
+        // Get teknisi phone number for customer contact
+        const teknisiPhone = (() => {
+            const teknisiSender = sender.replace('@s.whatsapp.net', '');
+            if (teknisiSender.startsWith('62')) {
+                return teknisiSender; // Already in correct format
+            } else if (teknisiSender.startsWith('0')) {
+                return '62' + teknisiSender.substring(1);
+            } else {
+                return '62' + teknisiSender;
+            }
+        })();
+        
         const customerMessage = `🎉 *TEKNISI SUDAH TIBA*
 
 ━━━━━━━━━━━━━━━━
 📋 ID Tiket: *${ticketId.toUpperCase()}*
 🔧 Teknisi: *${teknisiName}*
+📱 Kontak: wa.me/${teknisiPhone}
 ━━━━━━━━━━━━━━━━
 
 ✅ Teknisi sudah di lokasi Anda
 
+🔐 *KODE VERIFIKASI:*
+╔════════════════╗
+║  *${ticket.otp}*  ║
+╚════════════════╝
+
 ⚠️ *PENTING:*
-Berikan kode OTP: *${ticket.otp}*
-kepada teknisi untuk verifikasi.
+• Berikan kode ini ke teknisi
+• Untuk memverifikasi identitas
+• Jangan berikan ke orang lain
 
 _Perbaikan akan segera dimulai._`;
 

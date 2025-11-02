@@ -294,7 +294,11 @@ Pelanggan sudah dinotifikasi dengan link Google Maps.
 
 💡 Jika menggunakan *Live Location*, lokasi akan update otomatis.
 
-Untuk update manual, share lokasi lagi kapan saja.`
+Untuk update manual, share lokasi lagi kapan saja.
+
+📍 *NEXT STEP:*
+Setelah sampai di lokasi, ketik:
+*sampai ${ticketId}*`
         };
         
     } catch (error) {
