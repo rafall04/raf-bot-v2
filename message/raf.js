@@ -477,17 +477,21 @@ Apakah perbaikan sudah selesai dan data di atas sudah benar?
                 return;
             }
             
-            // Handle image upload for TEKNISI documentation
+            // Handle image upload for TEKNISI documentation with queue support
             if (global.teknisiStates && global.teknisiStates[sender] && 
                 global.teknisiStates[sender].step === 'AWAITING_COMPLETION_PHOTOS' && 
                 type === 'imageMessage') {
                 const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
-                const { handleTeknisiPhotoUpload } = require('./handlers/teknisi-workflow-handler');
+                const { handleTeknisiPhotoUpload } = require('./handlers/teknisi-photo-handler');
                 
                 try {
                     // Download the image
                     const buffer = await downloadMediaMessage(msg, 'buffer', {});
-                    const fileName = `teknisi_${Date.now()}.jpg`;
+                    
+                    // Generate unique filename with random suffix to prevent overwrites
+                    const timestamp = Date.now();
+                    const randomSuffix = Math.random().toString(36).substring(7);
+                    const fileName = `teknisi_${timestamp}_${randomSuffix}.jpg`;
                     const photoPath = path.join(__dirname, '../../uploads/teknisi', fileName);
                     
                     // Ensure uploads directory exists
@@ -498,11 +502,12 @@ Apakah perbaikan sudah selesai dan data di atas sudah benar?
                     
                     // Save the image
                     fs.writeFileSync(photoPath, buffer);
-                    console.log('[TEKNISI_PHOTO] Image saved:', photoPath);
+                    console.log('[TEKNISI_PHOTO] Image saved:', fileName);
                     
-                    // Handle the photo upload
-                    const result = await handleTeknisiPhotoUpload(sender, fileName);
+                    // Handle the photo upload with queue support
+                    const result = await handleTeknisiPhotoUpload(sender, fileName, buffer, reply);
                     
+                    // Result.message is null because reply is handled inside the handler
                     if (result.message) {
                         await reply(result.message);
                     }

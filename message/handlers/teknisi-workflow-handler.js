@@ -678,6 +678,15 @@ async function handleSelesaiTicket(sender, ticketId, reply) {
             };
         }
         
+        // Also check photo queue for accurate count
+        const { getUploadQueue } = require('./teknisi-photo-handler');
+        const queue = getUploadQueue(sender);
+        
+        // Sync uploaded photos from queue if exists
+        if (queue && queue.uploadedPhotos.length > 0) {
+            state.uploadedPhotos = [...queue.uploadedPhotos];
+        }
+        
         // Check minimum photos
         if (!state.uploadedPhotos || state.uploadedPhotos.length < 2) {
             return {
@@ -720,8 +729,12 @@ Silakan kirim foto dulu.`
         const reportsPath = path.join(__dirname, '../../database/reports.json');
         fs.writeFileSync(reportsPath, JSON.stringify(global.reports, null, 2));
         
-        // Clear teknisi state
+        // Clear teknisi state and photo queue
         delete global.teknisiStates[sender];
+        
+        // Clear photo upload queue
+        const { clearUploadQueue } = require('./teknisi-photo-handler');
+        clearUploadQueue(sender);
         
         // Notify customer - Send to ALL registered numbers
         const customerJid = ticket.pelangganId;
