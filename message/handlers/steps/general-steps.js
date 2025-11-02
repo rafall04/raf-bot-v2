@@ -186,14 +186,30 @@ async function handleGeneralSteps({ userState, sender, chats, pushname, reply, s
                 if (reportIndex !== -1) {
                     const report = global.reports[reportIndex];
                     
+                    // Get teknisi info from accounts
+                    const senderNumber = sender.replace('@s.whatsapp.net', '');
+                    let phoneToMatch = senderNumber;
+                    if (senderNumber.startsWith('62')) {
+                        phoneToMatch = senderNumber.substring(2);
+                    }
+                    
+                    const teknisiAccount = global.accounts.find(acc => {
+                        if (acc.role !== 'teknisi') return false;
+                        return acc.phone_number === phoneToMatch || 
+                               acc.phone_number === senderNumber ||
+                               `62${acc.phone_number}` === senderNumber;
+                    });
+                    
+                    const teknisiName = teknisiAccount ? (teknisiAccount.name || teknisiAccount.username) : pushname;
+                    
                     // Update report status - set all possible field names for compatibility
                     global.reports[reportIndex].status = 'diproses teknisi';
                     global.reports[reportIndex].processedAt = new Date().toISOString();
                     global.reports[reportIndex].processedByTeknisi = sender;
                     global.reports[reportIndex].processedByTeknisiId = sender;  // For old workflow compatibility
                     global.reports[reportIndex].teknisiId = sender;              // For new workflow compatibility
-                    global.reports[reportIndex].processedByTeknisiName = pushname;
-                    global.reports[reportIndex].teknisiName = pushname;          // For new workflow
+                    global.reports[reportIndex].processedByTeknisiName = teknisiName;
+                    global.reports[reportIndex].teknisiName = teknisiName;          // For new workflow
                     
                     // Save to file
                     const { saveReportsToFile } = require('../report-handler');
@@ -209,7 +225,7 @@ ID Tiket: *${ticketIdToProcess}*
 
 Tiket Anda sedang ditangani oleh teknisi kami.
 
-*Teknisi:* ${pushname}
+*Teknisi:* ${teknisiName}
 *Status:* Sedang Diproses
 
 Teknisi akan segera menghubungi Anda untuk penanganan lebih lanjut.

@@ -81,8 +81,8 @@ Selesaikan salah satu tiket terlebih dahulu sebelum mengambil tiket baru.
         report.processedByTeknisiId = sender;
         report.processedByTeknisi = sender;     // For compatibility with general-steps
         report.teknisiId = sender;              // For compatibility with new workflow
-        report.processedByTeknisiName = teknisiInfo ? teknisiInfo.username : 'Teknisi';
-        report.teknisiName = teknisiInfo ? teknisiInfo.username : 'Teknisi';  // For new workflow
+        report.processedByTeknisiName = teknisiInfo ? (teknisiInfo.name || teknisiInfo.username) : 'Teknisi';
+        report.teknisiName = teknisiInfo ? (teknisiInfo.name || teknisiInfo.username) : 'Teknisi';  // For new workflow
         
         // Save to file
         const reportsPath = path.join(__dirname, '../../database/reports.json');
