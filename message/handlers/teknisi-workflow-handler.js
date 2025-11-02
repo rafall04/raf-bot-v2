@@ -393,6 +393,18 @@ async function handleSampaiLokasi(sender, ticketId, reply) {
             };
         }
         
+        // Debug: Check if OTP exists
+        console.log(`[SAMPAI_DEBUG] Ticket OTP: ${ticket.otp}`);
+        console.log(`[SAMPAI_DEBUG] Ticket pelangganPhone: ${ticket.pelangganPhone}`);
+        
+        // Ensure OTP exists
+        if (!ticket.otp) {
+            console.error('[SAMPAI_ERROR] OTP not found in ticket!');
+            // Try to generate OTP if missing (fallback)
+            ticket.otp = generateOTP();
+            console.log(`[SAMPAI_RECOVERY] Generated new OTP: ${ticket.otp}`);
+        }
+        
         // Update ticket
         ticket.status = 'arrived';
         ticket.arrivedAt = new Date().toISOString();
@@ -417,6 +429,9 @@ async function handleSampaiLokasi(sender, ticketId, reply) {
             }
         })();
         
+        // Prepare OTP display with fallback
+        const otpDisplay = ticket.otp || 'XXXXXX';
+        
         const customerMessage = `🎉 *TEKNISI SUDAH TIBA*
 
 ━━━━━━━━━━━━━━━━
@@ -429,7 +444,7 @@ async function handleSampaiLokasi(sender, ticketId, reply) {
 
 🔐 *KODE VERIFIKASI:*
 ╔════════════════╗
-║  *${ticket.otp}*  ║
+║  *${otpDisplay}*  ║
 ╚════════════════╝
 
 ⚠️ *PENTING:*
@@ -452,6 +467,8 @@ _Perbaikan akan segera dimulai._`;
         // Also notify other registered numbers (same as OTW)
         if (ticket.pelangganPhone) {
             const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+            console.log(`[SAMPAI_NOTIF] Sending to ${phones.length} phone numbers: ${phones.join(', ')}`);
+            
             for (const phone of phones) {
                 let phoneJid = phone;
                 if (!phoneJid.endsWith('@s.whatsapp.net')) {
