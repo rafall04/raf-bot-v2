@@ -8,7 +8,7 @@ console.log('=' .repeat(50) + '\n');
 
 // Import required modules
 const { initializeDatabase } = require('../lib/database');
-const { handleTeknisiPhotoUpload, getUploadQueue, clearUploadQueue } = require('../message/handlers/teknisi-photo-handler-v2');
+const { handleTeknisiPhotoUpload, getUploadQueue, clearUploadQueue } = require('../message/handlers/teknisi-photo-handler-v3');
 
 async function testConcurrentUpload() {
     try {

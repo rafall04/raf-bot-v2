@@ -768,7 +768,7 @@ _Tiket telah ditutup._`;
         // IMPORTANT: Also send to ALL registered phone numbers
         if (ticket.pelangganPhone) {
             const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-            console.log(`[SELESAI_NOTIF] Sending completion to ${phones.length} phone numbers`);
+            console.log(`[SELESAI_NOTIF] Sending completion to ${phones.length} phone numbers: ${phones.join(', ')}`);
             
             for (const phone of phones) {
                 let phoneJid = phone;
@@ -782,8 +782,11 @@ _Tiket telah ditutup._`;
                     }
                 }
                 
-                // Skip if this is the main customer
-                if (phoneJid === customerJid) continue;
+                // Skip if this is the main customer (already sent above)
+                if (phoneJid === customerJid) {
+                    console.log(`[SELESAI_NOTIF] Skipping main customer ${phoneJid}`);
+                    continue;
+                }
                 
                 try {
                     await global.raf.sendMessage(phoneJid, { text: customerMessage });
@@ -792,6 +795,8 @@ _Tiket telah ditutup._`;
                     console.error(`[SELESAI_NOTIF] Failed to notify ${phoneJid}:`, err);
                 }
             }
+        } else {
+            console.log(`[SELESAI_NOTIF] No additional phone numbers found in ticket`);
         }
         
         return {
