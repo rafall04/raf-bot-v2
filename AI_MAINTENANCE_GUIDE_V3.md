@@ -15,6 +15,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 8. BUGFIX_INDEX_SYNTAX_ERROR.md (JavaScript syntax fix)
 9. BUGFIX_BROADCAST_PLACEHOLDER.md (Placeholder not working)
 10. ANALYSIS_CRON_JOBS.md (Cron jobs complete audit)
+11. FEATURE_CONFIGURABLE_DELAY.md (Configurable WhatsApp delay)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
