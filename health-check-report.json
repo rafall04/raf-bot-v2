@@ -1,0 +1,92 @@
+{
+  "timestamp": "2025-11-05T04:33:49.561Z",
+  "successes": [
+    {
+      "timestamp": "2025-11-05T04:33:49.499Z",
+      "message": "File exists: config.json"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.499Z",
+      "message": "File exists: package.json"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.500Z",
+      "message": "File exists: message/raf.js"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.500Z",
+      "message": "File exists: lib/database.js"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.500Z",
+      "message": "File exists: lib/wifi.js"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.501Z",
+      "message": "File exists: lib/wifi-logger.js"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.501Z",
+      "message": "File exists: database/accounts.json"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.502Z",
+      "message": "File exists: database/wifi_templates.json"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.502Z",
+      "message": "File exists: AI_MAINTENANCE_GUIDE.md"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.507Z",
+      "message": "message/handlers/wifi-management-handler.js: getSSIDInfo usage correct"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.507Z",
+      "message": "message/handlers/wifi-check-handler.js: getSSIDInfo usage correct"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.509Z",
+      "message": "message/handlers/states/wifi-name-state-handler.js: getSSIDInfo usage correct"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.519Z",
+      "message": "Users table: 2 records"
+    }
+  ],
+  "warnings": [
+    {
+      "timestamp": "2025-11-05T04:33:49.539Z",
+      "message": "message\\handlers\\balance-management-handler.js: Invalid import: lib/function does not exist"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.540Z",
+      "message": "message\\handlers\\billing-management-handler.js: Invalid import: lib/function does not exist"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.544Z",
+      "message": "message\\handlers\\package-management-handler.js: Invalid import: lib/function does not exist"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.549Z",
+      "message": "message\\handlers\\smart-report-text-menu.js: Incorrect message: WiFi changes do not restart modem"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.553Z",
+      "message": "message\\handlers\\steps\\wifi-steps-bulk.js: Incorrect message: WiFi changes do not restart modem"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.558Z",
+      "message": "message\\handlers\\wifi-history-handler.js: getWifiChangeLogs returns {logs: [], total: 0}, not array"
+    },
+    {
+      "timestamp": "2025-11-05T04:33:49.559Z",
+      "message": "message\\handlers\\wifi-management-handler.js: Incorrect message: WiFi changes do not restart modem"
+    }
+  ],
+  "issues": [],
+  "summary": {
+    "totalChecks": 20,
+    "healthScore": 100
+  }
+}

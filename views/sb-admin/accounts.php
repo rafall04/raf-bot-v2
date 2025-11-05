@@ -39,8 +39,8 @@
           <ul class="navbar-nav ml-auto">
             <li class="nav-item dropdown no-arrow">
               <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span>
-                <img class="img-profile rounded-circle" src="/img/undraw_profile.svg">
+                <span class="mr-2 d-none d-lg-inline text-gray-600 small" id="currentUserName">Admin</span>
+                <img class="img-profile rounded-circle" id="currentUserPhoto" src="/img/undraw_profile.svg" onerror="this.src='/img/undraw_profile.svg'">
               </a>
               <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
                 <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
@@ -50,6 +50,32 @@
               </div>
             </li>
           </ul>
+          <script>
+          // Decode JWT and display user info
+          (function() {
+            try {
+              const token = document.cookie.split('; ').find(row => row.startsWith('token='));
+              if (token) {
+                const jwtToken = token.split('=')[1];
+                const base64Url = jwtToken.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const payload = JSON.parse(atob(base64));
+                
+                // Update name
+                if (payload.name) {
+                  document.getElementById('currentUserName').textContent = payload.name;
+                }
+                
+                // Update photo
+                if (payload.photo) {
+                  document.getElementById('currentUserPhoto').src = payload.photo;
+                }
+              }
+            } catch(e) {
+              console.error('Error decoding token:', e);
+            }
+          })();
+          </script>
         </nav>
         <!-- End of Topbar -->
 

@@ -5,7 +5,7 @@ const { hashPassword, comparePassword } = require('../lib/password');
 const { updatePPPoEProfile, deleteActivePPPoEUser, addPPPoEUser } = require('../lib/mikrotik');
 const { getProfileBySubscription } = require('../lib/myfunc');
 const { handlePaidStatusChange } = require('../lib/approval-logic');
-const { normalizePhoneNumber } = require('../lib/utils');
+const { validatePhoneNumbers, normalizePhone, getSupportedCountries } = require('../lib/phone-validator-international');
 const { renderTemplate, templatesCache } = require('../lib/templating');
 const { 
     savePackage, 
@@ -300,6 +300,19 @@ router.post('/users', ensureAdmin, async (req, res) => {
                 });
             }
             
+            // Validate phone numbers before creating user (support international)
+            const phoneToValidate = userData.phone_number || userData.phone;
+            const defaultCountry = userData.country || 'ID'; // Default to Indonesia
+            const validationResult = await validatePhoneNumbers(global.db, phoneToValidate, null, defaultCountry);
+            
+            if (!validationResult.valid) {
+                return res.status(400).json({
+                    status: 400,
+                    message: validationResult.message,
+                    conflictUser: validationResult.conflictUser || null
+                });
+            }
+            
             const newUser = {
                 id: newUserId,
                 ...userData,
@@ -394,6 +407,21 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
         
         // Store old values for comparison
         const oldPaidStatus = userToUpdate.paid;
+        
+        // Validate phone numbers if being updated (support international)
+        if (userData.phone_number || userData.phone) {
+            const phoneToValidate = userData.phone_number || userData.phone;
+            const defaultCountry = userData.country || userToUpdate.country || 'ID';
+            const validationResult = await validatePhoneNumbers(global.db, phoneToValidate, id, defaultCountry);
+            
+            if (!validationResult.valid) {
+                return res.status(400).json({
+                    status: 400,
+                    message: validationResult.message,
+                    conflictUser: validationResult.conflictUser || null
+                });
+            }
+        }
         
         // Update user object with new data
         Object.keys(userData).forEach(key => {
@@ -513,6 +541,17 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
             error: error.message
         });
     }
+});
+
+// GET /api/supported-countries - Get list of supported phone countries
+router.get('/supported-countries', (req, res) => {
+    const countries = getSupportedCountries();
+    return res.json({
+        status: 200,
+        message: 'Supported countries for phone validation',
+        data: countries,
+        note: 'Any international format with + is also supported'
+    });
 });
 
 // DELETE /api/users/:id - Delete a user

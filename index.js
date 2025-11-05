@@ -98,6 +98,16 @@ const { initializeDatabase, loadJSON, saveJSON } = require('./lib/database');
 const { initializeAllCronTasks } = require('./lib/cron');
 const { initializeUploadDirs } = require('./lib/upload-helper');
 const msgHandler = require('./message/raf');
+
+// Error Recovery and Monitoring System
+const ErrorRecovery = require('./lib/error-recovery');
+const MonitoringService = require('./lib/monitoring-service');
+const AlertSystem = require('./lib/alert-system');
+
+// Initialize recovery systems
+global.errorRecovery = new ErrorRecovery();
+global.monitoring = new MonitoringService();
+global.alertSystem = new AlertSystem();
 global.db = null;
 global.io = null;
 
@@ -123,48 +133,21 @@ app.use('/static', express.static(path.join(__dirname, 'static')));
 app.use('/vendor', express.static(path.join(__dirname, 'static/vendor')));
 app.use('/css', express.static(path.join(__dirname, 'static/css')));
 app.use('/js', express.static(path.join(__dirname, 'static/js')));
+app.use('/img', express.static(path.join(__dirname, 'static/img')));
 // Serve temporary files (for payment proofs)
 app.use('/temp', express.static(path.join(__dirname, 'temp')));
 
 // 5. Main Authentication Middleware
 app.use(async (req, res, next) => {
+    // Skip auth for static files (images, css, js, etc)
+    if(req.path.match(/\.(jpg|jpeg|png|gif|svg|css|js|ico|woff|woff2|ttf|eot)$/i)) {
+        return next();
+    }
+    
     // Let PHP engine handle its own files without interference
     if(req.url.match(/.+\.php/)) return next();
     
-    const token = req.cookies?.token || req.headers?.authorization?.replace('Bearer ', '');
-    
-    console.log(`[AUTH_MIDDLEWARE] Path: ${req.path}, Token exists: ${!!token}, Cookie token: ${!!req.cookies?.token}`);
-    
-    if (token) {
-        try {
-            const decoded = jwt.verify(token, config.jwt);
-            
-            // Check if it's an admin/staff token (has 'role' field)
-            if (decoded.role) {
-                const account = global.accounts.find(acc => String(acc.id) === String(decoded.id));
-                if (account) {
-                    req.user = account;
-                    console.log(`[AUTH_SUCCESS_ADMIN] User ${account.username} (${account.role}) authenticated. Path: ${req.path}`);
-                } else {
-                    console.log(`[AUTH_FAIL_ADMIN] Account not found for ID ${decoded.id}. Path: ${req.path}`);
-                }
-            } 
-            // Check if it's a customer token (has 'name' field)
-            else if (decoded.name) {
-                const customer = global.users.find(u => String(u.id) === String(decoded.id));
-                if (customer) {
-                    req.customer = customer;
-                    console.log(`[AUTH_SUCCESS_CUSTOMER] Customer ${customer.name} authenticated. Path: ${req.path}`);
-                } else {
-                    console.log(`[AUTH_FAIL_CUSTOMER] Customer not found for ID ${decoded.id}. Path: ${req.path}`);
-                }
-            }
-        } catch (err) {
-            console.log(`[AUTH_ERROR] Invalid token. Error: ${err.message}. Path: ${req.path}`);
-        }
-    }
-    
-    // Public paths that don't require authentication
+    // Public paths that don't require authentication (check BEFORE token verification)
     const publicPaths = [
         '/login',
         '/api/login',
@@ -177,12 +160,69 @@ app.use(async (req, res, next) => {
         '/api/news',
         '/api/wifi-name',
         '/api/packages',
-        '/api/speed-boost/packages'
+        '/api/speed-boost/packages',
+        '/api/monitoring/live-data',
+        '/api/monitoring/traffic-history',
+        '/api/monitoring/live',
+        '/api/monitoring/health',
+        '/api/monitoring/traffic',
+        '/api/monitoring/users',
+        '/api/monitoring/history'
     ];
     
-    // Check if current path is public
+    // Check if current path is public FIRST (before token verification)
     if (publicPaths.some(p => req.path.startsWith(p))) {
         return next();
+    }
+    
+    const token = req.cookies?.token || req.headers?.authorization?.replace('Bearer ', '');
+    
+    // Simple cache to track logged auth (reset every hour)
+    if (!global.authLogCache) {
+        global.authLogCache = new Set();
+        // Clear cache every hour
+        setInterval(() => {
+            global.authLogCache.clear();
+        }, 3600000);
+    }
+    
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, config.jwt);
+            
+            // Check if it's an admin/staff token (has 'role' field)
+            if (decoded.role) {
+                const account = global.accounts.find(acc => String(acc.id) === String(decoded.id));
+                if (account) {
+                    req.user = account;
+                    // Only log first time for this user
+                    const cacheKey = `admin_${account.id}`;
+                    if (!global.authLogCache.has(cacheKey)) {
+                        console.log(`[AUTH] Admin ${account.username} authenticated`);
+                        global.authLogCache.add(cacheKey);
+                    }
+                } else {
+                    console.log(`[AUTH_FAIL] Account not found for ID ${decoded.id}. Path: ${req.path}`);
+                }
+            } 
+            // Check if it's a customer token (has 'name' field)
+            else if (decoded.name) {
+                const customer = global.users.find(u => String(u.id) === String(decoded.id));
+                if (customer) {
+                    req.customer = customer;
+                    // Only log first time for this customer
+                    const cacheKey = `customer_${customer.id}`;
+                    if (!global.authLogCache.has(cacheKey)) {
+                        console.log(`[AUTH] Customer ${customer.name} authenticated`);
+                        global.authLogCache.add(cacheKey);
+                    }
+                } else {
+                    console.log(`[AUTH_FAIL] Customer not found for ID ${decoded.id}. Path: ${req.path}`);
+                }
+            }
+        } catch (err) {
+            console.log(`[AUTH_ERROR] Invalid token. Error: ${err.message}. Path: ${req.path}`);
+        }
     }
     
     // For authenticated paths, check if user is logged in
@@ -227,6 +267,9 @@ const packagesRouter = require('./routes/packages');
 const saldoRouter = require('./routes/saldo');
 const agentsRouter = require('./routes/agents');
 const pagesRouter = require('./routes/pages');
+const monitoringRouter = require('./routes/monitoring-dashboard');
+const monitoringDummyRouter = require('./routes/monitoring-dummy');
+const monitoringApiRouter = require('./routes/monitoring-api');
 
 // Mount routers - ORDER MATTERS!
 // More specific routes should come before general ones
@@ -237,6 +280,10 @@ app.use('/api/requests', requestsRouter);
 app.use('/api/users', usersRouter); // Mount this BEFORE general /api to avoid conflicts
 app.use('/api/saldo', saldoRouter); // Mount BEFORE general /api routes
 app.use('/api/agents', agentsRouter); // Agent management routes
+// Monitoring routes - use API router for PHP endpoints
+app.use('/api/monitoring', monitoringApiRouter); // PHP monitoring endpoints
+// app.use('/api/monitoring', monitoringRouter); // Node.js monitoring routes (disabled)
+// app.use('/api/monitoring', monitoringDummyRouter); // Dummy data (disabled)
 app.use('/', packagesRouter); // Packages management routes
 app.use('/api', accountsRouter); // Accounts management routes
 app.use('/api', apiRouter); // This has /users routes, so must come AFTER /api/users
@@ -369,21 +416,81 @@ async function startApp() {
 
         raf.ev.on('messages.upsert', async m => {
             if (!m.messages || !m.messages[0]?.message) return;
-            msgHandler(raf, m.messages[0], m);
+            
+            try {
+                // Update monitoring metrics
+                global.monitoring.incrementMetric('messages.received');
+                
+                // Process message
+                await msgHandler(raf, m.messages[0], m);
+                
+                // Track success
+                global.monitoring.incrementMetric('messages.sent');
+                
+            } catch (error) {
+                console.error('[MESSAGE_ERROR] Error processing message:', error);
+                
+                // Update error metrics
+                global.monitoring.incrementMetric('messages.failed');
+                global.monitoring.logError(error, { context: 'message_processing' });
+                
+                // Handle error recovery
+                const recovery = await global.errorRecovery.handleError(error, { 
+                    context: 'message_processing',
+                    retryable: true,
+                    identifier: `msg_${m.messages[0]?.key?.id || 'unknown'}`
+                });
+                
+                // Retry if suggested
+                if (recovery.retry && recovery.delay) {
+                    setTimeout(async () => {
+                        try {
+                            await msgHandler(raf, m.messages[0], m);
+                        } catch (retryError) {
+                            console.error('[MESSAGE_RETRY_ERROR] Retry failed:', retryError);
+                        }
+                    }, recovery.delay);
+                }
+            }
         });
 
         raf.ev.on('connection.update', async update => {
-            const { connection, lastDisconnect } = update
+            const { connection, lastDisconnect, qr } = update
+            
+            // Update monitoring status
+            global.monitoring.updateConnectionStatus('whatsapp', connection);
+            
             if (connection === 'open') {
                 global.conn = raf;
                 global.raf = raf;  // Make raf globally available
-                whatsappConnectionState = 'open';
-                console.log("WhatsApp connection is open.");
+                global.whatsappConnectionState = 'open';
+                console.log("✅ WhatsApp connection is open.");
                 io.emit('message', 'connected');
+                
+                // Send recovery notification if this was after disconnection
+                if (global.wasDisconnected) {
+                    await global.alertSystem.sendAlert('info', 'SERVICE_RECOVERED', {
+                        service: 'WhatsApp'
+                    });
+                    global.wasDisconnected = false;
+                }
+                
             } else if (connection === 'close') {
-                whatsappConnectionState = 'close';
-                console.log("WhatsApp connection is closed.");
+                global.whatsappConnectionState = 'close';
+                global.wasDisconnected = true;
+                console.log("❌ WhatsApp connection is closed.");
+                
                 let reason = lastDisconnect?.error?.output?.statusCode;
+                const error = lastDisconnect?.error || new Error('Connection closed');
+                error.code = reason || 'CONNECTION_CLOSED';
+                
+                // Log to monitoring
+                global.monitoring.logError(error, { 
+                    context: 'whatsapp_connection',
+                    reason: reason 
+                });
+                
+                // Check specific disconnect reasons
                 if (reason === DisconnectReason.connectionReplaced) {
                     console.log("Connection Replaced, Another New Session Opened, Please Close Current Session First");
                     raf.logout();
@@ -393,8 +500,32 @@ async function startApp() {
                     global.raf = null;  // Clear global.raf too
                     io.emit('message', 'disconnected');
                 } else {
-                    console.log("Attempting to reconnect...");
-                    connect();
+                    // Handle auto-reconnection through error recovery
+                    console.log("Connection lost, initiating recovery...");
+                    
+                    const recovery = await global.errorRecovery.handleError(error, {
+                        context: 'whatsapp_disconnection',
+                        retryable: true,
+                        identifier: 'whatsapp_connection'
+                    });
+                    
+                    if (recovery.recovered) {
+                        console.log("✅ Recovery successful");
+                    } else if (recovery.retry && recovery.delay) {
+                        console.log(`⏱️ Will retry connection in ${recovery.delay}ms`);
+                        setTimeout(() => {
+                            connect();
+                        }, recovery.delay);
+                    } else {
+                        console.log("❌ Max reconnection attempts reached");
+                        io.emit('message', 'disconnected');
+                        
+                        // Alert admin about persistent failure
+                        await global.alertSystem.sendAlert('critical', 'WHATSAPP_DISCONNECTED', {
+                            reason: reason,
+                            message: 'Failed to reconnect after multiple attempts'
+                        });
+                    }
                 }
             } else if (update.qr) {
                 console.log("Please scan QR code");
@@ -407,7 +538,8 @@ async function startApp() {
                     io.emit('qr', url);
                 });
             } else {
-                console.log(update);
+                // Debug: Uncomment to see all connection updates
+                // console.log(update);
             }
         });
 
@@ -415,8 +547,9 @@ async function startApp() {
         return raf;
     }
 
-    // Make connect function global so it can be called from API routes
+    // Make connect function global so it can be called from API routes and recovery
     global.connect = connect;
+    global.startBot = connect;  // Alias for error recovery system
 }
 
 startApp().catch(err => {

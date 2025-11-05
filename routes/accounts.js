@@ -24,6 +24,7 @@ router.get('/accounts', adminOnly, (req, res) => {
         const accountsWithoutPassword = global.accounts.map(account => ({
             id: account.id,
             username: account.username,
+            name: account.name || account.username, // ✅ ADD name field with fallback
             phone_number: account.phone_number || '',
             role: account.role
         }));

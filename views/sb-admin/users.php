@@ -482,7 +482,7 @@
                     <form class="form-inline"><button type="button" id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3"><i class="fa fa-bars"></i></button></form>
                     <ul class="navbar-nav ml-auto">
                         <li class="nav-item dropdown no-arrow">
-                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown"><span id="username-placeholder" class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span><img class="img-profile rounded-circle" src="/img/undraw_profile.svg"></a>
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown"><span id="username-placeholder" class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span><img class="img-profile rounded-circle" id="userPhoto" src="/static/img/undraw_profile.svg" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTgiIGZpbGw9IiNlMGUwZTAiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjE1IiByPSI1IiBmaWxsPSIjYWFhIi8+PHBhdGggZD0iTTIwIDI0YzUgMCA5IDMgOSA2djZINDF2LTZjMC0zIDQtNiA5LTZ6IiBmaWxsPSIjYWFhIi8+PC9zdmc+'"></a>
                             <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown"><a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal"><i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>Logout</a></div>
                         </li>
                     </ul>
@@ -865,6 +865,32 @@
         let createUserMarker = null;
         let editUserMarker = null;
         let currentUsername = "Admin";
+        
+        // Decode JWT to get current user info
+        (function() {
+            try {
+                const token = document.cookie.split('; ').find(row => row.startsWith('token='));
+                if (token) {
+                    const jwtToken = token.split('=')[1];
+                    const base64Url = jwtToken.split('.')[1];
+                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                    const payload = JSON.parse(atob(base64));
+                    
+                    // Update username display
+                    if (payload.name) {
+                        document.getElementById('username-placeholder').textContent = payload.name;
+                        currentUsername = payload.name;
+                    }
+                    
+                    // Update photo
+                    if (payload.photo) {
+                        document.getElementById('userPhoto').src = payload.photo;
+                    }
+                }
+            } catch(e) {
+                console.error('Error decoding JWT:', e);
+            }
+        })();
         let allOdcList = [];
         let allOdpList = [];
         let dataTableInstance = null;
@@ -875,6 +901,15 @@
         // Cache untuk metrik utama perangkat (Redaman, Suhu, Tipe Router)
         // Key: deviceId, Value: { redaman: '...', temperature: '...', modemType: '...', _loading: false }
         const deviceDataCache = new Map();
+        
+        // Debug mode & performance monitoring
+        const DEBUG = true;
+        let apiCallCount = 0;
+        
+        // Track intervals to prevent duplicates
+        let pppoeRefreshInterval = null;
+        let lastPppoeFetch = 0;
+        const MIN_FETCH_INTERVAL = 30000; // Minimum 30 seconds between fetches
 
         const LOADING_HTML = '<div class="spinner-border spinner-border-sm text-primary" role="status" style="width: 1rem; height: 1rem;"><span class="sr-only">Loading...</span></div>';
         const NOT_APPLICABLE = 'N/A';
@@ -885,10 +920,19 @@
         let pppoeLoadingInProgress = false;
         
         async function fetchActivePppoeUsers(showLoading = true) {
+            // Prevent too frequent calls
+            const now = Date.now();
+            if (now - lastPppoeFetch < MIN_FETCH_INTERVAL) {
+                console.log(`[fetchActivePppoeUsers] Too soon, last fetch was ${(now - lastPppoeFetch) / 1000}s ago`);
+                return;
+            }
+            
             if (pppoeLoadingInProgress) {
                 console.log("[fetchActivePppoeUsers] Already loading PPPoE data, skipping...");
                 return;
             }
+            
+            lastPppoeFetch = now;
             
             pppoeLoadingInProgress = true;
             pppoeDataLoading = true;
@@ -1380,8 +1424,8 @@
             $('#createUserForm')[0].reset();
             $('#create_number_container').empty();
             addNumberField('create_number_container', "", true);
-            populateOdcDropdowns('create_connected_odc', null);
-            populateOdpDropdowns('create_connected_odp', null, null);
+            populateOdcDropdowns('create_connected_odc');
+            populateOdpDropdowns('create_connected_odp', null);
             initializeUserMapWithGPS('createUserMap', 'create_latitude', 'create_longitude', null, null, false);
             
             // Clear bulk container on modal open
@@ -1511,6 +1555,15 @@
 
         // Function to fetch device metrics in batch (for Redaman, Suhu, Tipe Router)
         // Uptime dihapus dari batch karena sering tidak terdeteksi di batch, akan diambil via individual API.
+        // Debounce helper for device data fetching
+        let deviceFetchTimeout = null;
+        function debouncedFetchDeviceData(singleDeviceId = null) {
+            clearTimeout(deviceFetchTimeout);
+            deviceFetchTimeout = setTimeout(() => {
+                fetchAndCacheDeviceData(singleDeviceId);
+            }, 500);
+        }
+        
         async function fetchAndCacheDeviceData(singleDeviceIdToFetch = null) {
             console.log(`[fetchAndCacheDeviceData] Called. Single Device ID to fetch: ${singleDeviceIdToFetch}`);
 
@@ -1629,23 +1682,55 @@
         }
 
 
+        // Auto-refresh interval for connected devices modal
+        let connectedDevicesRefreshInterval = null;
+        let lastDeviceRefreshTime = 0;
+        const REFRESH_COOLDOWN = 30000; // 30 seconds cooldown between full refreshes
+        
         // NEW: Function to fetch and display connected devices for a single device in the new modal
         async function fetchAndDisplayConnectedDevicesModal(deviceId, customerName) {
+            // Clear any existing interval first
+            if (connectedDevicesRefreshInterval) {
+                clearInterval(connectedDevicesRefreshInterval);
+                connectedDevicesRefreshInterval = null;
+            }
+            
             const modalBody = $('#connectedDevicesModalBody');
             $('#connectedDevicesModalLabel').text(`Detail WiFi & Perangkat Terhubung untuk ${customerName}`);
-            modalBody.html('<p class="text-center my-3"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Memuat informasi...</p>');
             $('#connectedDevicesModal').modal('show');
 
             if (!deviceId) {
                 modalBody.html('<p class="text-muted text-center my-3">Device ID tidak tersedia untuk pelanggan ini.</p>');
                 return;
             }
-
+            
+            // Initial fetch with loading indicator
+            modalBody.html('<p class="text-center my-3"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Mengambil data realtime...</p>');
+            await fetchConnectedDevicesData(deviceId, customerName, false);
+            
+            // Setup auto-refresh every 5 seconds
+            connectedDevicesRefreshInterval = setInterval(async () => {
+                await fetchConnectedDevicesData(deviceId, customerName, true);
+            }, 5000);
+        }
+        
+        // Function to actually fetch and display data
+        // Make it global for manual refresh button
+        window.fetchConnectedDevicesData = async function(deviceId, customerName, isSilentUpdate = false) {
+            const modalBody = $('#connectedDevicesModalBody');
+            
             try {
-                // Call the existing API endpoint that performs refresh and gets full SSID info
-                // This is the /api/customer-wifi-info/:deviceId endpoint in index.js,
-                // which in turn calls getSSIDInfo in wifi.js.
-                const response = await fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`);
+                // Determine if we should do a full refresh or just fetch cached data
+                const now = Date.now();
+                const shouldRefresh = (now - lastDeviceRefreshTime) > REFRESH_COOLDOWN;
+                const skipRefresh = !shouldRefresh || isSilentUpdate;
+                
+                if (shouldRefresh && !isSilentUpdate) {
+                    lastDeviceRefreshTime = now;
+                }
+                
+                // Call the API with skipRefresh parameter
+                const response = await fetch(`/api/customer-wifi-info/${deviceId}?skipRefresh=${skipRefresh}&_=${new Date().getTime()}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 200) {
@@ -1678,7 +1763,7 @@
                                                 <ul class="list-group list-group-flush device-list small">`;
                                 s.associatedDevices.forEach(dev => {
                                     if (!dev || typeof dev !== 'object') return; // Skip invalid device entry
-                                    contentHtml += `<li class="list-group-item py-1 px-0">
+                                    contentHtml += `<li class="list-group-item py-1">
                                                         ${dev.hostName || 'Tanpa Nama'} <br>
                                                         <small class="text-muted" style="font-size:0.9em;">
                                                             (MAC: ${dev.mac || '-'}, IP: ${dev.ip || '-'}, Sinyal: ${dev.signal ? dev.signal + ' dBm' : '-'})
@@ -1695,18 +1780,49 @@
                         contentHtml = '<p class="text-muted text-center my-3">Tidak ada SSID aktif ditemukan untuk perangkat ini.</p>';
                     }
 
-                    // Prepend total count summary to the top of all content
-                    let overallSummary = `<h5 class="mb-3">Total Perangkat Terhubung: <span class="badge badge-primary">${totalDevicesCount}</span></h5><hr>`;
+                    // Add refresh status and last update time
+                    const updateTime = new Date().toLocaleTimeString('id-ID');
+                    const refreshStatus = result.refreshed ? 
+                        '<span class="badge badge-success">Data Refreshed</span>' : 
+                        '<span class="badge badge-info">Cached Data</span>';
+                    
+                    // Prepend total count summary and refresh info to the top of all content
+                    let overallSummary = `
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">Total Perangkat: <span class="badge badge-primary">${totalDevicesCount}</span></h5>
+                            <div class="text-right">
+                                <small class="text-muted">Last Update: ${updateTime} ${refreshStatus}</small>
+                                <button class="btn btn-sm btn-link p-0 ml-2" onclick="fetchConnectedDevicesData('${deviceId}', '${customerName.replace(/'/g, "\\'")}')"
+                                        title="Refresh Manual">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="alert alert-info py-1 px-2 mb-2">
+                            <small><i class="fas fa-info-circle"></i> Data auto-refresh setiap 5 detik. Full refresh dari device setiap 30 detik.</small>
+                        </div>
+                        <hr>`;
                     modalBody.html(overallSummary + contentHtml);
 
                 } else {
                     modalBody.html('<p class="text-danger text-center my-3">Format data API WiFi tidak sesuai atau data kosong.</p>');
                 }
             } catch (error) {
-                modalBody.html(`<p class="text-danger text-center my-3"><strong>Error memuat info perangkat terhubung:</strong> ${error.message}</p>`);
+                if (!isSilentUpdate) {
+                    modalBody.html(`<p class="text-danger text-center my-3"><strong>Error memuat info perangkat terhubung:</strong> ${error.message}</p>`);
+                }
                 console.error(`Error fetching connected devices for modal ${deviceId}:`, error);
             }
         }
+        
+        // Clear interval when modal is closed
+        $('#connectedDevicesModal').on('hidden.bs.modal', function () {
+            if (connectedDevicesRefreshInterval) {
+                clearInterval(connectedDevicesRefreshInterval);
+                connectedDevicesRefreshInterval = null;
+                console.log('[CONNECTED_DEVICES] Auto-refresh stopped - modal closed');
+            }
+        });
 
 
         // Function to refresh data based on context
@@ -1736,7 +1852,7 @@
                     
                     // Only fetch GenieACS data if a filter is actually active
                     if (isFilterActive) {
-                        fetchAndCacheDeviceData(null); 
+                        debouncedFetchDeviceData(null); 
                     } else {
                         // If no filter is active after refresh (e.g. forceNoFilterCheck was true, but still no filter)
                         // Ensure columns are hidden and cache cleared.
@@ -1773,7 +1889,7 @@
             // Data will load independently and update UI when ready
             setTimeout(() => {
                 fetchActivePppoeUsers(false); // false = don't show loading on initial load
-            }, 100);
+            }, 2000); // Delay 2 seconds to let page load first
 
             fetch('/api/packages').then(res => res.json().then(({ data }) => {
                 const createSubscriptionSelect = document.getElementById('create_subscription');
@@ -1993,7 +2109,7 @@
                                     <button class='btn btn-primary btn-sm btn-view-connected-devices' data-device-id='${deviceIdForActions}' data-customer-name='${customerName}' title='Lihat Perangkat Terhubung'>
                                         <i class='fas fa-users'></i>
                                     </button>
-                                    <a class='btn btn-warning btn-sm' href='#' onclick="event.preventDefault(); if(confirm('Anda yakin ingin reboot device ini (${deviceIdForActions})?')) { fetch('/api/reboot/${deviceIdForActions}', { method: 'GET' }).then(res => { if (!res.ok) { return res.json().then(errData => { throw new Error(errData.message || 'Server error: ' + res.status); }).catch(() => { throw new Error('Server error: ' + res.status + ', respons tidak valid.'); }); } return res.json(); }).then(data => { displayGlobalUserMessage(data.message || 'Perintah reboot dikirim.', data.status === 200 ? 'success' : 'warning'); deviceDataCache.delete('${deviceIdForActions}'); fetchAndCacheDeviceData('${deviceIdForActions}'); }).catch(err => { displayGlobalUserMessage('Gagal mengirim perintah reboot: ' + err.message, 'danger'); }); } return false;" title='Reboot Device (${deviceIdForActions})'><i class='fas fa-power-off'></i></a>
+                                    <a class='btn btn-warning btn-sm btn-reboot-device' href='#' data-device='${deviceIdForActions}' title='Reboot Device (${deviceIdForActions})'><i class='fas fa-power-off'></i></a>
                                 `;
                             } else {
                                 actionButtonsHtml += `<span class="text-muted small ml-1">No Device ID</span>`;
@@ -2041,7 +2157,44 @@
             $('#refreshDataBtn').prop('disabled', !isFilterActive);
         }
 
+        // Add cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            // Clear all intervals
+            if (pppoeRefreshInterval) clearInterval(pppoeRefreshInterval);
+            if (deviceFetchTimeout) clearTimeout(deviceFetchTimeout);
+            
+            // Clear caches
+            deviceDataCache.clear();
+            activePppoeUsersMap.clear();
+            
+            // Destroy DataTable if exists
+            if (dataTableInstance) {
+                dataTableInstance.destroy();
+            }
+        });
+        
         $(document).ready(function() {
+            // Add performance monitoring if DEBUG
+            if (DEBUG) {
+                const originalFetch = window.fetch;
+                window.fetch = function() {
+                    apiCallCount++;
+                    console.log(`[API] Call #${apiCallCount} to:`, arguments[0]);
+                    return originalFetch.apply(this, arguments);
+                };
+                
+                // Monitor memory usage
+                setInterval(() => {
+                    if (performance.memory) {
+                        const used = Math.round(performance.memory.usedJSHeapSize / 1048576);
+                        const total = Math.round(performance.memory.totalJSHeapSize / 1048576);
+                        if (used > 100) {
+                            console.warn(`[MEMORY WARNING] High memory usage: ${used}MB / ${total}MB`);
+                        }
+                    }
+                }, 10000);
+            }
+            
             initializePage();
 
             // Refresh PPPoE button handler
@@ -2157,6 +2310,36 @@
                 $('#create_number_container').empty();
                 addNumberField('create_number_container', "", true);
             });
+            
+            // Event handler for reboot device button
+            $(document).on('click', '.btn-reboot-device', function(e) {
+                e.preventDefault();
+                const deviceId = $(this).data('device');
+                
+                if (!confirm(`Anda yakin ingin reboot device ini (${deviceId})?`)) {
+                    return;
+                }
+                
+                fetch(`/api/reboot/${deviceId}`, { method: 'GET' })
+                    .then(res => {
+                        if (!res.ok) {
+                            return res.json().then(errData => {
+                                throw new Error(errData.message || 'Server error: ' + res.status);
+                            }).catch(() => {
+                                throw new Error('Server error: ' + res.status + ', respons tidak valid.');
+                            });
+                        }
+                        return res.json();
+                    })
+                    .then(data => {
+                        displayGlobalUserMessage(data.message || 'Perintah reboot dikirim.', data.status === 200 ? 'success' : 'warning');
+                        deviceDataCache.delete(deviceId);
+                        debouncedFetchDeviceData(deviceId);
+                    })
+                    .catch(err => {
+                        displayGlobalUserMessage('Gagal mengirim perintah reboot: ' + err.message, 'danger');
+                    });
+            });
 
             // Filter dropdowns only update other dropdowns, not trigger filtering directly
             $('#odcFilterDropdown').on('change', function() {
@@ -2181,7 +2364,7 @@
                     // Re-draw DataTable first to apply filters, then fetch GenieACS data for the visible rows
                     if (dataTableInstance) {
                         dataTableInstance.draw();
-                        fetchAndCacheDeviceData(null); // Fetch metrics for visible rows
+                        debouncedFetchDeviceData(null); // Fetch metrics for visible rows
                     }
                 } else {
                     // If no filter is selected when "Apply Filter" is clicked, clear all filters
@@ -2297,7 +2480,7 @@
             const newFieldHtml = `
                 <div class="d-flex todo_field phone-number-item ${id}" style="gap: 0.25rem; margin-top: ${fieldCount > 0 ? '0.25rem' : '0'};">
                     <input type="number" class="form-control form-control-sm" style="width: 100%;" name="phone_number_${id}" value="${value}" placeholder="Contoh: 6281234567890" />
-                    <button class="btn btn-danger btn-sm py-0 px-1" type="button" onclick="deleteField('${containerId}', '${id}')" ${disableDelete ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                    <button class="btn btn-danger btn-sm py-0 px-1 btn-delete-phone" type="button" data-container="${containerId}" data-field="${id}" ${disableDelete ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </div>`;
             container.insertAdjacentHTML("beforeend", newFieldHtml);
 
@@ -2326,6 +2509,14 @@
                 if (lastFieldDeleteButton) lastFieldDeleteButton.disabled = true;
             }
         }
+        
+        // Event delegation for phone delete buttons
+        $(document).on('click', '.btn-delete-phone', function(e) {
+            e.preventDefault();
+            const containerId = $(this).data('container');
+            const fieldId = $(this).data('field');
+            deleteField(containerId, fieldId);
+        });
 
         $('#createUserForm, #editUserForm').on('submit', async function(event) { // Make the function async
             event.preventDefault();
@@ -2493,6 +2684,47 @@
         }
 
         // Removed Device ID input 'on input' debounce listeners as they are replaced by explicit buttons.
+        
+        // Fix for device ID update in modals
+        $('#load_create_ssid_btn, #load_edit_ssid_btn').on('click', function(e) {
+            e.preventDefault();
+            const isCreate = this.id === 'load_create_ssid_btn';
+            const deviceIdInput = isCreate ? $('#create_device_id') : $('#edit_device_id_modal');
+            const deviceId = deviceIdInput.val();
+            
+            if (!deviceId) {
+                displayGlobalUserMessage('Masukkan Device ID terlebih dahulu', 'warning', true);
+                return;
+            }
+            
+            // Visual feedback
+            const btn = $(this);
+            const originalText = btn.text();
+            btn.prop('disabled', true).text('Loading...');
+            
+            // Fetch SSID info
+            fetch('/api/ssid/' + deviceId)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to load SSID: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    if (result.data && result.data.ssid_name) {
+                        displayGlobalUserMessage(`SSID loaded: ${result.data.ssid_name}`, 'success');
+                    } else {
+                        displayGlobalUserMessage('SSID loaded successfully', 'success');
+                    }
+                })
+                .catch(error => {
+                    console.error('Failed to load SSID:', error);
+                    displayGlobalUserMessage('Gagal memuat SSID: ' + error.message, 'danger', true);
+                })
+                .finally(() => {
+                    btn.prop('disabled', false).text(originalText);
+                });
+        });
 
         $(document).on('click', '.btn-update-ssid', function() {
             const deviceId = $(this).data('id');

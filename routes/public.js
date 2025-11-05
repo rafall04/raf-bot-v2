@@ -70,6 +70,8 @@ router.post('/api/login', asyncHandler(async (req, res) => {
     const payload = {
         id: account.id,
         username: account.username,
+        name: account.name || account.username, // ✅ ADD name
+        photo: account.photo || null, // ✅ ADD photo
         role: account.role
     };
 
@@ -91,6 +93,8 @@ router.post('/api/login', asyncHandler(async (req, res) => {
             user: {
                 id: account.id,
                 username: account.username,
+                name: account.name || account.username, // ✅ ADD name
+                photo: account.photo || null, // ✅ ADD photo
                 role: account.role
             }
         });

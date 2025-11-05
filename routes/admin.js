@@ -864,28 +864,65 @@ router.get('/api/status/mikrotik', ensureAuthenticatedStaff, async (req, res) =>
 
 router.get('/api/customer-wifi-info/:deviceId', ensureAuthenticatedStaff, async (req, res) => {
     const { deviceId } = req.params;
+    const skipRefresh = req.query.skipRefresh === 'true'; // Allow optional skip for repeated requests
+    
     if (!deviceId) {
         return res.status(400).json({ status: 400, message: "Device ID tidak boleh kosong." });
     }
 
     try {
-        // For web UI, ALWAYS skip refresh for fast loading
-        // Refresh should only be done when explicitly needed (e.g., checking connected devices)
-        console.log(`[WIFI_INFO_API] Loading SSID info for web UI - device: ${deviceId}`);
+        console.log(`[WIFI_INFO_API] Loading SSID info for web UI - device: ${deviceId}, skipRefresh: ${skipRefresh}`);
         
-        // Get SSID info without refresh for fast loading
-        const wifiInfo = await getSSIDInfo(deviceId, true); // Always skip refresh
+        // For "Lihat Perangkat Terhubung", we need REALTIME data like CEK_WIFI command
+        if (!skipRefresh) {
+            console.log(`[WIFI_INFO_API] Refreshing device ${deviceId} for realtime data...`);
+            
+            // Refresh device function (similar to CEK_WIFI handler)
+            const refreshDevice = async (objectName) => {
+                try {
+                    const axios = require('axios');
+                    const response = await axios.post(
+                        `${global.config.genieacsBaseUrl}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`,
+                        {
+                            name: "refreshObject",
+                            objectName: objectName
+                        },
+                        { timeout: 20000 }
+                    );
+                    console.log(`[WIFI_INFO_API] Refresh ${objectName} status: ${response.status}`);
+                    return response.status >= 200 && response.status < 300;
+                } catch (err) {
+                    console.error(`[WIFI_INFO_API] Error refreshing ${objectName}:`, err.message);
+                    return false;
+                }
+            };
 
-        // Step 4: Return the formatted response that the frontend expects
+            // Refresh both LAN and Virtual parameters like CEK_WIFI does
+            const refreshLAN = refreshDevice("InternetGatewayDevice.LANDevice.1");
+            const refreshVirtual = refreshDevice("VirtualParameters");
+            
+            // Wait for refreshes to complete
+            await Promise.all([refreshLAN, refreshVirtual]);
+            
+            // Wait 3 seconds for data to update (shorter than CEK_WIFI's 10s for better UX)
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            console.log(`[WIFI_INFO_API] Refresh completed, fetching updated data...`);
+        }
+        
+        // Get SSID info - no skip since we already refreshed if needed
+        const wifiInfo = await getSSIDInfo(deviceId, skipRefresh);
+
+        // Return the formatted response
         return res.status(200).json({
             status: 200,
             message: "Informasi WiFi berhasil diambil.",
-            data: wifiInfo
+            data: wifiInfo,
+            refreshed: !skipRefresh // Let frontend know if data was refreshed
         });
 
     } catch (error) {
         console.error(`[WIFI_INFO_API_ERROR] Gagal mengambil info WiFi untuk ${deviceId}:`, error.message);
-        // Determine a reasonable status code, defaulting to 500
         const statusCode = error.response?.status || 500;
         const errorMessage = error.message || "Terjadi kesalahan internal server.";
         return res.status(statusCode).json({ status: statusCode, message: errorMessage });

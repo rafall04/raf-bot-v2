@@ -1,3 +1,45 @@
+<?php
+// Start session
+session_start();
+
+// Set default monitoring to disabled 
+// User can enable it via environment variable or config
+$monitoringEnabled = false;
+
+// Check multiple ways to enable monitoring:
+// 1. Check environment variable
+if (getenv('MONITORING_ENABLED') === 'true') {
+    $monitoringEnabled = true;
+}
+
+// 2. Check if config file exists and is readable
+$configPath = __DIR__ . '/../../config.json';
+if (!$monitoringEnabled && file_exists($configPath) && is_readable($configPath)) {
+    $configContent = @file_get_contents($configPath);
+    if ($configContent) {
+        $config = @json_decode($configContent, true);
+        if ($config && isset($config['monitoring']['enabled'])) {
+            $monitoringEnabled = $config['monitoring']['enabled'];
+        }
+    }
+}
+
+// 3. For now, FORCE ENABLE for testing (remove this line in production)
+$monitoringEnabled = true; // TEMPORARY - REMOVE AFTER TESTING
+
+// Load monitoring API wrapper if enabled
+if ($monitoringEnabled) {
+    $wrapperPath = __DIR__ . '/../api-monitoring-wrapper.php';
+    if (file_exists($wrapperPath)) {
+        require_once $wrapperPath;
+        $monitoringApi = new MonitoringAPIWrapper($_SESSION['token'] ?? '');
+        $systemHealth = $monitoringApi->getSystemHealth();
+    } else {
+        // Wrapper doesn't exist, but we still enable monitoring with defaults
+        $systemHealth = ['error' => false];
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -14,6 +56,7 @@
     <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="/css/sb-admin-2.min.css" rel="stylesheet">
+    <link href="/static/css/monitoring.css" rel="stylesheet">
 
     <style>
         :root {
@@ -437,6 +480,21 @@
                         </button>
                     </div>
                 </div>
+
+                <?php if ($monitoringEnabled): ?>
+                    <div id="monitoring-section">
+                        <?php 
+                        $widgetPath = __DIR__ . '/../monitoring-widget.php';
+                        if (file_exists($widgetPath)) {
+                            include $widgetPath;
+                        } else {
+                            echo '<!-- Monitoring widget not found at: ' . $widgetPath . ' -->';
+                        }
+                        ?>
+                    </div>
+                <?php else: ?>
+                    <!-- Monitoring is disabled -->
+                <?php endif; ?>
 
                 <h4 class="dashboard-section-title">System Status</h4>
                 <div class="row match-height">
@@ -1032,5 +1090,13 @@
         fetchDashboardData();
 
     </script>
+    
+    <?php if ($monitoringEnabled): ?>
+    <!-- Monitoring Dashboard Scripts -->
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/monitoring-controller.js"></script>
+    <?php endif; ?>
+    
     </body>
 </html>

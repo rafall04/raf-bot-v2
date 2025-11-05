@@ -4,7 +4,8 @@
     "password": "$2b$10$xuUU/tJ7Zb/7Vnq5PnyhXOO8JJ5MRNj2Bzv.oHdu8YeM3QINp8RmW",
     "phone_number": "",
     "role": "admin",
-    "id": 2
+    "id": 2,
+    "name": "RAF"
   },
   {
     "username": "teknisi",
