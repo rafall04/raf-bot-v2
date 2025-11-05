@@ -12,6 +12,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 5. routes/README.md
 6. BUGFIX_BROADCAST_AUTH.md (Critical auth issue)
 7. MASS_FIX_FETCH_CREDENTIALS.md (Pending fixes)
+8. BUGFIX_INDEX_SYNTAX_ERROR.md (JavaScript syntax fix)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -759,6 +760,7 @@ node test/stress-test-[component].js
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Broadcast/API 401 Unauthorized | Fetch API not sending cookies | Add `credentials: 'include'` to fetch calls. See BUGFIX_BROADCAST_AUTH.md |
+| Syntax error in index.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_INDEX_SYNTAX_ERROR.md |
 | **Cannot find module** | Wrong import path | Check if NPM package or local file |
 | **convertRupiah error** | Wrong import | Use `require('rupiah-format')` |
 | **User not detected** | undefined variables | Add `const users = global.users` |
