@@ -2328,7 +2328,7 @@
                     return;
                 }
                 
-                fetch(`/api/reboot/${deviceId}`, { method: 'GET' })
+                fetch(`/api/reboot/${deviceId}`, { method: 'GET', credentials: 'include' })
                     .then(res => {
                         if (!res.ok) {
                             return res.json().then(errData => {
@@ -2597,6 +2597,7 @@
                 const response = await fetch(url, {
                     method: method,
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'include',
                     body: JSON.stringify(data)
                 });
                 const contentType = response.headers.get("content-type");
@@ -2837,6 +2838,7 @@
                     const response = await fetch(url, {
                         method: method,
                         headers: {'Content-Type': 'application/json'},
+                        credentials: 'include',
                         body: JSON.stringify(data)
                     });
 
