@@ -177,6 +177,11 @@
                     </select>
                     <small class="form-text text-muted">Jika Aktif, perubahan profil pelanggan di halaman user akan otomatis disinkronkan ke MikroTik. Jika Nonaktif, perubahan hanya tersimpan di sistem tanpa mempengaruhi data di MikroTik.</small>
                   </div>
+                  <div class="mb-3">
+                    <label for="whatsapp_message_delay" class="form-label">Delay Pesan WhatsApp (ms)</label>
+                    <input type="number" class="form-control" id="whatsapp_message_delay" name="whatsapp_message_delay" min="500" max="5000" step="100" />
+                    <small class="form-text text-muted">Jeda waktu (dalam milidetik) antara pengiriman pesan WhatsApp oleh cron jobs. Default: 2000ms (2 detik). Minimum: 500ms. Digunakan untuk mencegah spam dan rate limiting.</small>
+                  </div>
               </div>
             </div>
 
@@ -417,6 +422,7 @@
                 setValue('ipaymuProduction', json.data.ipaymuProduction ? "yes" : "no");
                 setValue('custom_wifi_modification', json.data.custom_wifi_modification ? "true" : "false");
                 setValue('sync_to_mikrotik', json.data.sync_to_mikrotik ? "true" : "false");
+                setValue('whatsapp_message_delay', json.data.whatsapp_message_delay, '2000');
                 
                 // Load bank accounts
                 if (json.data.bankAccounts) {
