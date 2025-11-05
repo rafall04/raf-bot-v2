@@ -16,6 +16,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 9. BUGFIX_BROADCAST_PLACEHOLDER.md (Placeholder not working)
 10. ANALYSIS_CRON_JOBS.md (Cron jobs complete audit)
 11. FEATURE_CONFIGURABLE_DELAY.md (Configurable WhatsApp delay)
+12. BUGFIX_CONFIG_SYNTAX_ERROR.md (Config page syntax fix)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -764,6 +765,7 @@ node test/stress-test-[component].js
 |-------|-------|----------|
 | Broadcast/API 401 Unauthorized | Fetch API not sending cookies | Add `credentials: 'include'` to fetch calls. See BUGFIX_BROADCAST_AUTH.md |
 | Syntax error in index.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_INDEX_SYNTAX_ERROR.md |
+| Syntax error in config.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_CONFIG_SYNTAX_ERROR.md |
 | Broadcast placeholder not working | Multi-line regex pattern | Fix regex to single-line with proper escaping. See BUGFIX_BROADCAST_PLACEHOLDER.md |
 | **Cannot find module** | Wrong import path | Check if NPM package or local file |
 | **convertRupiah error** | Wrong import | Use `require('rupiah-format')` |
