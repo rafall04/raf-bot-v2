@@ -19,6 +19,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 12. BUGFIX_CONFIG_SYNTAX_ERROR.md (Config page syntax fix)
 13. BUGFIX_TEMPLATES_SYNTAX_ERROR.md (Templates page syntax fix)
 14. BUGFIX_CRON_REMINDER_NOT_SENDING.md (Cron reminder day check)
+15. BUGFIX_MASS_SYNTAX_ERRORS.md (5 admin pages syntax fix)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -769,6 +770,7 @@ node test/stress-test-[component].js
 | Syntax error in index.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_INDEX_SYNTAX_ERROR.md |
 | Syntax error in config.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_CONFIG_SYNTAX_ERROR.md |
 | Syntax error in templates.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_TEMPLATES_SYNTAX_ERROR.md |
+| Syntax errors in admin pages | Duplicate credentials in callbacks | Auto-fix script error (5 files). See BUGFIX_MASS_SYNTAX_ERRORS.md |
 | Broadcast placeholder not working | Multi-line regex pattern | Fix regex to single-line with proper escaping. See BUGFIX_BROADCAST_PLACEHOLDER.md |
 | **Cannot find module** | Wrong import path | Check if NPM package or local file |
 | **convertRupiah error** | Wrong import | Use `require('rupiah-format')` |
