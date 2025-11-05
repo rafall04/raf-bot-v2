@@ -167,7 +167,8 @@ app.use(async (req, res, next) => {
         '/api/monitoring/health',
         '/api/monitoring/traffic',
         '/api/monitoring/users',
-        '/api/monitoring/history'
+        '/api/monitoring/history',
+        '/.well-known/' // Chrome DevTools & browser metadata
     ];
     
     // Check if current path is public FIRST (before token verification)

@@ -106,9 +106,8 @@ async function broadcast(text, users = global.users) {
         };
 
         for (const key in placeholders) {
-            const regex = new RegExp(`
-{${key}
-}`, 'g');
+            // Match ${key} pattern (e.g., ${nama}, ${paket})
+            const regex = new RegExp(`\\$\\{${key}\\}`, 'g');
             message = message.replace(regex, placeholders[key]);
         }
         return message;
