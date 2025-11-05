@@ -14,6 +14,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 7. MASS_FIX_FETCH_CREDENTIALS.md (Pending fixes)
 8. BUGFIX_INDEX_SYNTAX_ERROR.md (JavaScript syntax fix)
 9. BUGFIX_BROADCAST_PLACEHOLDER.md (Placeholder not working)
+10. ANALYSIS_CRON_JOBS.md (Cron jobs complete audit)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
