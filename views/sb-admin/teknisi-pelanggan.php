@@ -473,7 +473,9 @@
 
         async function fetchNetworkAssets() {
             try {
-                const response = await fetch('/api/map/network-assets?_=' + new Date().getTime());
+                const response = await fetch('/api/map/network-assets?_=' + new Date().getTime(), {
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Gagal mengambil data aset jaringan: ${response.status} ${response.statusText}. Server: ${errorText.substring(0,100)}`);
@@ -1479,7 +1481,7 @@
                                     <button class='btn btn-primary btn-sm btn-view-connected-devices' data-device-id='${deviceIdForActions}' data-customer-name='${customerName}' title='Lihat Perangkat Terhubung'>
                                         <i class='fas fa-users'></i>
                                     </button>
-                                    <a class='btn btn-warning btn-sm' href='#' onclick="event.preventDefault(); if(confirm('Anda yakin ingin reboot device ini (${deviceIdForActions})?')) { fetch('/api/reboot/${deviceIdForActions}', { method: 'GET' }).then(res => { if (!res.ok) { return res.json().then(errData => { throw new Error(errData.message || 'Server error: ' + res.status); }).catch(() => { throw new Error('Server error: ' + res.status + ', respons tidak valid.'); }); } return res.json(); }).then(data => { displayGlobalUserMessage(data.message || 'Perintah reboot dikirim.', data.status === 200 ? 'success' : 'warning'); deviceDataCache.delete('${deviceIdForActions}'); fetchAndCacheDeviceData('${deviceIdForActions}'); }).catch(err => { displayGlobalUserMessage('Gagal mengirim perintah reboot: ' + err.message, 'danger'); }); } return false;" title='Reboot Device (${deviceIdForActions})'><i class='fas fa-power-off'></i></a>
+                                    <a class='btn btn-warning btn-sm' href='#' onclick="event.preventDefault(); if(confirm('Anda yakin ingin reboot device ini (${deviceIdForActions})?')) { fetch('/api/reboot/${deviceIdForActions}', { method: 'GET', credentials: 'include' }).then(res => { if (!res.ok) { return res.json().then(errData => { throw new Error(errData.message || 'Server error: ' + res.status); }).catch(() => { throw new Error('Server error: ' + res.status + ', respons tidak valid.'); }); } return res.json(); }).then(data => { displayGlobalUserMessage(data.message || 'Perintah reboot dikirim.', data.status === 200 ? 'success' : 'warning'); deviceDataCache.delete('${deviceIdForActions}'); fetchAndCacheDeviceData('${deviceIdForActions}'); }).catch(err => { displayGlobalUserMessage('Gagal mengirim perintah reboot: ' + err.message, 'danger'); }); } return false;" title='Reboot Device (${deviceIdForActions})'><i class='fas fa-power-off'></i></a>
                                 `;
                             } else {
                                 actionButtonsHtml += `<span class="text-muted small ml-1">No Device ID</span>`;
@@ -1786,7 +1788,9 @@
             bulkContainer.innerHTML = '<div class="loading-spinner-container"><i class="fas fa-spinner fa-spin"></i> Memuat SSID...</div>';
 
             try {
-                const res = await fetch("/api/ssid/" + deviceId);
+                const res = await fetch("/api/ssid/" + deviceId, {
+                    credentials: 'include'
+                });
                 if (!res.ok) {
                     const errorJson = await res.json().catch(() => ({ message: res.statusText }));
                     throw new Error(errorJson.message || `Gagal mengambil data SSID: ${res.status}`);
@@ -1836,20 +1840,28 @@
             passwordContainer.empty();
             transmitPowerSelect.val('');
 
-            fetch('/api/ssid/' + deviceId)
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(errData => {throw new Error(errData.message || `Gagal mengambil data SSID: ${response.status}`);}).catch(()=> {throw new Error(`Gagal mengambil data SSID: ${response.status}, respons tidak valid.`);});
+            fetch('/api/ssid/' + deviceId, {
+                credentials: 'include'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => {throw new Error(errData.message || `Gagal mengambil data SSID: ${response.status}`);}).catch(()=> {throw new Error(`Gagal mengambil data SSID: ${response.status}, respons tidak valid.`);});
+                }
+                return response.json();
+            })
+            .then(result => {
+                ssidContainer.empty();
+                if (result.data && Array.isArray(result.data.ssid)) {
+                    if (result.data.ssid.length === 0) {
+                        ssidContainer.html('<p class="text-muted">Tidak ada SSID yang terkonfigurasi atau ditemukan untuk perangkat ini.</p>');
                     }
-                    return response.json();
-                  credentials: 'include', // ✅ Fixed by script
-                  credentials: 'include', // ✅ Fixed by script
-                })
-                .then(result => {
-                    ssidContainer.empty();
-                    if (result.data && Array.isArray(result.data.ssid)) {
-                        if (result.data.ssid.length === 0) {
-                             ssidContainer.html('<p class="text-muted">Tidak ada SSID yang terkonfigurasi atau ditemukan untuk perangkat ini.</p>');
+                    result.data.ssid.forEach(s => {
+                        const ssidField = `
+                            <div class="form-group">
+                                <label for="modal_ssid_${s.id}" class="form-label">Nama SSID Baru (ID: ${s.id})</label>
+                                <input type="text" class="form-control form-control-sm" id="modal_ssid_${s.id}" name="ssid_${s.id}" value="${s.name || ''}">
+                            </div>`;
+                        ssidContainer.append(ssidField);
                         }
                         result.data.ssid.forEach(s => {
                             const ssidField = `
