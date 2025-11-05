@@ -2333,7 +2333,6 @@
                         if (!res.ok) {
                             return res.json().then(errData => {
                                 throw new Error(errData.message || 'Server error: ' + res.status);
-                              credentials: 'include', // ✅ Fixed by script
                             }).catch(() => {
                                 throw new Error('Server error: ' + res.status + ', respons tidak valid.');
                             });
@@ -3017,8 +3016,6 @@
                     } else {
                         displayGlobalUserMessage(result.data.message || 'Gagal menghapus pengguna.', 'danger', true);
                     }
-                  credentials: 'include', // ✅ Fixed by script
-                  credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(error => {
                     displayGlobalUserMessage('Terjadi kesalahan: ' + error.message, 'danger', true);

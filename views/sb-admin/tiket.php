@@ -209,7 +209,6 @@
                 document.getElementById('username-placeholder').textContent = data.data.username;
                 currentUser = data.data;
             }
-          credentials: 'include', // ✅ Fixed by script
         });
 
         function displayGlobalAdminMessage(message, type = 'info') {

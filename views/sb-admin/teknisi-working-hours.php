@@ -550,8 +550,6 @@
                                 text: 'Halaman ini khusus untuk administrator.',
                                 timer: 2000,
                                 showConfirmButton: false
-                              credentials: 'include', // ✅ Fixed by script
-                              credentials: 'include', // ✅ Fixed by script
                             });
                             setTimeout(() => window.location.href = '/', 2000);
                             return;

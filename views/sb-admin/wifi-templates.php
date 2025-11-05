@@ -522,7 +522,6 @@
                     if (data.status === 200 && data.data && data.data.username) {
                         $('#username-placeholder').text(data.data.username);
                     }
-                  credentials: 'include', // ✅ Fixed by script
                 }).catch(err => console.warn("Could not fetch user data: ", err));
 
             // Toast notification function
@@ -588,7 +587,6 @@
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
                         return response.json();
-                      credentials: 'include', // ✅ Fixed by script
                     })
                     .then(result => {
                         if (result.status !== 200) {

@@ -176,7 +176,6 @@
                     document.getElementById('loggedInTechnicianInfo').textContent = data.data.username;
                     currentUser = data.data;
                 }
-              credentials: 'include', // ✅ Fixed by script
             })
             .catch(error => console.error('Error fetching user info:', error));
 
