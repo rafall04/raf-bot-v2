@@ -18,6 +18,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 11. FEATURE_CONFIGURABLE_DELAY.md (Configurable WhatsApp delay)
 12. BUGFIX_CONFIG_SYNTAX_ERROR.md (Config page syntax fix)
 13. BUGFIX_TEMPLATES_SYNTAX_ERROR.md (Templates page syntax fix)
+14. BUGFIX_CRON_REMINDER_NOT_SENDING.md (Cron reminder day check)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -778,6 +779,7 @@ node test/stress-test-[component].js
 | **Phone notifications missing** | Single phone only | Implement multi-phone pattern |
 | **WiFi name as command** | State interception | Check WiFi states before commands |
 | **Teknisi multiword commands** | Wrong split index | Use matchedKeywordLength |
+| **Cron reminder not sending** | Day check mismatch | Check logs for day mismatch, use test mode. See BUGFIX_CRON_REMINDER_NOT_SENDING.md |
 | **Photos lost on concurrent upload** | Race condition | Use queue in teknisi-photo-handler-v3 |
 
 ### Error Recovery Patterns:
