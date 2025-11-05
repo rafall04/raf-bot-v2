@@ -563,8 +563,6 @@
               document.getElementById('mikrotikPort').value = device.port || '8728'; // Set port with fallback
               mikrotikDeviceModal.find('.modal-title').text('Edit Perangkat MikroTik');
               mikrotikDeviceModal.modal('show');
-              credentials: 'include', // ✅ Fixed by script
-              credentials: 'include', // ✅ Fixed by script
             });
         }
 
