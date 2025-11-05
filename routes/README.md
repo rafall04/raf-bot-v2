@@ -26,6 +26,7 @@ Administrative routes requiring admin/owner/superadmin authentication.
 - `GET/POST /api/templates` - Manage message templates
 - `POST /api/cron` - Update cron configuration
 - `POST /api/config` - Update system configuration
+- `POST /api/broadcast` - Send WhatsApp broadcast messages (requires authentication)
 - CRUD operations for announcements and news
 - Package change request management
 
@@ -188,6 +189,7 @@ app.use('/api/new', newRouter);
 3. **Error Handling**: Use try-catch blocks and return appropriate HTTP status codes
 4. **Consistent Response Format**: Use standardized JSON response structure
 5. **Documentation**: Comment complex route logic and maintain this README
+6. **Frontend Authentication**: When using Fetch API from PHP pages, always include `credentials: 'include'` to send JWT cookies
 
 ## Migration Notes
 

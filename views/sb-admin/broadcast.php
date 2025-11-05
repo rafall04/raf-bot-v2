@@ -209,7 +209,9 @@
       });
       selectedTarget.appendChild(div);
     });
-    fetch('/api/users')
+    fetch('/api/users', {
+      credentials: 'include' // ✅ Send cookies for authentication
+    })
       .then(res => res.json())
       .then(res => {
         const select = document.getElementById('target');
@@ -253,6 +255,7 @@
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // ✅ CRITICAL: Send cookies with request
           body: JSON.stringify(data),
         });
 

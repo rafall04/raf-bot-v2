@@ -10,6 +10,8 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 3. WORKFLOW_DOCUMENTATION.md
 4. REFACTORING_SUMMARY.md
 5. routes/README.md
+6. BUGFIX_BROADCAST_AUTH.md (Critical auth issue)
+7. MASS_FIX_FETCH_CREDENTIALS.md (Pending fixes)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -756,6 +758,7 @@ node test/stress-test-[component].js
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
+| Broadcast/API 401 Unauthorized | Fetch API not sending cookies | Add `credentials: 'include'` to fetch calls. See BUGFIX_BROADCAST_AUTH.md |
 | **Cannot find module** | Wrong import path | Check if NPM package or local file |
 | **convertRupiah error** | Wrong import | Use `require('rupiah-format')` |
 | **User not detected** | undefined variables | Add `const users = global.users` |
@@ -818,6 +821,7 @@ node test/test-keyword-matching.js
 *Status: Production Documentation*
 
 ### Changelog:
+- v3.1: Added broadcast authentication fix and mass fetch credentials documentation
 - v3.0: Complete architectural documentation
 - v2.3: WiFi dual-mode and logging updates
 - v2.0: Post-refactoring structure
