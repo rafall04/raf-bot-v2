@@ -251,6 +251,7 @@
             if (data.status === 200 && data.data && data.data.username) {
                 $('#username-placeholder').text(data.data.username);
             }
+          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.warn("Could not fetch user data: ", err));
     });
     </script>

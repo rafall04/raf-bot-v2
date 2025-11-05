@@ -159,6 +159,7 @@
             if (data.data && data.data.username) {
                 document.getElementById('usernameTopbar').textContent = data.data.username;
             }
+          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.error("Gagal fetch data user:", err));
 
         $(document).ready(function() {

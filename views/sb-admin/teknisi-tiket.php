@@ -176,6 +176,7 @@
                     document.getElementById('loggedInTechnicianInfo').textContent = data.data.username;
                     currentUser = data.data;
                 }
+              credentials: 'include', // ✅ Fixed by script
             })
             .catch(error => console.error('Error fetching user info:', error));
 
@@ -219,6 +220,7 @@
                 const response = await fetch('/api/ticket/process', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({ ticketId })
                 });
                 const result = await response.json();
@@ -446,6 +448,7 @@
                     const response = await fetch('/api/ticket/resolve', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include', // ✅ Fixed by script
                         body: JSON.stringify({ ticketId: ticketId }),
                     });
                     const result = await response.json();

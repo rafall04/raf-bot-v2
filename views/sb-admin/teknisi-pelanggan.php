@@ -448,6 +448,7 @@
                         if (userEntry.name && userEntry.address) {
                             activePppoeUsersMap.set(userEntry.name, userEntry.address);
                         }
+                      credentials: 'include', // ✅ Fixed by script
                     });
                     
                     console.log(`[fetchActivePppoeUsers] Loaded ${activePppoeUsersMap.size} PPPoE users`);
@@ -651,6 +652,7 @@
                     currentUsername = data.data.username;
                     $('#loggedInTechnicianInfo').text(currentUsername);
                 }
+              credentials: 'include', // ✅ Fixed by script
             }).catch(err => console.warn("Could not fetch user data: ", err));
 
         // MODIFIED: displayGlobalUserMessage to use a modal
@@ -1096,6 +1098,7 @@
                 const response = await fetch('/api/customer-metrics-batch', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({ deviceIds: uniqueDeviceIds })
                 });
 
@@ -1838,6 +1841,7 @@
                         return response.json().then(errData => {throw new Error(errData.message || `Gagal mengambil data SSID: ${response.status}`);}).catch(()=> {throw new Error(`Gagal mengambil data SSID: ${response.status}, respons tidak valid.`);});
                     }
                     return response.json();
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(result => {
                     ssidContainer.empty();
@@ -1907,6 +1911,7 @@
             fetch('/api/ssid/' + deviceId, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'include', // ✅ Fixed by script
                 body: JSON.stringify(payload)
             })
             .then(response => response.json().then(data => ({ ok: response.ok, status: response.status, data })))

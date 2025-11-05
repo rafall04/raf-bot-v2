@@ -209,6 +209,7 @@
                 document.getElementById('username-placeholder').textContent = data.data.username;
                 currentUser = data.data;
             }
+          credentials: 'include', // ✅ Fixed by script
         });
 
         function displayGlobalAdminMessage(message, type = 'info') {
@@ -246,6 +247,7 @@
                 const response = await fetch('/api/admin/ticket/cancel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({ ticketId, cancellationReason: reason })
                 });
                 const result = await response.json();
@@ -426,6 +428,7 @@
                     const response = await fetch('/api/admin/ticket/create', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include', // ✅ Fixed by script
                         body: JSON.stringify({ customerUserId, laporanText })
                     });
                     const result = await response.json();

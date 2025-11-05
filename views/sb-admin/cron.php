@@ -272,6 +272,7 @@
                     headers: {
                         "Content-Type": "application/json"
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify(config)
                 });
 

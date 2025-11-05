@@ -529,6 +529,7 @@
                 response = await fetch('/api/compensation/apply', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }, // Hapus header Authorization manual
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify(formData)
                 });
 

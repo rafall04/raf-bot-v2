@@ -960,6 +960,7 @@
                         if (userEntry.name && userEntry.address) {
                             activePppoeUsersMap.set(userEntry.name, userEntry.address);
                         }
+                      credentials: 'include', // ✅ Fixed by script
                     });
                     
                     console.log(`[fetchActivePppoeUsers] Loaded ${activePppoeUsersMap.size} PPPoE users`);
@@ -1183,6 +1184,7 @@
                     currentUsername = data.data.username;
                     $('#username-placeholder').text(currentUsername);
                 }
+              credentials: 'include', // ✅ Fixed by script
             }).catch(err => console.warn("Could not fetch user data: ", err));
 
         // MODIFIED: displayGlobalUserMessage to use a modal
@@ -1638,6 +1640,7 @@
                 const response = await fetch('/api/customer-metrics-batch', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({ deviceIds: uniqueDeviceIds })
                 });
 
@@ -2217,6 +2220,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({ password: password })
                 })
                 .then(response => {
@@ -2325,6 +2329,7 @@
                         if (!res.ok) {
                             return res.json().then(errData => {
                                 throw new Error(errData.message || 'Server error: ' + res.status);
+                              credentials: 'include', // ✅ Fixed by script
                             }).catch(() => {
                                 throw new Error('Server error: ' + res.status + ', respons tidak valid.');
                             });
@@ -2709,6 +2714,7 @@
                         throw new Error(`Failed to load SSID: ${response.status}`);
                     }
                     return response.json();
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(result => {
                     if (result.data && result.data.ssid_name) {
@@ -2751,6 +2757,7 @@
                         return response.json().then(errData => {throw new Error(errData.message || `Gagal mengambil data SSID: ${response.status}`);}).catch(()=> {throw new Error(`Gagal mengambil data SSID: ${response.status}, respons tidak valid.`);});
                     }
                     return response.json();
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(result => {
                     ssidContainer.empty();
@@ -2892,6 +2899,7 @@
                     const response = await fetch('/api/send-invoice-manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include', // ✅ Fixed by script
                         body: JSON.stringify({ userId, userName, phoneNumber, method }) // Pass method
                     });
                     const result = await response.json();
@@ -2906,6 +2914,7 @@
                     const generateResponse = await fetch('/api/send-invoice-manual', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include', // ✅ Fixed by script
                         body: JSON.stringify({ userId, userName, phoneNumber: '', method, noSend: true }) // Pass method and noSend flag
                     });
                     const generateResult = await generateResponse.json();
@@ -2952,6 +2961,7 @@
             fetch('/api/ssid/' + deviceId, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                credentials: 'include', // ✅ Fixed by script
                 body: JSON.stringify(payload)
             })
             .then(response => {
@@ -2998,6 +3008,7 @@
                     } else {
                         displayGlobalUserMessage(result.data.message || 'Gagal menghapus pengguna.', 'danger', true);
                     }
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(error => {
                     displayGlobalUserMessage('Terjadi kesalahan: ' + error.message, 'danger', true);
@@ -3017,6 +3028,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                credentials: 'include', // ✅ Fixed by script
                 body: JSON.stringify({ password: password })
             })
             .then(response => response.json().then(data => ({ok: response.ok, status: response.status, data})))

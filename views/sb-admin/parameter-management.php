@@ -318,6 +318,7 @@
                     if (data.status === 200 && data.data && data.data.username) {
                         $('#username-placeholder').text(data.data.username);
                     }
+                  credentials: 'include', // ✅ Fixed by script
                 }).catch(err => console.warn("Could not fetch user data: ", err));
         });
 
@@ -444,6 +445,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({
                         type,
                         name,
@@ -527,6 +529,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({
                         type,
                         name,
@@ -556,6 +559,7 @@
             try {
                 const response = await fetch(`/api/genieacs-parameters/${id}`, {
                     method: 'DELETE'
+                  credentials: 'include', // ✅ Fixed by script
                 });
 
                 const result = await response.json();
@@ -590,6 +594,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({
                         deviceId,
                         parameterType

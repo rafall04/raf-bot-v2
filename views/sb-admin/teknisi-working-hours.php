@@ -502,6 +502,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify(settings)
                 });
                 
@@ -549,6 +550,7 @@
                                 text: 'Halaman ini khusus untuk administrator.',
                                 timer: 2000,
                                 showConfirmButton: false
+                              credentials: 'include', // ✅ Fixed by script
                             });
                             setTimeout(() => window.location.href = '/', 2000);
                             return;

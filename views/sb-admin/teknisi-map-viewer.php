@@ -501,6 +501,7 @@
                 currentUsername = data.data.username || "Teknisi";
                 $('#loggedInTechnicianInfo').text(currentUsername);
             }
+          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.warn("Error fetching user data:", err));
 
         function displayGlobalMapMessage(message, type = 'info', duration = 7000) {
@@ -611,6 +612,7 @@
                         } else {
                              console.warn("[TechMap] PPPoE user entry from API incomplete:", userEntry);
                         }
+                      credentials: 'include', // ✅ Fixed by script
                     });
                      console.log("[TechMap] Active PPPoE users fetched:", activePppoeUsersMap.size);
                 } else {
@@ -643,6 +645,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({
                         deviceIds: [deviceId]
                     })
@@ -1157,6 +1160,7 @@
                         deviceDetailsHtml = `<p><strong>Tipe Modem:</strong> Tidak dapat mengambil tipe modem.</p>`;
                     }
                     return fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`);
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(response => response.json())
                 .then(result => {
@@ -1274,6 +1278,7 @@
                 const response = await fetch(`/api/ssid/${deviceId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify(payload)
                 });
                 const result = await response.json();
@@ -1324,6 +1329,7 @@
                         messageSmall.text(result.message || 'Gagal mengambil data redaman.').addClass('text-danger');
                     }
                     $('#refreshRedamanButtonInModal').off('click').on('click', () => showRedamanInfo(deviceId, userName, true));
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(error => {
                     loadingSpinner.hide(); contentDiv.show();
@@ -1343,6 +1349,7 @@
                             return response.json().then(err => { throw new Error(err.message || `Status server: ${response.status}`) });
                         }
                         return response.json();
+                      credentials: 'include', // ✅ Fixed by script
                     })
                     .then(data => {
                         displayGlobalMapMessage(data.message || `Perintah reboot untuk ${userName} berhasil dikirim.`, data.status === 200 ? 'success' : 'warning');

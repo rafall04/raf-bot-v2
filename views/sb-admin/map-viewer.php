@@ -912,6 +912,7 @@ const createCustomerStatusIcon = (status) => {
                 document.getElementById('username-placeholder').textContent = data.data.username;
                 currentUser = data.data;
             }
+          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.error("[MainScript] Error fetching user data:", err));
 
         function displayGlobalMapMessage(message, type = 'info', duration = 7000) {
@@ -1040,6 +1041,7 @@ const createCustomerStatusIcon = (status) => {
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({
                         deviceIds: [deviceId]
                     })
@@ -2623,6 +2625,7 @@ function redrawMarkers(markerType) {
                                 <div class="form-group mb-2"><label for="wifi_manage_ssid_name_${s.id}" class="form-label mb-0">Nama SSID Baru</label><input type="text" class="form-control form-control-sm" id="wifi_manage_ssid_name_${s.id}" name="ssid_${s.id}" placeholder="Kosong jika tidak diubah"></div>
                                 <div class="form-group mb-1"><label for="wifi_manage_ssid_password_${s.id}" class="form-label mb-0">Password Baru</label><input type="password" class="form-control form-control-sm" id="wifi_manage_ssid_password_${s.id}" name="ssid_password_${s.id}" placeholder="Min. 8 karakter, kosong jika tidak diubah"></div>
                                 </div>`;
+                          credentials: 'include', // ✅ Fixed by script
                         });
                     } else formContent = '<p class="text-muted">Tidak ada SSID terkonfigurasi.</p>';
                     formContainer.html(formContent);
@@ -2672,6 +2675,7 @@ function redrawMarkers(markerType) {
             } finally {
                 saveButton.prop('disabled', false).html(originalButtonText);
             }
+          credentials: 'include', // ✅ Fixed by script
         });
 
 

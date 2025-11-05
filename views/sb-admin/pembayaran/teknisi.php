@@ -255,6 +255,7 @@
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           return response.json();
+          credentials: 'include', // ✅ Fixed by script
         })
         .then(apiResponse => {
           if (apiResponse && apiResponse.status === 200 && apiResponse.data) {
@@ -522,6 +523,7 @@
             throw new Error(`HTTP error! status: ${res.status}`);
           }
           return res.json();
+          credentials: 'include', // ✅ Fixed by script
         })
         .then(response => {
             const users = response.data || response; 
@@ -566,6 +568,7 @@
         fetch('/api/requests', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }, 
+            credentials: 'include', // ✅ Fixed by script
             body: JSON.stringify({ userId: userId, newStatus: newStatusIsPaid }) 
         })
         .then(response => {
@@ -604,6 +607,7 @@
                 const response = await fetch('/api/requests/cancel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include', // ✅ Fixed by script
                     body: JSON.stringify({ requestId: String(requestId) }) // Pastikan requestId adalah string
                 });
                 const result = await response.json();

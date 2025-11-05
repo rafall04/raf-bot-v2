@@ -455,6 +455,7 @@
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include', // ✅ Fixed by script
           body: JSON.stringify(data),
         })
         .then(response => {
@@ -556,6 +557,7 @@
               document.getElementById('mikrotikPort').value = device.port || '8728'; // Set port with fallback
               mikrotikDeviceModal.find('.modal-title').text('Edit Perangkat MikroTik');
               mikrotikDeviceModal.modal('show');
+              credentials: 'include', // ✅ Fixed by script
             });
         }
 
@@ -575,6 +577,7 @@
                 .then(result => {
                   Swal.fire('Deleted!', result.message, 'success');
                   loadMikrotikDevices();
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(err => Swal.fire('Error', err.message, 'error'));
             }
@@ -587,6 +590,7 @@
             .then(result => {
               Swal.fire('Success', result.message, 'success');
               loadMikrotikDevices();
+              credentials: 'include', // ✅ Fixed by script
             })
             .catch(err => Swal.fire('Error', err.message, 'error'));
         }

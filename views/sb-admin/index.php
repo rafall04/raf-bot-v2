@@ -1061,6 +1061,7 @@ if ($monitoringEnabled) {
                         throw new Error(`Start API error! Status: ${response.status}`);
                     }
                     return response.json();
+                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(data => {
                     console.log("Start API response:", data.message);
