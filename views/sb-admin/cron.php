@@ -202,7 +202,7 @@
     <script>
         async function fetchCronConfig() {
             try {
-                const response = await fetch("/api/config");
+                const response = await fetch('/api/config', { credentials: 'include' });
                 const result = await response.json();
 
                 // Log for debugging

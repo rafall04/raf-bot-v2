@@ -884,7 +884,7 @@ if ($monitoringEnabled) {
             cardValueIds.forEach(id => showLoadingSpinner(id));
 
             try {
-                const response = await fetch('/api/stats');
+                const response = await fetch('/api/stats', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error(`API request failed with status ${response.status}`);
                 }
@@ -1055,7 +1055,7 @@ if ($monitoringEnabled) {
         startBtn.addEventListener("click", () => {
             startBtn.disabled = true;
             startBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Connecting...`;
-            fetch('/api/start')
+            fetch('/api/start', { credentials: 'include' })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`Start API error! Status: ${response.status}`);

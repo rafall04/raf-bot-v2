@@ -254,7 +254,7 @@
         fetchNews();
         resetForm();
 
-        fetch('/api/me')
+        fetch('/api/me', { credentials: 'include' })
         .then(response => response.json())
         .then(data => {
             if (data.status === 200 && data.data && data.data.username) {

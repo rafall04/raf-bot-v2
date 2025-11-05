@@ -907,7 +907,7 @@ const createCustomerStatusIcon = (status) => {
 };
 
 
-        fetch('/api/me').then(response => response.json()).then(data => {
+        fetch('/api/me', { credentials: 'include' }).then(response => response.json()).then(data => {
             if (data.status === 200 && data.data) {
                 document.getElementById('username-placeholder').textContent = data.data.username;
                 currentUser = data.data;
@@ -1100,7 +1100,7 @@ const createCustomerStatusIcon = (status) => {
             initialPppoeLoadFailed = false;
             activePppoeUsersMap.clear();
             try {
-                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`);
+                const response = await fetch('/api/mikrotik/ppp-active-users?_=${new Date().getTime()}', { credentials: 'include' });
                 if (!response.ok) {
                     const errorResult = await response.json().catch(() => ({ message: response.statusText }));
                     console.error("[fetchActivePppoeUsers MapPage] API Error:", response.status, errorResult.message, errorResult.stderr || '');
@@ -2009,7 +2009,7 @@ function redrawMarkers(markerType) {
         async function fetchAllCustomerData() {
             console.log("[fetchAllCustomerData] Memulai pemuatan data pelanggan...");
             try {
-                const response = await fetch(`/api/users?_=${new Date().getTime()}`);
+                const response = await fetch('/api/users?_=${new Date().getTime()}', { credentials: 'include' });
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error("[fetchAllCustomerData] API Error:", response.status, errorText.substring(0, 200));
@@ -2038,7 +2038,7 @@ function redrawMarkers(markerType) {
         async function fetchAllNetworkAssets() {
             console.log("[fetchAllNetworkAssets] Memulai pemuatan data aset jaringan...");
             try {
-                const response = await fetch(`/api/map/network-assets?_=${new Date().getTime()}`);
+                const response = await fetch('/api/map/network-assets?_=${new Date().getTime()}', { credentials: 'include' });
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error("[fetchAllNetworkAssets] API Error:", response.status, errorText.substring(0, 500));
@@ -2537,7 +2537,7 @@ function redrawMarkers(markerType) {
             let deviceDetailsContent = '';
             if (deviceId) {
                 try {
-                    const response = await fetch(`/api/device-details/${deviceId}?_=${new Date().getTime()}`);
+                    const response = await fetch('/api/device-details/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
                     if (!response.ok) {
                          console.warn(`Gagal mengambil detail perangkat untuk modal (${deviceId}): ${response.status}`);
                          deviceDetailsContent += `<p class="mb-1"><strong><i class="fas fa-microchip"></i> Tipe Modem:</strong> Tidak tersedia (Server Error)</p>`;
@@ -2559,7 +2559,7 @@ function redrawMarkers(markerType) {
 
 
             try {
-                const response = await fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`);
+                const response = await fetch('/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
                 const result = await response.json();
                 if (!response.ok || result.status !== 200) throw new Error(result.message || `Gagal ambil info WiFi (HTTP ${response.status})`);
 
@@ -2611,7 +2611,7 @@ function redrawMarkers(markerType) {
             $('#wifiManagementModal').modal('show');
 
             try {
-                const response = await fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`);
+                const response = await fetch('/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
                 const result = await response.json();
                 if (!response.ok || result.status !== 200 ) throw new Error(result.message || `Gagal ambil data SSID (HTTP ${response.status})`);
 
@@ -2675,6 +2675,7 @@ function redrawMarkers(markerType) {
             } finally {
                 saveButton.prop('disabled', false).html(originalButtonText);
             }
+          credentials: 'include', // ✅ Fixed by script
           credentials: 'include', // ✅ Fixed by script
         });
 

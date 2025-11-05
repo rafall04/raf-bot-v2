@@ -249,7 +249,7 @@
       let activeMonthFilter = 'this_month'; 
       let loggedInUserId = null; 
 
-      fetch('/api/me') 
+      fetch('/api/me', { credentials: 'include' }) 
         .then(response => {
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);

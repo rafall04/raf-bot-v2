@@ -145,7 +145,7 @@
 
     <script>
         // Fetch username for topbar
-        fetch('/api/me').then(res => res.json()).then(data => {
+        fetch('/api/me', { credentials: 'include' }).then(res => res.json()).then(data => {
             if (data.data && data.data.username) {
                 document.getElementById('usernameTopbar').textContent = data.data.username;
             }

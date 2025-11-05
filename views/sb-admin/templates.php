@@ -435,7 +435,7 @@
     <script>
         $(document).ready(function() {
             // Fetch username
-            fetch('/api/me')
+            fetch('/api/me', { credentials: 'include' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 200 && data.data && data.data.username) {
@@ -598,7 +598,7 @@
                     `);
                 });
 
-                fetch('/api/templates')
+                fetch('/api/templates', { credentials: 'include' })
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);

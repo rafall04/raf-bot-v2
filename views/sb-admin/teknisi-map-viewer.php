@@ -496,7 +496,7 @@
         };
 
 
-        fetch('/api/me').then(response => response.json()).then(data => {
+        fetch('/api/me', { credentials: 'include' }).then(response => response.json()).then(data => {
             if (data.status === 200 && data.data) {
                 currentUsername = data.data.username || "Teknisi";
                 $('#loggedInTechnicianInfo').text(currentUsername);
@@ -582,7 +582,7 @@
             }
 
             try {
-                const response = await fetch(`/api/customer-redaman/${deviceId}?_=${new Date().getTime()}`);
+                const response = await fetch('/api/customer-redaman/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
                 const result = await response.json();
                 let redamanValue = (result.status === 200 && result.data) ? result.data.redaman : null;
                 const p = getRedamanPresentation(redamanValue);
@@ -598,7 +598,7 @@
             initialPppoeLoadFailed = false;
             activePppoeUsersMap.clear();
             try {
-                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`);
+                const response = await fetch('/api/mikrotik/ppp-active-users?_=${new Date().getTime()}', { credentials: 'include' });
                 if (!response.ok) {
                     const errorResult = await response.json().catch(() => ({ message: response.statusText }));
                     console.error("[TechMap] API Error fetching PPPoE:", response.status, errorResult.message);
@@ -1014,7 +1014,7 @@
             catch(e) { console.error("Gagal memuat status PPPoE:", e); }
 
             try {
-                const response = await fetch(`/api/map/network-assets?_=${new Date().getTime()}`);
+                const response = await fetch('/api/map/network-assets?_=${new Date().getTime()}', { credentials: 'include' });
                 if (!response.ok) throw new Error(`API Aset error: ${response.status}`);
                 const result = await response.json();
                 if (result.status !== 200 || !Array.isArray(result.data)) throw new Error("Format data aset salah");
@@ -1023,7 +1023,7 @@
             } catch(e) { console.error("Gagal memuat data aset:", e); displayGlobalMapMessage("Gagal memuat data aset jaringan.", 'danger', 0);}
 
             try {
-                const response = await fetch(`/api/users?_=${new Date().getTime()}`);
+                const response = await fetch('/api/users?_=${new Date().getTime()}', { credentials: 'include' });
                 if (!response.ok) throw new Error(`API Pelanggan error: ${response.status}`);
                 const result = await response.json();
                 if (!result.data || !Array.isArray(result.data)) throw new Error("Format data pelanggan salah");
@@ -1151,7 +1151,7 @@
 
             let deviceDetailsHtml = '';
 
-            fetch(`/api/device-details/${deviceId}?_=${new Date().getTime()}`)
+            fetch('/api/device-details/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' })
                 .then(response => response.json())
                 .then(deviceResult => {
                     if (deviceResult.status === 200 && deviceResult.data) {
@@ -1316,7 +1316,7 @@
             messageSmall.text('').removeClass('text-danger text-warning text-success text-muted');
 
 
-            fetch(`/api/customer-redaman/${deviceId}?force_refresh=true&_=${new Date().getTime()}`)
+            fetch('/api/customer-redaman/${deviceId}?force_refresh=true&_=${new Date().getTime()}', { credentials: 'include' })
                 .then(response => response.json())
                 .then(result => {
                     loadingSpinner.hide(); contentDiv.show();
@@ -1329,6 +1329,7 @@
                         messageSmall.text(result.message || 'Gagal mengambil data redaman.').addClass('text-danger');
                     }
                     $('#refreshRedamanButtonInModal').off('click').on('click', () => showRedamanInfo(deviceId, userName, true));
+                  credentials: 'include', // ✅ Fixed by script
                   credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(error => {
@@ -1349,6 +1350,7 @@
                             return response.json().then(err => { throw new Error(err.message || `Status server: ${response.status}`) });
                         }
                         return response.json();
+                      credentials: 'include', // ✅ Fixed by script
                       credentials: 'include', // ✅ Fixed by script
                     })
                     .then(data => {

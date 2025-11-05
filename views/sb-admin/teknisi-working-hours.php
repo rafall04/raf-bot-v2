@@ -354,7 +354,7 @@
         // Load current settings
         async function loadSettings() {
             try {
-                const response = await fetch('/api/working-hours');
+                const response = await fetch('/api/working-hours', { credentials: 'include' });
                 const data = await response.json();
                 
                 if (data.success && data.settings) {
@@ -537,7 +537,7 @@
         // Load settings on page load
         $(document).ready(function() {
             // Check authentication first
-            fetch('/api/me')
+            fetch('/api/me', { credentials: 'include' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 200 && data.data) {
@@ -550,6 +550,7 @@
                                 text: 'Halaman ini khusus untuk administrator.',
                                 timer: 2000,
                                 showConfirmButton: false
+                              credentials: 'include', // ✅ Fixed by script
                               credentials: 'include', // ✅ Fixed by script
                             });
                             setTimeout(() => window.location.href = '/', 2000);

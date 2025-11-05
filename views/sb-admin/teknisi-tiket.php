@@ -169,7 +169,7 @@
         let currentUser = null;
         let isLoadingTickets = false;
         let ticketProcessedTimeout = null;
-        fetch('/api/me')
+        fetch('/api/me', { credentials: 'include' })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 200 && data.data) {

@@ -387,7 +387,7 @@
       const form = document.getElementById('configForm');
 
       // Fetch initial data
-      fetch("/api/config")
+      fetch('/api/config', { credentials: 'include' })
         .then(res => res.json())
         .then(json => {
             if (json.data) {
@@ -495,7 +495,7 @@
       const saveMikrotikDeviceBtn = document.getElementById('saveMikrotikDeviceBtn');
 
       function loadMikrotikDevices() {
-        fetch('/api/mikrotik-devices')
+        fetch('/api/mikrotik-devices', { credentials: 'include' })
           .then(res => res.json())
           .then(devices => {
             mikrotikDevicesTable.innerHTML = '';
@@ -547,7 +547,7 @@
         const id = target.dataset.id;
 
         if (target.classList.contains('editBtn')) {
-          fetch(`/api/mikrotik-devices/${id}`)
+          fetch('/api/mikrotik-devices/${id}', { credentials: 'include' })
             .then(res => res.json())
             .then(device => {
               document.getElementById('mikrotikDeviceId').value = device.id;
@@ -557,6 +557,7 @@
               document.getElementById('mikrotikPort').value = device.port || '8728'; // Set port with fallback
               mikrotikDeviceModal.find('.modal-title').text('Edit Perangkat MikroTik');
               mikrotikDeviceModal.modal('show');
+              credentials: 'include', // ✅ Fixed by script
               credentials: 'include', // ✅ Fixed by script
             });
         }
@@ -572,12 +573,11 @@
             confirmButtonText: 'Yes, delete it!'
           }).then((result) => {
             if (result.isConfirmed) {
-              fetch(`/api/mikrotik-devices/${id}`, { method: 'DELETE' })
+              fetch(`/api/mikrotik-devices/${id}`, { method: 'DELETE', credentials: 'include' })
                 .then(res => res.json())
                 .then(result => {
                   Swal.fire('Deleted!', result.message, 'success');
                   loadMikrotikDevices();
-                  credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(err => Swal.fire('Error', err.message, 'error'));
             }
@@ -585,12 +585,11 @@
         }
 
         if (target.classList.contains('setActiveBtn')) {
-          fetch(`/api/mikrotik-devices/set-active/${id}`, { method: 'POST' })
+          fetch(`/api/mikrotik-devices/set-active/${id}`, { method: 'POST', credentials: 'include' })
             .then(res => res.json())
             .then(result => {
               Swal.fire('Success', result.message, 'success');
               loadMikrotikDevices();
-              credentials: 'include', // ✅ Fixed by script
             })
             .catch(err => Swal.fire('Error', err.message, 'error'));
         }

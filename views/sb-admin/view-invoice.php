@@ -129,7 +129,7 @@
         
         async function loadInvoice() {
             try {
-                const response = await fetch(`/api/view-invoice?id=${invoiceId}&userId=${userId}`);
+                const response = await fetch('/api/view-invoice?id=${invoiceId}&userId=${userId}', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error('Failed to load invoice');
                 }
@@ -149,7 +149,7 @@
         
         async function downloadPDF() {
             try {
-                const response = await fetch(`/api/download-invoice-pdf?id=${invoiceId}&userId=${userId}`);
+                const response = await fetch('/api/download-invoice-pdf?id=${invoiceId}&userId=${userId}', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error('Failed to generate PDF');
                 }

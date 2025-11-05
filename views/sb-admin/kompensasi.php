@@ -273,7 +273,7 @@
 
         async function fetchUserData() {
             try {
-                const response = await fetch('/api/me'); // Browser otomatis kirim HttpOnly cookie
+                const response = await fetch('/api/me', { credentials: 'include' }); // Browser otomatis kirim HttpOnly cookie
                 if (!response.ok) {
                     if (response.status === 401 || response.status === 403) {
                         console.warn('Sesi tidak valid atau token expired saat fetchUserData.');
@@ -313,7 +313,7 @@
                 return; 
             }
             try {
-                const usersResponse = await fetch('/api/users'); // Browser otomatis kirim HttpOnly cookie
+                const usersResponse = await fetch('/api/users', { credentials: 'include' }); // Browser otomatis kirim HttpOnly cookie
                 if (!usersResponse.ok) {
                      if (usersResponse.status === 401 || usersResponse.status === 403) {
                         showResultModal('Sesi Tidak Valid', '<p class="text-danger">Gagal memuat data pelanggan karena sesi tidak valid. Anda akan diarahkan ke halaman login.</p>', 'modal-danger');
@@ -439,7 +439,7 @@
             }
 
             try {
-                const response = await fetch('/api/compensations/active'); // Browser otomatis kirim HttpOnly cookie
+                const response = await fetch('/api/compensations/active', { credentials: 'include' }); // Browser otomatis kirim HttpOnly cookie
                 if (!response.ok) {
                     if (response.status === 401 || response.status === 403) {
                         showResultModal('Sesi Tidak Valid', '<p class="text-danger">Gagal memuat daftar kompensasi karena sesi tidak valid. Anda akan diarahkan ke halaman login.</p>', 'modal-danger');

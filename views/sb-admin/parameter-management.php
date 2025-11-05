@@ -312,7 +312,7 @@
             loadParameters();
             
             // Get current user
-            fetch('/api/me')
+            fetch('/api/me', { credentials: 'include' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 200 && data.data && data.data.username) {
@@ -324,7 +324,7 @@
 
         async function loadParameters() {
             try {
-                const response = await fetch('/api/genieacs-parameters');
+                const response = await fetch('/api/genieacs-parameters', { credentials: 'include' });
                 const result = await response.json();
                 
                 if (result.status === 200) {

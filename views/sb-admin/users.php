@@ -950,7 +950,9 @@
             }
             
             try {
-                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`);
+                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`, {
+                    credentials: 'include'
+                });
                 const result = await response.json();
                 
                 if (result.status === 200 && Array.isArray(result.data)) {
@@ -960,7 +962,6 @@
                         if (userEntry.name && userEntry.address) {
                             activePppoeUsersMap.set(userEntry.name, userEntry.address);
                         }
-                      credentials: 'include', // ✅ Fixed by script
                     });
                     
                     console.log(`[fetchActivePppoeUsers] Loaded ${activePppoeUsersMap.size} PPPoE users`);
@@ -1003,7 +1004,9 @@
 
         async function fetchNetworkAssets() {
             try {
-                const response = await fetch('/api/map/network-assets?_=' + new Date().getTime());
+                const response = await fetch(`/api/map/network-assets?_=${new Date().getTime()}`, {
+                    credentials: 'include'
+                });
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Gagal mengambil data aset jaringan: ${response.status} ${response.statusText}. Server: ${errorText.substring(0,100)}`);
@@ -1177,14 +1180,13 @@
             }
         }
 
-        fetch('/api/me')
+        fetch('/api/me', { credentials: 'include' })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 200 && data.data && data.data.username) {
                     currentUsername = data.data.username;
                     $('#username-placeholder').text(currentUsername);
                 }
-              credentials: 'include', // ✅ Fixed by script
             }).catch(err => console.warn("Could not fetch user data: ", err));
 
         // MODIFIED: displayGlobalUserMessage to use a modal
@@ -1733,7 +1735,9 @@
                 }
                 
                 // Call the API with skipRefresh parameter
-                const response = await fetch(`/api/customer-wifi-info/${deviceId}?skipRefresh=${skipRefresh}&_=${new Date().getTime()}`);
+                const response = await fetch(`/api/customer-wifi-info/${deviceId}?skipRefresh=${skipRefresh}&_=${new Date().getTime()}`, {
+                    credentials: 'include'
+                });
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 200) {
@@ -2659,7 +2663,9 @@
             bulkContainer.innerHTML = '<div class="loading-spinner-container"><i class="fas fa-spinner fa-spin"></i> Memuat SSID...</div>';
 
             try {
-                const res = await fetch("/api/ssid/" + deviceId);
+                const res = await fetch("/api/ssid/" + deviceId, {
+                    credentials: 'include'
+                });
                 if (!res.ok) {
                     const errorJson = await res.json().catch(() => ({ message: res.statusText }));
                     throw new Error(errorJson.message || `Gagal mengambil data SSID: ${res.status}`);
@@ -2708,13 +2714,13 @@
             btn.prop('disabled', true).text('Loading...');
             
             // Fetch SSID info
-            fetch('/api/ssid/' + deviceId)
-                .then(response => {
+            fetch('/api/ssid/' + deviceId, {
+                credentials: 'include'
+            }).then(response => {
                     if (!response.ok) {
                         throw new Error(`Failed to load SSID: ${response.status}`);
                     }
                     return response.json();
-                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(result => {
                     if (result.data && result.data.ssid_name) {
@@ -2751,13 +2757,13 @@
             passwordContainer.empty();
             transmitPowerSelect.val('');
 
-            fetch('/api/ssid/' + deviceId)
-                .then(response => {
+            fetch('/api/ssid/' + deviceId, {
+                credentials: 'include'
+            }).then(response => {
                     if (!response.ok) {
                         return response.json().then(errData => {throw new Error(errData.message || `Gagal mengambil data SSID: ${response.status}`);}).catch(()=> {throw new Error(`Gagal mengambil data SSID: ${response.status}, respons tidak valid.`);});
                     }
                     return response.json();
-                  credentials: 'include', // ✅ Fixed by script
                 })
                 .then(result => {
                     ssidContainer.empty();
@@ -2997,7 +3003,10 @@
         function deleteData(id, event) {
             event.preventDefault();
             if (confirm('Anda yakin ingin menghapus pengguna ini?')) {
-                fetch('/api/users/' + id, { method: 'DELETE' })
+                fetch('/api/users/' + id, { 
+                    method: 'DELETE',
+                    credentials: 'include'
+                })
                 .then(response => response.json().then(data => ({ok: response.ok, data})))
                 .then(result => {
                     if (result.ok) {
@@ -3008,6 +3017,7 @@
                     } else {
                         displayGlobalUserMessage(result.data.message || 'Gagal menghapus pengguna.', 'danger', true);
                     }
+                  credentials: 'include', // ✅ Fixed by script
                   credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(error => {

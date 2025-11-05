@@ -516,7 +516,7 @@
             let currentDeleteIntent = null;
 
             // Fetch username
-            fetch('/api/me')
+            fetch('/api/me', { credentials: 'include' })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 200 && data.data && data.data.username) {
@@ -582,7 +582,7 @@
                 const container = $('#templatesContainer');
                 container.html('<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div><p>Memuat templates...</p></div>');
                 
-                fetch('/api/wifi-templates')
+                fetch('/api/wifi-templates', { credentials: 'include' })
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);

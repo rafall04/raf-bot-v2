@@ -438,7 +438,7 @@
             initialPppoeLoadFailed = false;
             
             try {
-                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`);
+                const response = await fetch('/api/mikrotik/ppp-active-users?_=${new Date().getTime()}', { credentials: 'include' });
                 const result = await response.json();
                 
                 if (result.status === 200 && Array.isArray(result.data)) {
@@ -448,6 +448,7 @@
                         if (userEntry.name && userEntry.address) {
                             activePppoeUsersMap.set(userEntry.name, userEntry.address);
                         }
+                      credentials: 'include', // ✅ Fixed by script
                       credentials: 'include', // ✅ Fixed by script
                     });
                     
@@ -645,7 +646,7 @@
             }
         }
 
-        fetch('/api/me')
+        fetch('/api/me', { credentials: 'include' })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 200 && data.data && data.data.username) {
@@ -1159,7 +1160,7 @@
                 // Call the existing API endpoint that performs refresh and gets full SSID info
                 // This is the /api/customer-wifi-info/:deviceId endpoint in index.js,
                 // which in turn calls getSSIDInfo in wifi.js.
-                const response = await fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`);
+                const response = await fetch('/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 200) {
@@ -1841,6 +1842,7 @@
                         return response.json().then(errData => {throw new Error(errData.message || `Gagal mengambil data SSID: ${response.status}`);}).catch(()=> {throw new Error(`Gagal mengambil data SSID: ${response.status}, respons tidak valid.`);});
                     }
                     return response.json();
+                  credentials: 'include', // ✅ Fixed by script
                   credentials: 'include', // ✅ Fixed by script
                 })
                 .then(result => {

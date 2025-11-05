@@ -204,7 +204,7 @@
 
     <script>
         let currentUser = null;
-        fetch('/api/me').then(response => response.json()).then(data => {
+        fetch('/api/me', { credentials: 'include' }).then(response => response.json()).then(data => {
             if (data.status === 200 && data.data) {
                 document.getElementById('username-placeholder').textContent = data.data.username;
                 currentUser = data.data;
