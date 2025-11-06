@@ -803,6 +803,277 @@
             $('#otpModal').modal('show');
         }
         
+        /**
+         * Show OTP verification modal
+         * For technician to input OTP received from customer
+         */
+        function showVerifyOtpModal(ticketId) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            // Store ticketId in hidden field
+            $('#verifyOtpTicketId').val(ticketId);
+            
+            // Clear input field
+            $('#otpInput').val('');
+            
+            // Show modal
+            $('#verifyOtpModal').modal('show');
+            
+            // Focus on input after modal shown
+            $('#verifyOtpModal').on('shown.bs.modal', function() {
+                $('#otpInput').focus();
+            });
+        }
+        
+        /**
+         * Verify OTP and start work session
+         * Validates OTP and calls API endpoint
+         */
+        async function verifyOTP() {
+            const ticketId = $('#verifyOtpTicketId').val();
+            const otp = $('#otpInput').val().trim();
+            
+            // Validation
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            if (!otp || otp.length !== 6) {
+                displayGlobalMessage('OTP harus 6 digit angka', 'warning');
+                $('#otpInput').focus();
+                return;
+            }
+            
+            // Validate numeric
+            if (!/^\d{6}$/.test(otp)) {
+                displayGlobalMessage('OTP hanya boleh berisi angka', 'warning');
+                $('#otpInput').focus();
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/ticket/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ ticketId, otp })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    // Close modal
+                    $('#verifyOtpModal').modal('hide');
+                    
+                    displayGlobalMessage(`✓ OTP berhasil diverifikasi! Mulai pekerjaan sekarang. Jangan lupa upload minimal 2 foto.`, 'success');
+                    
+                    // Refresh table
+                    loadTickets();
+                } else {
+                    displayGlobalMessage(`Verifikasi gagal: ${result.message || 'OTP salah atau tidak valid'}`, 'danger');
+                    $('#otpInput').val('').focus();
+                }
+            } catch (error) {
+                console.error('[VERIFY_OTP_ERROR]', error);
+                displayGlobalMessage('Terjadi kesalahan koneksi saat verifikasi OTP', 'danger');
+            }
+        }
+        
+        /**
+         * Global state for photo uploads
+         */
+        let currentUploadTicketId = null;
+        let uploadedPhotos = [];
+        
+        /**
+         * Show photo upload modal
+         */
+        function showUploadPhotoModal(ticketId) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            // Store ticketId
+            currentUploadTicketId = ticketId;
+            $('#uploadPhotoTicketId').val(ticketId);
+            
+            // Get current photo count from ticket data
+            const table = $('#ticketsTable').DataTable();
+            const allData = table.rows().data().toArray();
+            const ticket = allData.find(t => (t.ticketId === ticketId || t.id === ticketId));
+            
+            if (ticket && ticket.photos && Array.isArray(ticket.photos)) {
+                uploadedPhotos = ticket.photos;
+            } else {
+                uploadedPhotos = [];
+            }
+            
+            // Update display
+            updatePhotoDisplay();
+            
+            // Clear file input
+            $('#photoInput').val('');
+            
+            // Show modal
+            $('#uploadPhotoModal').modal('show');
+        }
+        
+        /**
+         * Handle photo file selection and upload
+         */
+        $('#photoInput').on('change', async function(e) {
+            const files = e.target.files;
+            
+            if (!files || files.length === 0) {
+                return;
+            }
+            
+            const ticketId = currentUploadTicketId;
+            if (!ticketId) {
+                displayGlobalMessage('Error: Ticket ID tidak ditemukan', 'danger');
+                return;
+            }
+            
+            // Check max photos limit
+            if (uploadedPhotos.length >= 5) {
+                displayGlobalMessage('Maksimal 5 foto sudah tercapai', 'warning');
+                $('#photoInput').val('');
+                return;
+            }
+            
+            // Upload each file
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // Check if would exceed limit
+                if (uploadedPhotos.length >= 5) {
+                    displayGlobalMessage('Maksimal 5 foto. Foto berikutnya tidak diupload.', 'warning');
+                    break;
+                }
+                
+                // Validate file size (5MB)
+                if (file.size > 5 * 1024 * 1024) {
+                    displayGlobalMessage(`File ${file.name} terlalu besar (max 5MB)`, 'warning');
+                    continue;
+                }
+                
+                // Validate image type
+                if (!file.type.startsWith('image/')) {
+                    displayGlobalMessage(`File ${file.name} bukan gambar`, 'warning');
+                    continue;
+                }
+                
+                // Upload photo
+                await uploadSinglePhoto(ticketId, file);
+            }
+            
+            // Clear input so same file can be selected again
+            $('#photoInput').val('');
+        });
+        
+        /**
+         * Upload single photo to server
+         */
+        async function uploadSinglePhoto(ticketId, file) {
+            const formData = new FormData();
+            formData.append('ticketId', ticketId);
+            formData.append('photo', file);
+            
+            try {
+                const response = await fetch('/api/ticket/upload-photo', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData // Don't set Content-Type, browser will set it with boundary
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    // Add to uploaded photos array
+                    uploadedPhotos.push(result.data.photo);
+                    
+                    // Update display
+                    updatePhotoDisplay();
+                    
+                    displayGlobalMessage(`✓ Foto ${uploadedPhotos.length} berhasil diupload`, 'success');
+                } else {
+                    displayGlobalMessage(`Upload gagal: ${result.message || 'Error'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('[UPLOAD_PHOTO_ERROR]', error);
+                displayGlobalMessage('Terjadi kesalahan saat upload foto', 'danger');
+            }
+        }
+        
+        /**
+         * Update photo display in modal
+         */
+        function updatePhotoDisplay() {
+            const photoCount = uploadedPhotos.length;
+            const minPhotos = 2;
+            const canComplete = photoCount >= minPhotos;
+            
+            // Update badge
+            $('#photoCountBadge').text(photoCount);
+            
+            // Update complete button state
+            if (canComplete) {
+                $('#completePhotoUploadBtn').prop('disabled', false)
+                    .removeClass('btn-secondary').addClass('btn-success');
+            } else {
+                $('#completePhotoUploadBtn').prop('disabled', true)
+                    .removeClass('btn-success').addClass('btn-secondary');
+            }
+            
+            // Render photo previews
+            const container = $('#photoPreviewContainer');
+            container.empty();
+            
+            uploadedPhotos.forEach((photo, index) => {
+                const photoPath = photo.path || photo;
+                const html = `
+                    <div class="photo-preview-item">
+                        <img src="${photoPath}" alt="Foto ${index + 1}">
+                        <div class="text-center mt-1">
+                            <small class="text-muted">Foto ${index + 1}</small>
+                        </div>
+                    </div>
+                `;
+                container.append(html);
+            });
+            
+            // Show message if no photos yet
+            if (photoCount === 0) {
+                container.html('<p class="text-muted">Belum ada foto terupload</p>');
+            }
+        }
+        
+        /**
+         * Handle complete photo upload button
+         */
+        $('#completePhotoUploadBtn').on('click', function() {
+            const photoCount = uploadedPhotos.length;
+            
+            if (photoCount < 2) {
+                displayGlobalMessage('Minimal 2 foto diperlukan', 'warning');
+                return;
+            }
+            
+            // Close modal
+            $('#uploadPhotoModal').modal('hide');
+            
+            // Show success message
+            displayGlobalMessage(`✓ ${photoCount} foto dokumentasi berhasil. Sekarang bisa selesaikan tiket.`, 'success');
+            
+            // Refresh table to update button states
+            loadTickets();
+        });
+        
         async function executeProcessTicket(ticketId) {
             if (!ticketId) {
                 displayGlobalMessage('Terjadi kesalahan: ID Tiket tidak ditemukan untuk diproses.', 'danger');
@@ -1054,6 +1325,19 @@
             // Clean up modal data saat modal ditutup
             $('#processTicketModal').on('hidden.bs.modal', function () {
                 $(confirmBtn).removeAttr('data-ticket-id');
+            });
+            
+            // Event handler for OTP verification button
+            $('#confirmVerifyOtpBtn').off('click').on('click', function() {
+                verifyOTP();
+            });
+            
+            // Allow Enter key to submit OTP
+            $('#otpInput').off('keypress').on('keypress', function(e) {
+                if (e.which === 13) { // Enter key
+                    e.preventDefault();
+                    verifyOTP();
+                }
             });
 
             document.getElementById('resolveTicketForm').addEventListener('submit', async function(event) {
