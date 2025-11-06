@@ -497,18 +497,22 @@
         function getStatusBadge(status) {
             const statusLower = (status || 'baru').toLowerCase();
             
-            // Map status to badge HTML with custom classes
+            // Map status to badge HTML with custom classes (see TICKET_STATUS_STANDARD.md)
             const statusMap = {
+                // Primary statuses
                 'baru': '<span class="badge badge-status-baru">Baru</span>',
-                'pending': '<span class="badge badge-status-baru">Pending</span>', // Same as 'baru' for backward compatibility
                 'process': '<span class="badge badge-status-process">Diproses</span>',
-                'diproses teknisi': '<span class="badge badge-status-process">Diproses</span>',
                 'otw': '<span class="badge badge-status-otw">OTW</span>',
                 'arrived': '<span class="badge badge-status-arrived">Tiba</span>',
                 'working': '<span class="badge badge-status-working">Bekerja</span>',
                 'resolved': '<span class="badge badge-status-resolved">Selesai</span>',
+                // Backward compatibility aliases
+                'pending': '<span class="badge badge-status-baru">Pending</span>',
+                'diproses teknisi': '<span class="badge badge-status-process">Diproses</span>',
                 'selesai': '<span class="badge badge-status-resolved">Selesai</span>',
-                'completed': '<span class="badge badge-status-resolved">Selesai</span>'
+                'completed': '<span class="badge badge-status-resolved">Selesai</span>',
+                'dibatalkan': '<span class="badge badge-secondary">Dibatalkan</span>',
+                'cancelled': '<span class="badge badge-secondary">Dibatalkan</span>'
             };
             
             return statusMap[statusLower] || `<span class="badge badge-secondary">${status}</span>`;
@@ -530,16 +534,18 @@
                 { key: 'resolved', icon: 'fas fa-check', label: 'Selesai' }
             ];
             
-            // Map statuses to step index
+            // Map statuses to step index (see TICKET_STATUS_STANDARD.md)
             const statusStepMap = {
-                'baru': -1,
-                'pending': -1,  // Same as 'baru' for backward compatibility
-                'process': 0,
+                // Primary statuses
+                'baru': -1,      // Not started yet
+                'process': 0,    // Step 1: Proses
+                'otw': 1,        // Step 2: OTW
+                'arrived': 2,    // Step 3: Tiba
+                'working': 3,    // Step 4: Kerja
+                'resolved': 4,   // Step 5: Selesai
+                // Backward compatibility aliases
+                'pending': -1,
                 'diproses teknisi': 0,
-                'otw': 1,
-                'arrived': 2,
-                'working': 3,
-                'resolved': 4,
                 'selesai': 4,
                 'completed': 4
             };
@@ -1269,8 +1275,10 @@
             // Note: DataTable processing indicator handled automatically by "processing": true option
 
             try {
-                // Fix: Include 'pending' for backward compatibility with old tickets
-                const statusParam = encodeURIComponent('baru,pending,diproses teknisi');
+                // CRITICAL: Include ALL active workflow statuses (see TICKET_STATUS_STANDARD.md)
+                // Active: baru, process, otw, arrived, working
+                // Backward compat: pending, diproses teknisi
+                const statusParam = encodeURIComponent('baru,pending,process,diproses teknisi,otw,arrived,working');
                 const response = await fetch(`/api/tickets?status=${statusParam}&_=${new Date().getTime()}`, {
                     method: 'GET',
                     headers: {
@@ -1306,14 +1314,21 @@
                 const tickets = Array.isArray(result.data) ? result.data : [];
 
                 // Log untuk debugging
-                console.log(`[LOAD_TICKETS] Berhasil memuat ${tickets.length} tiket.`);
+                console.log(`[LOAD_TICKETS] Berhasil memuat ${tickets.length} tiket aktif.`);
+                if (tickets.length > 0) {
+                    const statusSummary = tickets.reduce((acc, t) => {
+                        acc[t.status] = (acc[t.status] || 0) + 1;
+                        return acc;
+                    }, {});
+                    console.log('[LOAD_TICKETS] Status breakdown:', statusSummary);
+                }
 
                 // Update DataTable dengan data baru
                 dataTable.clear().rows.add(tickets).draw();
 
                 // Clear any previous error messages
                 if (retryCount === 0 && tickets.length === 0) {
-                    console.log('[LOAD_TICKETS] Tidak ada tiket dengan status "baru" atau "diproses teknisi".');
+                    console.log('[LOAD_TICKETS] Tidak ada tiket aktif. Filter: baru, pending, process, diproses teknisi, otw, arrived, working');
                 }
 
             } catch (error) {
