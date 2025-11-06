@@ -136,6 +136,8 @@ app.use('/js', express.static(path.join(__dirname, 'static/js')));
 app.use('/img', express.static(path.join(__dirname, 'static/img')));
 // Serve temporary files (for payment proofs)
 app.use('/temp', express.static(path.join(__dirname, 'temp')));
+// Serve uploaded ticket photos
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // 5. Main Authentication Middleware
 app.use(async (req, res, next) => {

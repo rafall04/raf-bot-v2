@@ -95,13 +95,13 @@
             50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(0,123,255,0); }
         }
         
-        /* Status Badge Colors */
-        .badge-status-baru { background: #6f42c1; color: #fff; } /* Purple - clearly visible */
-        .badge-status-process { background: #17a2b8; }
-        .badge-status-otw { background: #ffc107; color: #000; }
-        .badge-status-arrived { background: #fd7e14; }
-        .badge-status-working { background: #007bff; }
-        .badge-status-resolved { background: #28a745; }
+        /* Status Badge Colors - All clearly visible! */
+        .badge-status-baru { background: #6f42c1; color: #fff; } /* Purple - new tickets */
+        .badge-status-process { background: #17a2b8; color: #fff; } /* Cyan - being processed */
+        .badge-status-otw { background: #ffc107; color: #000; } /* Yellow - on the way */
+        .badge-status-arrived { background: #fd7e14; color: #fff; } /* Orange - arrived */
+        .badge-status-working { background: #20c997; color: #fff; } /* Teal/Turquoise - working (changed from dark blue) */
+        .badge-status-resolved { background: #28a745; color: #fff; } /* Green - completed */
         
         /* Photo Preview Styles */
         .photo-preview-container {
