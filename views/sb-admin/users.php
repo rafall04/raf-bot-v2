@@ -2576,6 +2576,11 @@
             }
             data.connected_odp_id = $(form).find('[name="connected_odp_id"]').val() || null;
             
+            // CRITICAL FIX: Always set paid value (checkbox may not be in FormData if unchecked)
+            if (!data.hasOwnProperty('paid')) {
+                data.paid = $(form).find('[name="paid"]').is(':checked');
+            }
+            
             // Ensure send_invoice is always sent, even if unchecked
             if (!data.hasOwnProperty('send_invoice')) {
                 data.send_invoice = false;
