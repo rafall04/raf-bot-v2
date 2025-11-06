@@ -149,7 +149,6 @@
             if (data.data && data.data.username) {
                 document.getElementById('usernameTopbar').textContent = data.data.username;
             }
-          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.error("Gagal fetch data user:", err));
 
         $(document).ready(function() {
@@ -159,7 +158,11 @@
                 "ajax": {
                     "url": "/api/package-change-requests",
                     "dataSrc": "data",
+                    "xhrFields": {
+                        "withCredentials": true
+                    },
                     "error": function(xhr, error, thrown) {
+                        console.error('[PACKAGE_REQUESTS] AJAX Error:', xhr.status, error, thrown);
                         Swal.fire('Gagal Memuat Data', 'Tidak dapat mengambil daftar permintaan. Coba lagi nanti.', 'error');
                     }
                 },
@@ -243,6 +246,9 @@
                     url: '/api/approve-package-change',
                     type: 'POST',
                     contentType: 'application/json',
+                    xhrFields: {
+                        withCredentials: true
+                    },
                     data: JSON.stringify(formData),
                     success: function(response) {
                         $('#actionModal').modal('hide');
