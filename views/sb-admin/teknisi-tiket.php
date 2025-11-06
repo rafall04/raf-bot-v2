@@ -688,6 +688,121 @@
             return html;
         }
         
+        /**
+         * Update ticket status to OTW (On The Way)
+         * Calls API endpoint created in Phase 1
+         */
+        async function otwTicket(ticketId) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            // Confirm action
+            if (!confirm(`Update status tiket ${ticketId} ke OTW (On The Way)?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/ticket/otw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ ticketId })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    displayGlobalMessage(`✓ Status tiket ${ticketId} diupdate ke OTW. Pelanggan telah dinotifikasi.`, 'success');
+                    loadTickets(); // Refresh table
+                } else {
+                    displayGlobalMessage(`Gagal update status OTW: ${result.message || 'Error tidak diketahui'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('[OTW_TICKET_ERROR]', error);
+                displayGlobalMessage('Terjadi kesalahan koneksi saat update status OTW', 'danger');
+            }
+        }
+        
+        /**
+         * Mark ticket as arrived at location
+         * Calls API endpoint and shows OTP to technician
+         */
+        async function sampaiTicket(ticketId) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            // Confirm action
+            if (!confirm(`Konfirmasi sudah sampai di lokasi untuk tiket ${ticketId}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/ticket/arrived', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ ticketId })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    displayGlobalMessage(`✓ Status diupdate: Anda sudah tiba di lokasi. Pelanggan telah dinotifikasi.`, 'success');
+                    
+                    // Show OTP modal automatically
+                    if (result.data && result.data.otp) {
+                        setTimeout(() => {
+                            showOTP(ticketId, result.data.otp);
+                        }, 500);
+                    }
+                    
+                    loadTickets(); // Refresh table
+                } else {
+                    displayGlobalMessage(`Gagal update status arrived: ${result.message || 'Error tidak diketahui'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('[SAMPAI_TICKET_ERROR]', error);
+                displayGlobalMessage('Terjadi kesalahan koneksi saat update status arrived', 'danger');
+            }
+        }
+        
+        /**
+         * Show OTP modal to technician
+         * OTP is displayed in prominent box format
+         */
+        function showOTP(ticketId, otp = null) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            // If OTP not provided, need to fetch from ticket data
+            if (!otp) {
+                // Find ticket in current DataTable data
+                const table = $('#ticketsTable').DataTable();
+                const allData = table.rows().data().toArray();
+                const ticket = allData.find(t => (t.ticketId === ticketId || t.id === ticketId));
+                
+                if (ticket && ticket.otp) {
+                    otp = ticket.otp;
+                } else {
+                    displayGlobalMessage('OTP tidak ditemukan untuk tiket ini. Pastikan tiket sudah diproses.', 'warning');
+                    return;
+                }
+            }
+            
+            // Update modal content
+            $('#otpTicketId').text(ticketId);
+            $('#otpCode').text(otp);
+            
+            // Show modal
+            $('#otpModal').modal('show');
+        }
+        
         async function executeProcessTicket(ticketId) {
             if (!ticketId) {
                 displayGlobalMessage('Terjadi kesalahan: ID Tiket tidak ditemukan untuk diproses.', 'danger');
