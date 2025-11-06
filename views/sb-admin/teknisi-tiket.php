@@ -1249,8 +1249,7 @@
             const dataTable = $('#ticketsTable').DataTable();
             isLoadingTickets = true;
             
-            // Show processing indicator
-            dataTable.processing(true);
+            // Note: DataTable processing indicator handled automatically by "processing": true option
 
             try {
                 // Fix: Gunakan encodeURIComponent untuk encoding yang benar
@@ -1308,7 +1307,6 @@
                     console.log(`[LOAD_TICKETS] Retry attempt ${retryCount + 1}/${MAX_RETRIES} after network error...`);
                     await new Promise(resolve => setTimeout(resolve, 1500 * (retryCount + 1)));
                     isLoadingTickets = false;
-                    dataTable.processing(false); // Hide processing before retry
                     return loadTickets(retryCount + 1);
                 }
 
@@ -1320,9 +1318,8 @@
                 dataTable.clear().draw();
 
             } finally {
-                // Always reset flag and hide processing indicator
+                // Always reset flag
                 isLoadingTickets = false;
-                dataTable.processing(false);
             }
         }
 
@@ -1483,50 +1480,9 @@
             $('#confirmCompleteTicketBtn').off('click').on('click', function() {
                 completeTicket();
             });
-
-            document.getElementById('resolveTicketForm').addEventListener('submit', async function(event) {
-                event.preventDefault();
-                const ticketId = document.getElementById('ticketIdInput').value.trim(); // Tambahkan trim()
-                const resolveMessageDiv = document.getElementById('resolveMessage');
-                const submitButton = event.target.querySelector('button[type="submit"]');
-                
-                resolveMessageDiv.innerHTML = '';
-
-                if (!ticketId) {
-                    resolveMessageDiv.innerHTML = '<div class="alert alert-danger">ID Tiket tidak boleh kosong.</div>';
-                    return;
-                }
-
-                // Disable button saat proses
-                submitButton.disabled = true;
-                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
-
-                try {
-                    const response = await fetch('/api/ticket/resolve', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include', // ✅ Fixed by script
-                        body: JSON.stringify({ ticketId: ticketId }),
-                    });
-                    const result = await response.json();
-
-                    if (response.ok && result.status === 200) {
-                        resolveMessageDiv.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
-                        document.getElementById('ticketIdInput').value = ''; 
-                        loadTickets(); // Memanggil loadTickets untuk refresh
-                        setTimeout(() => { resolveMessageDiv.innerHTML = ''; }, 7000);
-                    } else {
-                        resolveMessageDiv.innerHTML = `<div class="alert alert-danger">${result.message || 'Gagal menyelesaikan tiket.'}</div>`;
-                    }
-                } catch (error) {
-                    console.error('Error resolving ticket:', error);
-                    resolveMessageDiv.innerHTML = '<div class="alert alert-danger">Terjadi kesalahan koneksi.</div>';
-                } finally {
-                    // Re-enable button
-                    submitButton.disabled = false;
-                    submitButton.innerHTML = 'Tandai Selesai';
-                }
-            });
+            
+            // Note: Old resolveTicketForm has been removed in Phase 2
+            // Ticket completion now handled through workflow modals (showCompleteModal)
         });
 
         // Socket.IO listener dengan debounce untuk prevent multiple rapid calls
