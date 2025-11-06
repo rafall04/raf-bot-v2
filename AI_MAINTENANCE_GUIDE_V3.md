@@ -22,6 +22,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 15. BUGFIX_MASS_SYNTAX_ERRORS.md (5 admin pages syntax fix)
 16. BUGFIX_USERS_EDIT_NOT_UPDATING.md (Users edit missing credentials - CRITICAL)
 17. BUGFIX_USERS_PAID_STATUS_NOT_UPDATING.md (Paid checkbox FormData issue - CRITICAL)
+18. BUGFIX_TEKNISI_SECURITY_AND_SYNTAX.md (Teknisi dashboard access + 3 syntax errors - CRITICAL SECURITY)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -775,6 +776,8 @@ node test/stress-test-[component].js
 | Syntax errors in admin pages | Duplicate credentials in callbacks | Auto-fix script error (5 files). See BUGFIX_MASS_SYNTAX_ERRORS.md |
 | Users edit not updating | Missing credentials in fetch | Add `credentials: 'include'` to edit/create calls. See BUGFIX_USERS_EDIT_NOT_UPDATING.md |
 | Users paid status not updating | FormData excludes unchecked checkbox | Add fallback to read checkbox state from DOM. See BUGFIX_USERS_PAID_STATUS_NOT_UPDATING.md |
+| **Teknisi can access admin dashboard** | **No route protection + navbar link** | **Block dashboard route + remove link. See BUGFIX_TEKNISI_SECURITY_AND_SYNTAX.md** |
+| Teknisi page syntax errors | Duplicate/orphaned credentials | Remove duplicate forEach + orphaned statements. See BUGFIX_TEKNISI_SECURITY_AND_SYNTAX.md |
 | Broadcast placeholder not working | Multi-line regex pattern | Fix regex to single-line with proper escaping. See BUGFIX_BROADCAST_PLACEHOLDER.md |
 | **Cannot find module** | Wrong import path | Check if NPM package or local file |
 | **convertRupiah error** | Wrong import | Use `require('rupiah-format')` |
