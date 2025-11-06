@@ -228,13 +228,13 @@
                                 <table class="table table-bordered table-hover" id="ticketsTable" width="100%" cellspacing="0">
                                     <thead>
                                         <tr>
-                                            <th>Pelanggan (WA)</th>
-                                            <th>Detail Pelanggan (Sistem)</th>
+                                            <th>ID Tiket</th>
+                                            <th>Pelanggan</th>
                                             <th>Isi Laporan</th>
                                             <th>Status</th>
-                                            <th>Tgl Dibuat</th>
-                                            <th>Diproses Oleh</th>
-                                            <th style="min-width: 100px;">Aksi</th>
+                                            <th style="min-width: 300px;">Progress</th>
+                                            <th>Teknisi</th>
+                                            <th style="min-width: 180px;">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -490,11 +490,81 @@
             return details;
         }
 
+        /**
+         * Get status badge with proper color coding
+         * Supports all workflow statuses from WhatsApp bot
+         */
         function getStatusBadge(status) {
-            if (status === 'baru') return '<span class="badge badge-warning">Baru</span>';
-            if (status === 'diproses teknisi') return '<span class="badge badge-info">Diproses Teknisi</span>';
-            if (status === 'selesai') return '<span class="badge badge-success">Selesai</span>';
-            return `<span class="badge badge-secondary">${status}</span>`;
+            const statusLower = (status || 'baru').toLowerCase();
+            
+            // Map status to badge HTML with custom classes
+            const statusMap = {
+                'baru': '<span class="badge badge-status-baru">Baru</span>',
+                'process': '<span class="badge badge-status-process">Diproses</span>',
+                'diproses teknisi': '<span class="badge badge-status-process">Diproses</span>',
+                'otw': '<span class="badge badge-status-otw">OTW</span>',
+                'arrived': '<span class="badge badge-status-arrived">Tiba</span>',
+                'working': '<span class="badge badge-status-working">Bekerja</span>',
+                'resolved': '<span class="badge badge-status-resolved">Selesai</span>',
+                'selesai': '<span class="badge badge-status-resolved">Selesai</span>',
+                'completed': '<span class="badge badge-status-resolved">Selesai</span>'
+            };
+            
+            return statusMap[statusLower] || `<span class="badge badge-secondary">${status}</span>`;
+        }
+        
+        /**
+         * Render workflow stepper based on current ticket status
+         * Visual progress indicator showing which step ticket is on
+         */
+        function renderWorkflowStepper(status) {
+            const statusLower = (status || 'baru').toLowerCase();
+            
+            // Define workflow steps
+            const steps = [
+                { key: 'process', icon: 'fas fa-play', label: 'Proses' },
+                { key: 'otw', icon: 'fas fa-car', label: 'OTW' },
+                { key: 'arrived', icon: 'fas fa-map-marker-alt', label: 'Tiba' },
+                { key: 'working', icon: 'fas fa-wrench', label: 'Kerja' },
+                { key: 'resolved', icon: 'fas fa-check', label: 'Selesai' }
+            ];
+            
+            // Map statuses to step index
+            const statusStepMap = {
+                'baru': -1,
+                'process': 0,
+                'diproses teknisi': 0,
+                'otw': 1,
+                'arrived': 2,
+                'working': 3,
+                'resolved': 4,
+                'selesai': 4,
+                'completed': 4
+            };
+            
+            const currentStep = statusStepMap[statusLower] !== undefined ? statusStepMap[statusLower] : -1;
+            
+            let html = '<div class="workflow-stepper">';
+            steps.forEach((step, index) => {
+                let stepClass = 'workflow-step';
+                if (index < currentStep) {
+                    stepClass += ' completed';
+                } else if (index === currentStep) {
+                    stepClass += ' active';
+                }
+                
+                html += `
+                    <div class="${stepClass}">
+                        <div class="step-icon">
+                            <i class="${step.icon}"></i>
+                        </div>
+                        <span class="step-label">${step.label}</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            return html;
         }
         
         async function executeProcessTicket(ticketId) {
@@ -616,55 +686,92 @@
                 "data": [], // Mulai dengan data kosong
                 "columns": [
                     { 
-                        "data": null, 
+                        "title": "ID Tiket",
+                        "data": null,
                         "render": function(data, type, row) {
-                            return `${row.pelangganPushName || 'N/A'} (${row.pelangganId ? row.pelangganId.split('@')[0] : 'N/A'})`;
+                            const ticketId = row.ticketId || row.id || 'N/A';
+                            return `<strong>${ticketId}</strong>`;
                         }
                     },
                     { 
-                        "data": "pelangganDataSystem",
+                        "title": "Pelanggan",
+                        "data": null, 
                         "render": function(data, type, row) {
-                            return formatTicketDetails(data);
-                        },
-                        "className": "ticket-details"
+                            const name = row.pelangganName || row.user_name || 'N/A';
+                            const phone = row.pelangganPhone || row.user_phone || 'N/A';
+                            return `<strong>${name}</strong><br><small class="text-muted">${phone}</small>`;
+                        }
                     },
-                    { "data": "laporanText", "defaultContent": "-" },
                     { 
+                        "title": "Isi Laporan",
+                        "data": null,
+                        "render": function(data, type, row) {
+                            const laporan = row.laporanText || row.description || row.laporan || '-';
+                            // Limit text to 100 chars
+                            return laporan.length > 100 ? laporan.substring(0, 100) + '...' : laporan;
+                        }
+                    },
+                    { 
+                        "title": "Status",
                         "data": "status", 
                         "render": function(data, type, row) {
                             return getStatusBadge(data);
                         }
                     },
-                    { 
-                        "data": "createdAt",
+                    {
+                        "title": "Progress",
+                        "data": null,
+                        "orderable": false,
                         "render": function(data, type, row) {
-                            return data ? new Date(data).toLocaleString('id-ID', { dateStyle:'medium', timeStyle:'short'}) : '-';
-                        }
+                            // Only show workflow stepper if ticket is being processed
+                            const status = (row.status || '').toLowerCase();
+                            if (status === 'baru') {
+                                return '<span class="text-muted small"><i class="fas fa-hourglass-start"></i> Belum diproses</span>';
+                            }
+                            return renderWorkflowStepper(row.status);
+                        },
+                        "className": "text-center"
                     },
                     { 
+                        "title": "Teknisi",
                         "data": null,
                         "render": function(data, type, row) {
-                            if (row.status === 'diproses teknisi' && row.processedByTeknisiName) {
-                                return `${row.processedByTeknisiName}<br><small class="processed-by-details">(${new Date(row.processingStartedAt).toLocaleString('id-ID', { dateStyle:'medium', timeStyle:'short'})})</small>`;
+                            const teknisiName = row.teknisiName || row.processedByTeknisiName || row.processedBy || row.processed_by;
+                            if (teknisiName) {
+                                const processedAt = row.processedAt || row.processed_at;
+                                const timeStr = processedAt ? new Date(processedAt).toLocaleString('id-ID', { dateStyle:'short', timeStyle:'short'}) : '';
+                                return `<strong>${teknisiName}</strong>${timeStr ? '<br><small class="text-muted">' + timeStr + '</small>' : ''}`;
                             }
-                            return '-';
+                            return '<span class="text-muted">-</span>';
                         }
                     },
                     { 
+                        "title": "Aksi",
                         "data": null,
                         "orderable": false,
                         "className": "action-buttons",
                         "render": function(data, type, row) {
-                            if (row.status === 'baru') {
-                                return `<button class="btn btn-sm btn-primary" title="Proses Tiket Ini" onclick="showProcessModal('${row.ticketId}')"><i class="fas fa-cogs"></i> Proses</button>`;
-                            } else if (row.status === 'diproses teknisi') {
-                                return '<span class="text-muted">Sedang diproses</span>';
+                            // NOTE: renderActionButtons() will be created in Phase 3.2
+                            // For now, just show status
+                            if (typeof renderActionButtons === 'function') {
+                                return renderActionButtons(row);
                             }
-                            return '-';
+                            
+                            // Fallback rendering for Phase 3.1
+                            const ticketId = row.ticketId || row.id;
+                            const status = (row.status || 'baru').toLowerCase();
+                            
+                            if (status === 'baru') {
+                                return `<button class="btn btn-sm btn-primary" title="Proses Tiket Ini" onclick="showProcessModal('${ticketId}')">
+                                    <i class="fas fa-play"></i> Proses
+                                </button>`;
+                            }
+                            
+                            return '<span class="badge badge-secondary">Waiting for Phase 3.2</span>';
                         }
                     }
                 ],
-                "order": [[ 4, "desc" ]], // Urutkan berdasarkan kolom 'Tgl Dibuat' (indeks 4)
+                "order": [[ 0, "desc" ]], // Urutkan berdasarkan ID Tiket (newest first)
                 "processing": true, // Mengaktifkan indikator "processing"
                 "pageLength": 10,
                 "responsive": true, // Tambahkan responsive untuk mobile
