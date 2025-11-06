@@ -103,6 +103,11 @@
 
         .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
         .modal-xl { max-width: 1140px; }
+        /* Ensure modals are visible in fullscreen */
+        .modal { z-index: 10000 !important; }
+        .modal-backdrop { z-index: 9999 !important; }
+        /* Ensure leaflet popups are visible in fullscreen */
+        .leaflet-popup-pane { z-index: 9998 !important; }
         .form-label { margin-bottom: .3rem; font-size: 0.8rem; font-weight: 500; }
         .form-control-sm { font-size: 0.8rem; padding: .25rem .5rem; height: calc(1.5em + .5rem + 2px); }
         .loading-spinner-container { text-align: center; padding: 20px; }
@@ -1149,14 +1154,25 @@
 
             let deviceDetailsHtml = '';
 
-            fetch(`/api/device-details/${deviceId}?_=${new Date().getTime()}`, { credentials: 'include' })
+            // Use batch metrics API instead of non-existent /api/device-details
+            fetch('/api/customer-metrics-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ deviceIds: [deviceId] })
+            })
                 .then(response => response.json())
-                .then(deviceResult => {
-                    if (deviceResult.status === 200 && deviceResult.data) {
-                        deviceDetailsHtml = `<p><strong>Tipe Modem:</strong> ${deviceResult.data.modemType || 'N/A'}</p>`;
-                    } else {
-                        deviceDetailsHtml = `<p><strong>Tipe Modem:</strong> Tidak dapat mengambil tipe modem.</p>`;
+                .then(metricsResult => {
+                    // Extract modem type from batch metrics
+                    let modemType = 'N/A';
+                    if (metricsResult.status === 200 && Array.isArray(metricsResult.data)) {
+                        const deviceMetrics = metricsResult.data.find(m => m.deviceId === deviceId);
+                        if (deviceMetrics && deviceMetrics.modemType) {
+                            modemType = deviceMetrics.modemType;
+                        }
                     }
+                    deviceDetailsHtml = `<p><strong>Tipe Modem:</strong> ${modemType}</p>`;
+                    
                     return fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`, {
                         credentials: 'include'
                     });

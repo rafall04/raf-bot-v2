@@ -2390,6 +2390,108 @@ router.post('/api/customer-metrics-batch', ensureAuthenticatedStaff, async (req,
     }
 });
 
+// Single device details endpoint - proxy to batch metrics
+router.get('/api/device-details/:deviceId', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        
+        if (!deviceId) {
+            return res.status(400).json({ 
+                status: 400, 
+                message: "deviceId is required" 
+            });
+        }
+
+        console.log(`[API_DEVICE_DETAILS] Fetching details for device: ${deviceId}`);
+        
+        const results = await getMultipleDeviceMetrics([deviceId]);
+        
+        if (results && results.length > 0) {
+            const deviceData = results[0];
+            res.status(200).json({
+                status: 200,
+                message: "Device details retrieved successfully",
+                data: {
+                    modemType: deviceData.modemType || null,
+                    redaman: deviceData.redaman || null,
+                    temperature: deviceData.temperature || null,
+                    uptime: deviceData.uptime || null,
+                    totalConnectedDevices: deviceData.totalConnectedDevices || 0
+                }
+            });
+        } else {
+            res.status(404).json({
+                status: 404,
+                message: "Device not found or no data available",
+                data: null
+            });
+        }
+        
+    } catch (error) {
+        console.error("[API_DEVICE_DETAILS_ERROR]", error);
+        res.status(500).json({
+            status: 500,
+            message: error.message || "Failed to retrieve device details",
+            data: null
+        });
+    }
+});
+
+// Single device redaman endpoint - proxy to batch metrics
+router.get('/api/customer-redaman/:deviceId', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const forceRefresh = req.query.force_refresh === 'true';
+        
+        if (!deviceId) {
+            return res.status(400).json({ 
+                status: 400, 
+                message: "deviceId is required" 
+            });
+        }
+
+        console.log(`[API_CUSTOMER_REDAMAN] Fetching redaman for device: ${deviceId} (force_refresh: ${forceRefresh})`);
+        
+        const results = await getMultipleDeviceMetrics([deviceId]);
+        
+        if (results && results.length > 0) {
+            const deviceData = results[0];
+            let redamanValue = null;
+            
+            // Extract numeric value from "X.XX dBm" format
+            if (deviceData.redaman) {
+                const match = deviceData.redaman.match(/-?\d+\.?\d*/);
+                if (match) {
+                    redamanValue = parseFloat(match[0]);
+                }
+            }
+            
+            res.status(200).json({
+                status: 200,
+                message: redamanValue !== null ? "Data redaman berhasil diambil" : "Data redaman tidak tersedia untuk perangkat ini",
+                data: {
+                    redaman: redamanValue,
+                    redamanRaw: deviceData.redaman || null
+                }
+            });
+        } else {
+            res.status(404).json({
+                status: 404,
+                message: "Device not found or no data available",
+                data: { redaman: null }
+            });
+        }
+        
+    } catch (error) {
+        console.error("[API_CUSTOMER_REDAMAN_ERROR]", error);
+        res.status(500).json({
+            status: 500,
+            message: error.message || "Failed to retrieve redaman data",
+            data: { redaman: null }
+        });
+    }
+});
+
 // GenieACS Parameters Management APIs
 router.get('/api/genieacs-parameters', ensureAuthenticatedStaff, (req, res) => {
     try {
