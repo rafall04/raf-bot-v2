@@ -152,6 +152,12 @@
         .leaflet-control-layers-expanded {
              padding: 6px 10px 6px 6px;
         }
+        
+        /* Ensure proper spacing between buttons */
+        #refreshPppoeBtn,
+        #refreshDataBtn {
+            margin-bottom: 0 !important;
+        }
 
 
         /* --- DataTable Show Entries Refinement --- */
@@ -262,7 +268,12 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <h6 class="m-0 font-weight-bold text-primary">Semua Pelanggan</h6>
                                 <div>
-                                    <button id="refreshDataBtn" class="btn btn-info btn-sm mr-2" disabled>Refresh Data</button>
+                                    <button id="refreshPppoeBtn" class="btn btn-info btn-sm mr-2" title="Refresh data PPPoE dari MikroTik">
+                                        <i class="fas fa-sync-alt"></i> <span id="pppoeStatusText">Refresh PPPoE</span>
+                                    </button>
+                                    <button id="refreshDataBtn" class="btn btn-primary btn-sm" disabled>
+                                        <i class="fas fa-sync-alt"></i> <span>Refresh Data</span>
+                                    </button>
                                 </div>
                             </div>
                             <div class="row mt-3 gx-2">
@@ -415,6 +426,9 @@
         let dataTableInstance = null;
         let activePppoeUsersMap = new Map(); // Stores PPPoE username -> IP address
         let initialPppoeLoadFailed = false;
+        let pppoeDataLoading = false;
+        let lastPppoeFetch = 0;
+        const MIN_FETCH_INTERVAL = 5000; // 5 seconds minimum between fetches
 
         // Cache untuk metrik utama perangkat (Redaman, Suhu, Tipe Router)
         // Key: deviceId, Value: { redaman: '...', temperature: '...', modemType: '...', _loading: false }
@@ -429,16 +443,39 @@
         let pppoeLoadingInProgress = false;
         
         async function fetchActivePppoeUsers(showLoading = true) {
+            // Prevent too frequent calls
+            const now = Date.now();
+            if (now - lastPppoeFetch < MIN_FETCH_INTERVAL) {
+                console.log(`[fetchActivePppoeUsers] Too soon, last fetch was ${(now - lastPppoeFetch) / 1000}s ago`);
+                return;
+            }
+            
             if (pppoeLoadingInProgress) {
                 console.log("[fetchActivePppoeUsers] Already loading PPPoE data, skipping...");
                 return;
             }
             
+            lastPppoeFetch = now;
+            
             pppoeLoadingInProgress = true;
+            pppoeDataLoading = true;
             initialPppoeLoadFailed = false;
             
+            // Update button state to show loading
+            if (showLoading) {
+                $('#refreshPppoeBtn').prop('disabled', true);
+                $('#pppoeStatusText').html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+            }
+            
+            // Update DataTable to show loading state immediately
+            if (dataTableInstance) {
+                dataTableInstance.rows().invalidate('data').draw(false);
+            }
+            
             try {
-                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`, { credentials: 'include' });
+                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`, {
+                    credentials: 'include'
+                });
                 const result = await response.json();
                 
                 if (result.status === 200 && Array.isArray(result.data)) {
@@ -452,19 +489,38 @@
                     
                     console.log(`[fetchActivePppoeUsers] Loaded ${activePppoeUsersMap.size} PPPoE users`);
                     
-                    // Update DataTable if it exists
+                    // Update button to show success
+                    $('#pppoeStatusText').html(`<i class="fas fa-check"></i> ${activePppoeUsersMap.size} Online`);
+                    pppoeDataLoading = false;
+                    
+                    // Update DataTable to show actual data
                     if (dataTableInstance) {
                         dataTableInstance.rows().invalidate('data').draw(false);
                     }
                 } else if (result.error) {
                     console.warn("[fetchActivePppoeUsers] PPPoE data not available:", result.message);
+                    $('#pppoeStatusText').html('<i class="fas fa-exclamation-triangle"></i> Offline');
                     initialPppoeLoadFailed = true;
+                    pppoeDataLoading = false;
+                    
+                    // Update DataTable to show error state
+                    if (dataTableInstance) {
+                        dataTableInstance.rows().invalidate('data').draw(false);
+                    }
                 }
             } catch (error) {
                 console.error("[fetchActivePppoeUsers] Error:", error);
+                $('#pppoeStatusText').html('<i class="fas fa-times"></i> Error');
                 initialPppoeLoadFailed = true;
+                pppoeDataLoading = false;
+                
+                // Update DataTable to show error state
+                if (dataTableInstance) {
+                    dataTableInstance.rows().invalidate('data').draw(false);
+                }
             } finally {
                 pppoeLoadingInProgress = false;
+                $('#refreshPppoeBtn').prop('disabled', false);
             }
         }
 
@@ -1289,9 +1345,14 @@
         }
 
         async function initializePage() {
-            // Fetch initial data needed for dropdowns and PPPoE status
+            // Fetch initial data needed for dropdowns
             await fetchNetworkAssets();
-            await fetchActivePppoeUsers();
+            
+            // Load PPPoE data asynchronously in background without blocking
+            // Data will load independently and update UI when ready
+            setTimeout(() => {
+                fetchActivePppoeUsers(false); // false = don't show loading on initial load
+            }, 2000); // Delay 2 seconds to let page load first
 
             fetch('/api/packages').then(res => res.json().then(({ data }) => {
                 const createSubscriptionSelect = document.getElementById('create_subscription');
@@ -1607,6 +1668,11 @@
             $('#createModal').on('show.bs.modal', function () {
                 $('#create_number_container').empty();
                 addNumberField('create_number_container', "", true);
+            });
+
+            // Refresh PPPoE button handler
+            $('#refreshPppoeBtn').on('click', function() {
+                fetchActivePppoeUsers(true);
             });
 
             // Event handler for reboot device button
