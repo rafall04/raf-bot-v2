@@ -298,33 +298,9 @@
         </div>
     </div>
 
-    <!-- OTP Display Modal -->
-    <div class="modal fade" id="otpModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-key"></i> Kode OTP</h5>
-                    <button class="close" type="button" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">×</span>
-                    </button>
-                </div>
-                <div class="modal-body text-center">
-                    <p class="otp-label">Kode Verifikasi untuk Tiket:</p>
-                    <h6 id="otpTicketId" class="font-weight-bold text-primary mb-3">-</h6>
-                    <div class="otp-box">
-                        <div class="otp-code" id="otpCode">------</div>
-                    </div>
-                    <p class="text-muted small mt-3">
-                        <i class="fas fa-info-circle"></i> 
-                        Kode ini telah dikirim ke semua nomor pelanggan via WhatsApp
-                    </p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Tutup</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- OTP Display Modal REMOVED -->
+    <!-- Teknisi should NOT see OTP - they must ask customer for it! -->
+    <!-- This is the correct workflow per security requirements -->
 
     <!-- OTP Verification Modal -->
     <div class="modal fade" id="verifyOtpModal" tabindex="-1" role="dialog">
@@ -606,49 +582,34 @@
                     
                 case 'process':
                 case 'diproses teknisi':
-                    // Processed - OTW + View OTP buttons
+                    // Processed - OTW button only (OTP sent to customer via WhatsApp)
                     html += `
                         <button class="btn btn-sm btn-info" 
                                 onclick="otwTicket('${ticketId}')" 
-                                title="Update status ke On The Way">
+                                title="Berangkat ke lokasi">
                             <i class="fas fa-car action-btn-icon"></i> OTW
-                        </button>
-                        <button class="btn btn-sm btn-secondary" 
-                                onclick="showOTP('${ticketId}')" 
-                                title="Lihat kode OTP">
-                            <i class="fas fa-key action-btn-icon"></i> Lihat OTP
                         </button>
                     `;
                     break;
                     
                 case 'otw':
-                    // On The Way - Sampai + View OTP buttons
+                    // On The Way - Sampai button only
                     html += `
                         <button class="btn btn-sm btn-warning" 
                                 onclick="sampaiTicket('${ticketId}')" 
-                                title="Tandai sudah tiba di lokasi">
+                                title="Tandai sudah sampai">
                             <i class="fas fa-map-marker-alt action-btn-icon"></i> Sampai
-                        </button>
-                        <button class="btn btn-sm btn-secondary" 
-                                onclick="showOTP('${ticketId}')" 
-                                title="Lihat kode OTP">
-                            <i class="fas fa-key action-btn-icon"></i> Lihat OTP
                         </button>
                     `;
                     break;
                     
                 case 'arrived':
-                    // Arrived - Verify OTP + View OTP buttons
+                    // Arrived - Verify OTP only (ask customer for OTP code)
                     html += `
                         <button class="btn btn-sm btn-success" 
                                 onclick="showVerifyOtpModal('${ticketId}')" 
                                 title="Verifikasi OTP dari pelanggan">
                             <i class="fas fa-check-circle action-btn-icon"></i> Verifikasi OTP
-                        </button>
-                        <button class="btn btn-sm btn-secondary" 
-                                onclick="showOTP('${ticketId}')" 
-                                title="Lihat kode OTP">
-                            <i class="fas fa-key action-btn-icon"></i> Lihat OTP
                         </button>
                     `;
                     break;
@@ -759,14 +720,10 @@
                 const result = await response.json();
                 
                 if (response.ok && result.status === 200) {
-                    displayGlobalMessage(`✓ Status diupdate: Anda sudah tiba di lokasi. Pelanggan telah dinotifikasi.`, 'success');
+                    displayGlobalMessage(`✓ Anda sudah tiba di lokasi. Silakan minta kode OTP dari pelanggan untuk verifikasi.`, 'success');
                     
-                    // Show OTP modal automatically
-                    if (result.data && result.data.otp) {
-                        setTimeout(() => {
-                            showOTP(ticketId, result.data.otp);
-                        }, 500);
-                    }
+                    // Do NOT show OTP to teknisi - they must ask customer for it!
+                    // This is the correct workflow per security requirements
                     
                     loadTickets(); // Refresh table
                 } else {
@@ -779,37 +736,17 @@
         }
         
         /**
-         * Show OTP modal to technician
-         * OTP is displayed in prominent box format
+         * showOTP function REMOVED
+         * Teknisi should NEVER see the OTP!
+         * 
+         * CORRECT WORKFLOW:
+         * 1. Teknisi process ticket → OTP sent to CUSTOMER via WhatsApp
+         * 2. Teknisi arrives at location → Teknisi ASKS customer for OTP
+         * 3. Customer gives OTP → Teknisi inputs in verification modal
+         * 4. System verifies OTP → Work session starts
+         * 
+         * This ensures customer is present and verifies teknisi identity
          */
-        function showOTP(ticketId, otp = null) {
-            if (!ticketId) {
-                displayGlobalMessage('ID Tiket tidak valid', 'danger');
-                return;
-            }
-            
-            // If OTP not provided, need to fetch from ticket data
-            if (!otp) {
-                // Find ticket in current DataTable data
-                const table = $('#ticketsTable').DataTable();
-                const allData = table.rows().data().toArray();
-                const ticket = allData.find(t => (t.ticketId === ticketId || t.id === ticketId));
-                
-                if (ticket && ticket.otp) {
-                    otp = ticket.otp;
-                } else {
-                    displayGlobalMessage('OTP tidak ditemukan untuk tiket ini. Pastikan tiket sudah diproses.', 'warning');
-                    return;
-                }
-            }
-            
-            // Update modal content
-            $('#otpTicketId').text(ticketId);
-            $('#otpCode').text(otp);
-            
-            // Show modal
-            $('#otpModal').modal('show');
-        }
         
         /**
          * Show OTP verification modal
@@ -1243,12 +1180,9 @@
                 if (response.ok && result.status === 200) {
                     displayGlobalMessage(`✓ Tiket ${ticketId} berhasil diproses! OTP telah dikirim ke pelanggan.`, 'success');
                     
-                    // Show OTP modal if returned
-                    if (result.data && result.data.otp) {
-                        setTimeout(() => {
-                            showOTP(ticketId, result.data.otp);
-                        }, 1000);
-                    }
+                    // Do NOT show OTP to teknisi!
+                    // OTP is sent to customer via WhatsApp
+                    // Teknisi will ask customer for OTP when arrived at location
                     
                     loadTickets(); // Refresh daftar tiket
                 } else {

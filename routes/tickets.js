@@ -191,15 +191,13 @@ router.get('/tickets', ensureAuthenticatedStaff, async (req, res) => {
                 const reportStatus = (report.status || 'baru').toLowerCase();
                 return statusArray.includes(reportStatus);
             });
+            console.log(`[API_TICKETS] Filtered by status: ${status} → ${filteredReports.length} tickets`);
         }
         
-        // For teknisi, only show tickets that are 'baru' or 'diproses teknisi'
-        if (req.user.role === 'teknisi') {
-            filteredReports = filteredReports.filter(report => {
-                const reportStatus = (report.status || 'baru').toLowerCase();
-                return reportStatus === 'baru' || reportStatus === 'diproses teknisi';
-            });
-        }
+        // REMOVED DOUBLE FILTER for teknisi role!
+        // Frontend already specifies which statuses to show via query param
+        // No need to filter again here - it was killing tickets with status='process', 'otw', etc.
+        // See TICKET_STATUS_STANDARD.md for correct workflow
         
         // Sort by created_at descending (newest first)
         filteredReports.sort((a, b) => {
