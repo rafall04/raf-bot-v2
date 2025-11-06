@@ -438,7 +438,7 @@
             initialPppoeLoadFailed = false;
             
             try {
-                const response = await fetch('/api/mikrotik/ppp-active-users?_=${new Date().getTime()}', { credentials: 'include' });
+                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`, { credentials: 'include' });
                 const result = await response.json();
                 
                 if (result.status === 200 && Array.isArray(result.data)) {
@@ -1168,7 +1168,7 @@
                 // Call the existing API endpoint that performs refresh and gets full SSID info
                 // This is the /api/customer-wifi-info/:deviceId endpoint in index.js,
                 // which in turn calls getSSIDInfo in wifi.js.
-                const response = await fetch('/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
+                const response = await fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`, { credentials: 'include' });
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 200) {
