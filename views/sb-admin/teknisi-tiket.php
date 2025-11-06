@@ -567,6 +567,127 @@
             return html;
         }
         
+        /**
+         * Render action buttons dynamically based on ticket status
+         * Following WhatsApp bot workflow: baru → process → otw → arrived → working → resolved
+         */
+        function renderActionButtons(row) {
+            const ticketId = row.ticketId || row.id;
+            const status = (row.status || 'baru').toLowerCase();
+            const photoCount = (row.photos && Array.isArray(row.photos)) ? row.photos.length : 0;
+            const hasMinPhotos = photoCount >= 2;
+            
+            // Safety check
+            if (!ticketId) {
+                return '<span class="text-danger small">Invalid Ticket ID</span>';
+            }
+            
+            let html = '<div class="btn-group-vertical" style="width: 100%;">';
+            
+            switch(status) {
+                case 'baru':
+                    // New ticket - only "Proses" button
+                    html += `
+                        <button class="btn btn-sm btn-primary" 
+                                onclick="showProcessModal('${ticketId}')" 
+                                title="Ambil dan proses tiket ini">
+                            <i class="fas fa-play action-btn-icon"></i> Proses
+                        </button>
+                    `;
+                    break;
+                    
+                case 'process':
+                case 'diproses teknisi':
+                    // Processed - OTW + View OTP buttons
+                    html += `
+                        <button class="btn btn-sm btn-info" 
+                                onclick="otwTicket('${ticketId}')" 
+                                title="Update status ke On The Way">
+                            <i class="fas fa-car action-btn-icon"></i> OTW
+                        </button>
+                        <button class="btn btn-sm btn-secondary" 
+                                onclick="showOTP('${ticketId}')" 
+                                title="Lihat kode OTP">
+                            <i class="fas fa-key action-btn-icon"></i> Lihat OTP
+                        </button>
+                    `;
+                    break;
+                    
+                case 'otw':
+                    // On The Way - Sampai + View OTP buttons
+                    html += `
+                        <button class="btn btn-sm btn-warning" 
+                                onclick="sampaiTicket('${ticketId}')" 
+                                title="Tandai sudah tiba di lokasi">
+                            <i class="fas fa-map-marker-alt action-btn-icon"></i> Sampai
+                        </button>
+                        <button class="btn btn-sm btn-secondary" 
+                                onclick="showOTP('${ticketId}')" 
+                                title="Lihat kode OTP">
+                            <i class="fas fa-key action-btn-icon"></i> Lihat OTP
+                        </button>
+                    `;
+                    break;
+                    
+                case 'arrived':
+                    // Arrived - Verify OTP + View OTP buttons
+                    html += `
+                        <button class="btn btn-sm btn-success" 
+                                onclick="showVerifyOtpModal('${ticketId}')" 
+                                title="Verifikasi OTP dari pelanggan">
+                            <i class="fas fa-check-circle action-btn-icon"></i> Verifikasi OTP
+                        </button>
+                        <button class="btn btn-sm btn-secondary" 
+                                onclick="showOTP('${ticketId}')" 
+                                title="Lihat kode OTP">
+                            <i class="fas fa-key action-btn-icon"></i> Lihat OTP
+                        </button>
+                    `;
+                    break;
+                    
+                case 'working':
+                    // Working - Upload Photo + Complete buttons
+                    html += `
+                        <button class="btn btn-sm btn-primary" 
+                                onclick="showUploadPhotoModal('${ticketId}')" 
+                                title="Upload foto dokumentasi">
+                            <i class="fas fa-camera action-btn-icon"></i> 
+                            Upload Foto <span class="badge badge-light">${photoCount}</span>
+                        </button>
+                        <button class="btn btn-sm btn-success ${hasMinPhotos ? '' : 'disabled'}" 
+                                onclick="${hasMinPhotos ? `showCompleteModal('${ticketId}')` : 'return false;'}" 
+                                title="${hasMinPhotos ? 'Selesaikan tiket' : 'Upload minimal 2 foto dulu'}"
+                                ${hasMinPhotos ? '' : 'disabled'}>
+                            <i class="fas fa-check-double action-btn-icon"></i> 
+                            Selesai ${hasMinPhotos ? '✓' : '(Min 2 foto)'}
+                        </button>
+                    `;
+                    break;
+                    
+                case 'resolved':
+                case 'selesai':
+                case 'completed':
+                    // Completed - show success badge
+                    html += `
+                        <span class="badge badge-success p-2">
+                            <i class="fas fa-check-double"></i> Tiket Selesai
+                        </span>
+                    `;
+                    break;
+                    
+                default:
+                    // Unknown status
+                    html += `
+                        <span class="text-muted small">
+                            Status: ${status}
+                        </span>
+                    `;
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
         async function executeProcessTicket(ticketId) {
             if (!ticketId) {
                 displayGlobalMessage('Terjadi kesalahan: ID Tiket tidak ditemukan untuk diproses.', 'danger');
