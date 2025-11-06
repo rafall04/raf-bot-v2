@@ -501,7 +501,6 @@
                 currentUsername = data.data.username || "Teknisi";
                 $('#loggedInTechnicianInfo').text(currentUsername);
             }
-          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.warn("Error fetching user data:", err));
 
         function displayGlobalMapMessage(message, type = 'info', duration = 7000) {
@@ -612,7 +611,6 @@
                         } else {
                              console.warn("[TechMap] PPPoE user entry from API incomplete:", userEntry);
                         }
-                      credentials: 'include', // ✅ Fixed by script
                     });
                      console.log("[TechMap] Active PPPoE users fetched:", activePppoeUsersMap.size);
                 } else {
