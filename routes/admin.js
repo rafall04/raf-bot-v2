@@ -601,9 +601,10 @@ router.post('/api/request-package-change', ensureAuthenticatedStaff, async (req,
             }).format(requestedPackage.price);
 
             // Buat pesan notifikasi
+            const requesterName = requester.name || requester.username;
             const messageToOwner = `🔔 *Permintaan Perubahan Paket Baru* 🔔
 
-${requester.role === 'teknisi' ? 'Teknisi' : 'Admin'} *${requester.username}* telah mengajukan permintaan perubahan paket untuk pelanggan:
+${requester.role === 'teknisi' ? 'Teknisi' : 'Admin'} *${requesterName}* telah mengajukan permintaan perubahan paket untuk pelanggan:
 
 👤 *Pelanggan:* ${user.name}
 📱 *Telepon:* ${user.phone_number || 'Tidak ada'}
@@ -768,6 +769,48 @@ Silakan hubungi admin untuk informasi lebih lanjut.`;
                     }
                 }
              }
+        }
+
+        // Send notification to teknisi who requested the change
+        const teknisiAccount = global.accounts.find(acc => acc.id === request.requestedById);
+        if (teknisiAccount && teknisiAccount.phone_number && global.raf) {
+            const teknisiName = teknisiAccount.name || teknisiAccount.username;
+            const statusEmoji = action === 'approve' ? '✅' : '❌';
+            const statusText = action === 'approve' ? 'DISETUJUI' : 'DITOLAK';
+            
+            let teknisiMessage = `${statusEmoji} *Permintaan Perubahan Paket ${statusText}*
+
+`;
+            teknisiMessage += `Halo ${teknisiName},\n\n`;
+            teknisiMessage += `Permintaan perubahan paket yang Anda ajukan telah *${statusText}* oleh admin.\n\n`;
+            teknisiMessage += `📋 *Detail Permintaan:*\n`;
+            teknisiMessage += `• Request ID: ${request.id}\n`;
+            teknisiMessage += `• Pelanggan: ${user ? user.name : 'N/A'}\n`;
+            teknisiMessage += `• Paket Lama: ${request.currentPackageName}\n`;
+            teknisiMessage += `• Paket Baru: ${request.requestedPackageName}\n`;
+            if (action === 'reject' && notes) {
+                teknisiMessage += `\n❌ *Alasan Penolakan:*\n${notes}\n`;
+            }
+            teknisiMessage += `\n⏰ *Waktu Diproses:* ${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n`;
+            teknisiMessage += `👤 *Diproses Oleh:* ${adminUser.username}`;
+            
+            let teknisiPhone = teknisiAccount.phone_number.trim();
+            if (!teknisiPhone.endsWith('@s.whatsapp.net')) {
+                if (teknisiPhone.startsWith('0')) {
+                    teknisiPhone = `62${teknisiPhone.substring(1)}@s.whatsapp.net`;
+                } else if (teknisiPhone.startsWith('62')) {
+                    teknisiPhone = `${teknisiPhone}@s.whatsapp.net`;
+                } else {
+                    teknisiPhone = `62${teknisiPhone}@s.whatsapp.net`;
+                }
+            }
+            
+            try {
+                await global.raf.sendMessage(teknisiPhone, { text: teknisiMessage });
+                console.log(`[PKG_CHANGE_TEKNISI_NOTIF] Notifikasi berhasil dikirim ke teknisi ${teknisiName} (${teknisiPhone})`);
+            } catch (e) {
+                console.error(`[PKG_CHANGE_TEKNISI_NOTIF_ERROR] Gagal kirim notif ke teknisi ${teknisiPhone}:`, e.message);
+            }
         }
 
         return res.status(200).json({ message: `Permintaan berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}.` });

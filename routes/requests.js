@@ -165,11 +165,11 @@ router.get('/', async (req, res) => {
             
             return {
                 ...request,
-                requestorName: requestorAccount ? requestorAccount.username : `Teknisi ID ${request.requested_by_teknisi_id}`,
+                requestorName: requestorAccount ? (requestorAccount.name || requestorAccount.username) : `Teknisi ID ${request.requested_by_teknisi_id}`,
                 packageName: user?.subscription || 'N/A',
                 packagePrice: user ? getPackagePrice(user.subscription) : 0,
                 updated_by_name: request.updated_by === 'system' ? 'Sistem' : 
-                                (updatedByAccount ? updatedByAccount.username : 
+                                (updatedByAccount ? (updatedByAccount.name || updatedByAccount.username) : 
                                 (request.updated_by ? `ID: ${request.updated_by}` : '-')),
                 // Add fields for income calculation
                 currentUserPaidStatus: currentUserPaidStatus,
@@ -265,7 +265,7 @@ router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
     console.log(`[REQUEST_CREATE_LOG] Teknisi ID ${req.user.id} (${req.user.username}) membuat pengajuan baru untuk User ID ${userId} (${user.name}).`);
     
     // Broadcast ke semua admin dan owner
-    const teknisiName = req.user.username;
+    const teknisiName = req.user.name || req.user.username;
     const statusText = newStatus ? "SUDAH BAYAR" : "BELUM BAYAR";
     const packagePrice = getPackagePrice(user.subscription);
     const priceText = packagePrice > 0 ? `Rp ${packagePrice.toLocaleString('id-ID')}` : 'Tidak diketahui';
@@ -338,7 +338,7 @@ router.post('/cancel', rateLimit('cancel-request', 5, 60000), async (req, res) =
         const userPelanggan = global.users.find(u => String(u.id) === String(requestToUpdate.userId));
         const namaPelanggan = userPelanggan ? userPelanggan.name : `ID ${requestToUpdate.userId}`;
         const teknisiPembuat = global.accounts.find(acc => String(acc.id) === String(requestToUpdate.requested_by_teknisi_id));
-        const namaTeknisi = teknisiPembuat ? teknisiPembuat.username : `ID ${requestToUpdate.requested_by_teknisi_id}`;
+        const namaTeknisi = teknisiPembuat ? (teknisiPembuat.name || teknisiPembuat.username) : `ID ${requestToUpdate.requested_by_teknisi_id}`;
         const messageToOwner = `🔔 *Info: Pengajuan Dibatalkan Teknisi* 🔔\n\nTeknisi *${namaTeknisi}* telah membatalkan pengajuan perubahan status pembayaran untuk pelanggan:\n\n👤 *Nama Pelanggan:* ${namaPelanggan}\n🆔 *ID Request:* ${requestToUpdate.id}\n⏰ *Waktu Pembatalan:* ${new Date(requestToUpdate.updated_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\nStatus pengajuan kini: Dibatalkan oleh Teknisi.`;
         for (const singleOwnerNum of global.config.ownerNumber) {
             const { delay } = await import('@whiskeysockets/baileys');
