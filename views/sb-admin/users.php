@@ -2593,6 +2593,13 @@
             const originalButtonText = submitButton.html();
             submitButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
 
+            // DEBUG: Log data being sent
+            console.log('[USER_EDIT_DEBUG] Form type:', isEditForm ? 'EDIT' : 'CREATE');
+            console.log('[USER_EDIT_DEBUG] User ID:', userId);
+            console.log('[USER_EDIT_DEBUG] URL:', url);
+            console.log('[USER_EDIT_DEBUG] Data being sent:', JSON.stringify(data, null, 2));
+            console.log('[USER_EDIT_DEBUG] Paid status:', data.paid);
+
             try { // Use try-catch for the fetch operation
                 const response = await fetch(url, {
                     method: method,
@@ -2604,6 +2611,10 @@
                 let result;
                 if (contentType && contentType.indexOf("application/json") !== -1) {
                     result = await response.json();
+                    // DEBUG: Log server response
+                    console.log('[USER_EDIT_DEBUG] Response status:', response.status);
+                    console.log('[USER_EDIT_DEBUG] Response OK:', response.ok);
+                    console.log('[USER_EDIT_DEBUG] Server response:', result);
                 } else {
                     const textData = await response.text();
                     console.error("Server tidak merespons dengan JSON (User Form). Respons mentah:", textData);

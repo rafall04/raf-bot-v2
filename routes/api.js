@@ -393,14 +393,25 @@ router.post('/users', ensureAdmin, async (req, res) => {
 // POST /api/users/:id - Update existing user
 router.post('/users/:id', ensureAdmin, async (req, res) => {
     const { id } = req.params;
+    
+    // DEBUG: Log incoming request
+    console.log('[API_USER_UPDATE_DEBUG] ========================================');
+    console.log('[API_USER_UPDATE_DEBUG] User ID:', id);
+    console.log('[API_USER_UPDATE_DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('[API_USER_UPDATE_DEBUG] Paid field in body:', req.body.paid, typeof req.body.paid);
+    
     const userToUpdate = global.users.find(u => String(u.id) === String(id));
     
     if (!userToUpdate) {
+        console.log('[API_USER_UPDATE_DEBUG] User not found!');
         return res.status(404).json({ 
             status: 404, 
             message: "Pengguna tidak ditemukan." 
         });
     }
+
+    console.log('[API_USER_UPDATE_DEBUG] User found:', userToUpdate.name);
+    console.log('[API_USER_UPDATE_DEBUG] OLD paid status:', userToUpdate.paid);
 
     try {
         const userData = req.body;
@@ -428,7 +439,9 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
             if (userData[key] !== undefined && key !== 'id') {
                 // Handle boolean conversions
                 if (key === 'paid' || key === 'send_invoice' || key === 'is_corporate') {
-                    userToUpdate[key] = userData[key] === true || userData[key] === 'true' || userData[key] === 1;
+                    const newValue = userData[key] === true || userData[key] === 'true' || userData[key] === 1;
+                    console.log(`[API_USER_UPDATE_DEBUG] Updating ${key}: ${userToUpdate[key]} -> ${newValue}`);
+                    userToUpdate[key] = newValue;
                 } else if (key === 'phone_number' || key === 'phone') {
                     // Store phone number in the correct field
                     userToUpdate['phone_number'] = userData[key];
@@ -490,6 +503,11 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
                 updateValues.push(id); // Add ID for WHERE clause
                 
                 const updateQuery = `UPDATE users SET ${setClause} WHERE id = ?`;
+                
+                // DEBUG: Log SQL query
+                console.log('[API_USER_UPDATE_DEBUG] SQL Query:', updateQuery);
+                console.log('[API_USER_UPDATE_DEBUG] SQL Values:', updateValues);
+                console.log('[API_USER_UPDATE_DEBUG] Update fields:', updateFields);
             
                 await new Promise((resolve, reject) => {
                     global.db.run(updateQuery, updateValues, function(err) {
@@ -499,7 +517,8 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
                             console.error('[DB_UPDATE_VALUES]', updateValues);
                             reject(err);
                         } else {
-                            console.log(`[DB_UPDATE_SUCCESS] User ${id} updated successfully`);
+                            console.log(`[DB_UPDATE_SUCCESS] User ${id} updated successfully. Rows affected: ${this.changes}`);
+                            console.log('[API_USER_UPDATE_DEBUG] NEW paid status:', userToUpdate.paid);
                             resolve();
                         }
                     });
@@ -526,6 +545,9 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
                 await updatePPPoEProfile(userToUpdate.pppoe_username, profile);
             }
         }
+        
+        console.log('[API_USER_UPDATE_DEBUG] Sending response with paid status:', userToUpdate.paid);
+        console.log('[API_USER_UPDATE_DEBUG] ========================================');
         
         return res.json({
             status: 200,
