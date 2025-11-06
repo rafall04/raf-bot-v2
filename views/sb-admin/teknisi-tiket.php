@@ -96,7 +96,7 @@
         }
         
         /* Status Badge Colors */
-        .badge-status-baru { background: #6c757d; }
+        .badge-status-baru { background: #6f42c1; color: #fff; } /* Purple - clearly visible */
         .badge-status-process { background: #17a2b8; }
         .badge-status-otw { background: #ffc107; color: #000; }
         .badge-status-arrived { background: #fd7e14; }
@@ -1219,21 +1219,36 @@
                 return;
             }
             try {
+                console.log(`[PROCESS_TICKET] Attempting to process ticket: ${ticketId}`);
                 const response = await fetch('/api/ticket/process', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include', // ✅ Fixed by script
+                    credentials: 'include',
                     body: JSON.stringify({ ticketId })
                 });
+                
+                console.log(`[PROCESS_TICKET] Response status: ${response.status}`);
+                
                 const result = await response.json();
+                console.log(`[PROCESS_TICKET] Response data:`, result);
+                
                 if (response.ok && result.status === 200) {
-                    displayGlobalMessage(`Tiket dengan ID ${ticketId} sekarang sedang Anda proses.`, 'success');
+                    displayGlobalMessage(`✓ Tiket ${ticketId} berhasil diproses! OTP telah dikirim ke pelanggan.`, 'success');
+                    
+                    // Show OTP modal if returned
+                    if (result.data && result.data.otp) {
+                        setTimeout(() => {
+                            showOTP(ticketId, result.data.otp);
+                        }, 1000);
+                    }
+                    
                     loadTickets(); // Refresh daftar tiket
                 } else {
+                    console.error(`[PROCESS_TICKET] Error response:`, result);
                     displayGlobalMessage(`Gagal memproses tiket ${ticketId}: ${result.message || 'Error tidak diketahui.'}`, 'danger');
                 }
             } catch (error) {
-                console.error('Error processing ticket:', error);
+                console.error('[PROCESS_TICKET] Exception:', error);
                 displayGlobalMessage(`Terjadi kesalahan koneksi saat memproses tiket ${ticketId}.`, 'danger');
             }
         }

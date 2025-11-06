@@ -324,12 +324,15 @@ router.post('/ticket/process', ensureAuthenticatedStaff, async (req, res) => {
         
         const ticket = global.reports[reportIndex];
         
+        // Log current ticket status for debugging
+        console.log(`[TICKET_PROCESS] Ticket ${ticketId} current status: "${ticket.status}"`);
+        
         // Check if ticket is already being processed (support multiple status formats)
         if (ticket.status === 'process' || ticket.status === 'diproses teknisi' || 
             ticket.status === 'otw' || ticket.status === 'arrived' || ticket.status === 'working') {
             return res.status(400).json({
                 status: 400,
-                message: 'Tiket sudah dalam proses atau sedang ditangani'
+                message: `Tiket sudah dalam proses atau sedang ditangani (Status: ${ticket.status})`
             });
         }
         
