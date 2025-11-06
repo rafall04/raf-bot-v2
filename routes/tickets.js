@@ -437,7 +437,7 @@ _Estimasi kedatangan akan diinformasikan._`;
         
         // Broadcast to admins (using teknisi.name instead of username)
         const broadcastMsg = `🔧 *TIKET DIPROSES*\n\n` +
-            `📋 *ID Tiket:* ${ticket.id}\n` +
+            `📋 *ID Tiket:* ${ticket.ticketId || ticket.id}\n` +
             `👤 *Pelanggan:* ${user.name}\n` +
             `📦 *Paket:* ${user.subscription || user.package || '-'}\n` +
             `📝 *Laporan:* ${ticket.description || ticket.laporan || '-'}\n` +
@@ -1076,7 +1076,7 @@ _Tiket telah ditutup._`;
         
         // Broadcast to admins
         const broadcastMsg = `✅ *TIKET SELESAI*\n\n` +
-            `📋 *ID Tiket:* ${ticket.id}\n` +
+            `📋 *ID Tiket:* ${ticket.ticketId || ticket.id}\n` +
             `🔧 *Teknisi:* ${teknisi.name || teknisi.username}\n` +
             `⏱️ *Durasi:* ${durationMinutes} menit\n` +
             `📸 *Foto:* ${ticket.photos.length} dokumentasi\n` +
@@ -1157,7 +1157,7 @@ router.post('/ticket/resolve', ensureAuthenticatedStaff, async (req, res) => {
         
         // Broadcast to admins
         const broadcastMsg = `✅ *TIKET SELESAI*\n\n` +
-            `📋 *ID Tiket:* ${report.id}\n` +
+            `📋 *ID Tiket:* ${report.ticketId || report.id}\n` +
             `👤 *Pelanggan:* ${user ? user.name : 'Unknown'}\n` +
             `📦 *Paket:* ${user ? user.package : '-'}\n` +
             `📝 *Laporan:* ${report.description}\n` +
@@ -1171,7 +1171,7 @@ router.post('/ticket/resolve', ensureAuthenticatedStaff, async (req, res) => {
         // Send notification to customer via WhatsApp if possible
         if (global.raf && user && user.phone) {
             const customerMsg = `Halo ${user.name},\n\n` +
-                `✅ Laporan Anda dengan ID *${report.id}* telah SELESAI ditangani.\n\n` +
+                `✅ Laporan Anda dengan ID *${report.ticketId || report.id}* telah SELESAI ditangani.\n\n` +
                 (resolution ? `*Penyelesaian:* ${resolution}\n\n` : '') +
                 `Terima kasih telah menggunakan layanan kami. Jika masih ada kendala, silakan hubungi kami kembali.\n\n` +
                 `Salam hangat,\nTim Support 🙏`;
@@ -1312,7 +1312,7 @@ router.post('/admin/ticket/cancel', ensureAdmin, async (req, res) => {
         // Send notification to customer via WhatsApp if possible
         if (global.raf && user && user.phone) {
             const customerMsg = `Halo ${user.name},\n\n` +
-                `Tiket laporan Anda dengan ID *${report.id}* telah dibatalkan oleh admin.\n\n` +
+                `Tiket laporan Anda dengan ID *${report.ticketId || report.id}* telah dibatalkan oleh admin.\n\n` +
                 (cancellationReason ? `*Alasan:* ${cancellationReason}\n\n` : '') +
                 `Jika Anda masih mengalami kendala, silakan buat laporan baru atau hubungi kami.\n\n` +
                 `Terima kasih. 🙏`;
