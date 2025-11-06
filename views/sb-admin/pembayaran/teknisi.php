@@ -240,7 +240,7 @@
   <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
   <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
   <script src="/js/sb-admin-2.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" integrity="sha512-H+rglffZ6f5gF7UJgvH4Naa+fGCgjrHKMgoFOGmcPTRwR6oILo5R+gtzNrpDp7iMV3udbymBVjkeZGNz1Em4rUA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 
   <script>
@@ -255,7 +255,6 @@
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           return response.json();
-          credentials: 'include', // ✅ Fixed by script
         })
         .then(apiResponse => {
           if (apiResponse && apiResponse.status === 200 && apiResponse.data) {
@@ -517,13 +516,12 @@
         $('#dataTableCardTitle').text(titleText);
       });
       
-      fetch("/api/users") 
+      fetch("/api/users", { credentials: 'include' })
         .then(res => {
           if (!res.ok) {
             throw new Error(`HTTP error! status: ${res.status}`);
           }
           return res.json();
-          credentials: 'include', // ✅ Fixed by script
         })
         .then(response => {
             const users = response.data || response; 
