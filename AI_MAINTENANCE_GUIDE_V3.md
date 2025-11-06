@@ -21,6 +21,7 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 14. BUGFIX_CRON_REMINDER_NOT_SENDING.md (Cron reminder day check)
 15. BUGFIX_MASS_SYNTAX_ERRORS.md (5 admin pages syntax fix)
 16. BUGFIX_USERS_EDIT_NOT_UPDATING.md (Users edit missing credentials - CRITICAL)
+17. BUGFIX_USERS_PAID_STATUS_NOT_UPDATING.md (Paid checkbox FormData issue - CRITICAL)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -773,6 +774,7 @@ node test/stress-test-[component].js
 | Syntax error in templates.php | Duplicate credentials in callback | Auto-fix script error. See BUGFIX_TEMPLATES_SYNTAX_ERROR.md |
 | Syntax errors in admin pages | Duplicate credentials in callbacks | Auto-fix script error (5 files). See BUGFIX_MASS_SYNTAX_ERRORS.md |
 | Users edit not updating | Missing credentials in fetch | Add `credentials: 'include'` to edit/create calls. See BUGFIX_USERS_EDIT_NOT_UPDATING.md |
+| Users paid status not updating | FormData excludes unchecked checkbox | Add fallback to read checkbox state from DOM. See BUGFIX_USERS_PAID_STATUS_NOT_UPDATING.md |
 | Broadcast placeholder not working | Multi-line regex pattern | Fix regex to single-line with proper escaping. See BUGFIX_BROADCAST_PLACEHOLDER.md |
 | **Cannot find module** | Wrong import path | Check if NPM package or local file |
 | **convertRupiah error** | Wrong import | Use `require('rupiah-format')` |
