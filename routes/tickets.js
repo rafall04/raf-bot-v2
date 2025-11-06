@@ -385,16 +385,22 @@ router.post('/ticket/process', ensureAuthenticatedStaff, async (req, res) => {
         saveReports(global.reports);
         console.log(`[TICKET_PROCESS] Ticket ${ticketId} updated with status=process, OTP=${otp}`);
         
-        // Get customer (user) details
-        const user = global.users.find(u => u.id === ticket.user_id);
+        // Get customer (user) details - support both field names for backward compatibility
+        const userId = ticket.pelangganUserId || ticket.user_id;
+        console.log(`[TICKET_PROCESS] Looking for user with ID: ${userId}`);
+        
+        const user = global.users.find(u => u.id === userId);
         
         if (!user) {
-            console.error(`[TICKET_PROCESS] User not found for ticket. user_id: ${ticket.user_id}`);
+            console.error(`[TICKET_PROCESS] User not found. Tried pelangganUserId: ${ticket.pelangganUserId}, user_id: ${ticket.user_id}`);
+            console.error(`[TICKET_PROCESS] Available users:`, global.users.length, 'users in database');
             return res.status(404).json({
                 status: 404,
-                message: 'Data pelanggan tidak ditemukan'
+                message: 'Data pelanggan tidak ditemukan. Pastikan pelanggan terdaftar di sistem.'
             });
         }
+        
+        console.log(`[TICKET_PROCESS] User found: ${user.name} (ID: ${user.id})`);
         
         // Get teknisi phone for customer contact (format for wa.me link)
         const teknisiPhone = (() => {
