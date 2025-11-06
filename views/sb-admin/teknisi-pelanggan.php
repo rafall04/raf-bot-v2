@@ -1855,6 +1855,7 @@
                     if (result.data.ssid.length === 0) {
                         ssidContainer.html('<p class="text-muted">Tidak ada SSID yang terkonfigurasi atau ditemukan untuk perangkat ini.</p>');
                     }
+                    
                     result.data.ssid.forEach(s => {
                         const ssidField = `
                             <div class="form-group">
@@ -1862,30 +1863,22 @@
                                 <input type="text" class="form-control form-control-sm" id="modal_ssid_${s.id}" name="ssid_${s.id}" value="${s.name || ''}">
                             </div>`;
                         ssidContainer.append(ssidField);
-                        }
-                        result.data.ssid.forEach(s => {
-                            const ssidField = `
-                                <div class="form-group">
-                                    <label for="modal_ssid_${s.id}" class="form-label">Nama SSID Baru (ID: ${s.id})</label>
-                                    <input type="text" class="form-control form-control-sm" id="modal_ssid_${s.id}" name="ssid_${s.id}" value="${s.name || ''}">
-                                </div>`;
-                            ssidContainer.append(ssidField);
 
-                            const passwordField = `
-                                <div class="form-group">
-                                    <label for="modal_ssid_password_${s.id}" class="form-label">Password Baru (ID: ${s.id})</label>
-                                    <input type="text" class="form-control form-control-sm" id="modal_ssid_password_${s.id}" name="ssid_password_${s.id}" placeholder="Kosongkan jika tidak diubah">
-                                </div>`;
-                            passwordContainer.append(passwordField);
-                        });
+                        const passwordField = `
+                            <div class="form-group">
+                                <label for="modal_ssid_password_${s.id}" class="form-label">Password Baru (ID: ${s.id})</label>
+                                <input type="text" class="form-control form-control-sm" id="modal_ssid_password_${s.id}" name="ssid_password_${s.id}" placeholder="Kosongkan jika tidak diubah">
+                            </div>`;
+                        passwordContainer.append(passwordField);
+                    });
 
-                        if (result.data.ssid[0] && result.data.ssid[0].transmitPower) {
-                             transmitPowerSelect.val(result.data.ssid[0].transmitPower);
-                        } else if (result.data.transmitPower) {
-                            transmitPowerSelect.val(result.data.transmitPower);
-                        } else {
-                             transmitPowerSelect.val('');
-                        }
+                    if (result.data.ssid[0] && result.data.ssid[0].transmitPower) {
+                         transmitPowerSelect.val(result.data.ssid[0].transmitPower);
+                    } else if (result.data.transmitPower) {
+                        transmitPowerSelect.val(result.data.transmitPower);
+                    } else {
+                         transmitPowerSelect.val('');
+                    }
 
                     } else {
                         ssidContainer.html('<p class="text-danger">Format data SSID tidak sesuai atau data tidak ditemukan.</p>');

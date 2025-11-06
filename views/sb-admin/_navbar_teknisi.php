@@ -13,13 +13,7 @@ $current_page = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
     <!-- Divider -->
     <hr class="sidebar-divider my-0">
 
-    <!-- Dashboard -->
-    <li class="nav-item <?php echo ($current_page == '/' || $current_page == '/index.php') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/">
-            <i class="fas fa-fw fa-tachometer-alt"></i>
-            <span>Dashboard</span>
-        </a>
-    </li>
+    <!-- REMOVED: Dashboard link for security reasons - teknisi should NOT access admin dashboard -->
 
     <!-- Divider -->
     <hr class="sidebar-divider">
