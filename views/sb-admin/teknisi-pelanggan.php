@@ -1478,7 +1478,7 @@
                                     <button class='btn btn-primary btn-sm btn-view-connected-devices' data-device-id='${deviceIdForActions}' data-customer-name='${customerName}' title='Lihat Perangkat Terhubung'>
                                         <i class='fas fa-users'></i>
                                     </button>
-                                    <a class='btn btn-warning btn-sm' href='#' onclick="event.preventDefault(); if(confirm('Anda yakin ingin reboot device ini (${deviceIdForActions})?')) { fetch('/api/reboot/${deviceIdForActions}', { method: 'GET', credentials: 'include' }).then(res => { if (!res.ok) { return res.json().then(errData => { throw new Error(errData.message || 'Server error: ' + res.status); }).catch(() => { throw new Error('Server error: ' + res.status + ', respons tidak valid.'); }); } return res.json(); }).then(data => { displayGlobalUserMessage(data.message || 'Perintah reboot dikirim.', data.status === 200 ? 'success' : 'warning'); deviceDataCache.delete('${deviceIdForActions}'); fetchAndCacheDeviceData('${deviceIdForActions}'); }).catch(err => { displayGlobalUserMessage('Gagal mengirim perintah reboot: ' + err.message, 'danger'); }); } return false;" title='Reboot Device (${deviceIdForActions})'><i class='fas fa-power-off'></i></a>
+                                    <a class='btn btn-warning btn-sm btn-reboot-device' href='#' data-device='${deviceIdForActions}' title='Reboot Device (${deviceIdForActions})'><i class='fas fa-power-off'></i></a>
                                 `;
                             } else {
                                 actionButtonsHtml += `<span class="text-muted small ml-1">No Device ID</span>`;
@@ -1598,6 +1598,36 @@
             $('#createModal').on('show.bs.modal', function () {
                 $('#create_number_container').empty();
                 addNumberField('create_number_container', "", true);
+            });
+
+            // Event handler for reboot device button
+            $(document).on('click', '.btn-reboot-device', function(e) {
+                e.preventDefault();
+                const deviceId = $(this).data('device');
+                
+                if (!confirm(`Anda yakin ingin reboot device ini (${deviceId})?`)) {
+                    return;
+                }
+                
+                fetch(`/api/reboot/${deviceId}`, { method: 'GET', credentials: 'include' })
+                    .then(res => {
+                        if (!res.ok) {
+                            return res.json().then(errData => {
+                                throw new Error(errData.message || 'Server error: ' + res.status);
+                            }).catch(() => {
+                                throw new Error('Server error: ' + res.status + ', respons tidak valid.');
+                            });
+                        }
+                        return res.json();
+                    })
+                    .then(data => {
+                        displayGlobalUserMessage(data.message || 'Perintah reboot dikirim.', data.status === 200 ? 'success' : 'warning');
+                        deviceDataCache.delete(deviceId);
+                        debouncedFetchDeviceData(deviceId);
+                    })
+                    .catch(err => {
+                        displayGlobalUserMessage('Gagal mengirim perintah reboot: ' + err.message, 'danger');
+                    });
             });
 
             // Filter dropdowns only update other dropdowns, not trigger filtering directly
