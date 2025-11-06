@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2-bootstrap-theme/0.1.0-beta.10/select2-bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/1.6.0/Control.FullScreen.min.css" integrity="sha512-3XoEL6+UmCIFrR3NIPfUTyRLS42+oL4cHNHQMD3P82P8y90cB6xIVmJ0jF118jKCXKiQzKj9890Lz5XG7B0NUA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/1.6.0/Control.FullScreen.min.css" crossorigin="anonymous" />
 
     <style>
         html, body { height: 100%; margin: 0; padding: 0; overflow-x: hidden; }
@@ -447,7 +447,7 @@
     <script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
     <script src="/js/sb-admin-2.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/1.6.0/Control.FullScreen.min.js" integrity="sha512-b9oHc3mEAl85gS9gG3B1kF0D5iNqEjuKqSK_170oU92X4Wb8M7C2g4QyI2OGY/wUjSjHdXG/C0w9YJmQAgw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/1.6.0/Control.FullScreen.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
@@ -581,7 +581,7 @@
             }
 
             try {
-                const response = await fetch('/api/customer-redaman/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' });
+                const response = await fetch(`/api/customer-redaman/${deviceId}?_=${new Date().getTime()}`, { credentials: 'include' });
                 const result = await response.json();
                 let redamanValue = (result.status === 200 && result.data) ? result.data.redaman : null;
                 const p = getRedamanPresentation(redamanValue);
@@ -597,7 +597,7 @@
             initialPppoeLoadFailed = false;
             activePppoeUsersMap.clear();
             try {
-                const response = await fetch('/api/mikrotik/ppp-active-users?_=${new Date().getTime()}', { credentials: 'include' });
+                const response = await fetch(`/api/mikrotik/ppp-active-users?_=${new Date().getTime()}`, { credentials: 'include' });
                 if (!response.ok) {
                     const errorResult = await response.json().catch(() => ({ message: response.statusText }));
                     console.error("[TechMap] API Error fetching PPPoE:", response.status, errorResult.message);
@@ -1012,7 +1012,7 @@
             catch(e) { console.error("Gagal memuat status PPPoE:", e); }
 
             try {
-                const response = await fetch('/api/map/network-assets?_=${new Date().getTime()}', { credentials: 'include' });
+                const response = await fetch(`/api/map/network-assets?_=${new Date().getTime()}`, { credentials: 'include' });
                 if (!response.ok) throw new Error(`API Aset error: ${response.status}`);
                 const result = await response.json();
                 if (result.status !== 200 || !Array.isArray(result.data)) throw new Error("Format data aset salah");
@@ -1021,7 +1021,7 @@
             } catch(e) { console.error("Gagal memuat data aset:", e); displayGlobalMapMessage("Gagal memuat data aset jaringan.", 'danger', 0);}
 
             try {
-                const response = await fetch('/api/users?_=${new Date().getTime()}', { credentials: 'include' });
+                const response = await fetch(`/api/users?_=${new Date().getTime()}`, { credentials: 'include' });
                 if (!response.ok) throw new Error(`API Pelanggan error: ${response.status}`);
                 const result = await response.json();
                 if (!result.data || !Array.isArray(result.data)) throw new Error("Format data pelanggan salah");
@@ -1149,7 +1149,7 @@
 
             let deviceDetailsHtml = '';
 
-            fetch('/api/device-details/${deviceId}?_=${new Date().getTime()}', { credentials: 'include' })
+            fetch(`/api/device-details/${deviceId}?_=${new Date().getTime()}`, { credentials: 'include' })
                 .then(response => response.json())
                 .then(deviceResult => {
                     if (deviceResult.status === 200 && deviceResult.data) {
@@ -1157,8 +1157,9 @@
                     } else {
                         deviceDetailsHtml = `<p><strong>Tipe Modem:</strong> Tidak dapat mengambil tipe modem.</p>`;
                     }
-                    return fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`);
-                  credentials: 'include', // ✅ Fixed by script
+                    return fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`, {
+                        credentials: 'include'
+                    });
                 })
                 .then(response => response.json())
                 .then(result => {
@@ -1314,7 +1315,7 @@
             messageSmall.text('').removeClass('text-danger text-warning text-success text-muted');
 
 
-            fetch('/api/customer-redaman/${deviceId}?force_refresh=true&_=${new Date().getTime()}', { credentials: 'include' })
+            fetch(`/api/customer-redaman/${deviceId}?force_refresh=true&_=${new Date().getTime()}`, { credentials: 'include' })
                 .then(response => response.json())
                 .then(result => {
                     loadingSpinner.hide(); contentDiv.show();
@@ -1327,8 +1328,6 @@
                         messageSmall.text(result.message || 'Gagal mengambil data redaman.').addClass('text-danger');
                     }
                     $('#refreshRedamanButtonInModal').off('click').on('click', () => showRedamanInfo(deviceId, userName, true));
-                  credentials: 'include', // ✅ Fixed by script
-                  credentials: 'include', // ✅ Fixed by script
                 })
                 .catch(error => {
                     loadingSpinner.hide(); contentDiv.show();
@@ -1348,8 +1347,6 @@
                             return response.json().then(err => { throw new Error(err.message || `Status server: ${response.status}`) });
                         }
                         return response.json();
-                      credentials: 'include', // ✅ Fixed by script
-                      credentials: 'include', // ✅ Fixed by script
                     })
                     .then(data => {
                         displayGlobalMapMessage(data.message || `Perintah reboot untuk ${userName} berhasil dikirim.`, data.status === 200 ? 'success' : 'warning');
