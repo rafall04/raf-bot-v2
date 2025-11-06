@@ -1,10 +1,120 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const { saveReports, loadJSON, saveJSON } = require('../lib/database');
 
 const router = express.Router();
 const reportsDbPath = path.join(__dirname, '..', 'database', 'reports.json');
+
+/**
+ * Configure multer for photo uploads
+ * Store in public/uploads/tickets/
+ */
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'tickets');
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Generate unique filename: TICKET_ID-TIMESTAMP-RANDOM.ext
+        const ticketId = req.body.ticketId || 'UNKNOWN';
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(7);
+        const ext = path.extname(file.originalname);
+        cb(null, `${ticketId}-${timestamp}-${random}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: function (req, file, cb) {
+        // Accept images only
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Hanya file gambar yang diperbolehkan'), false);
+        }
+        cb(null, true);
+    }
+});
+
+/**
+ * Generate random 6-digit OTP
+ * Same function used in WhatsApp bot (teknisi-workflow-handler.js)
+ */
+function generateOTP() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Normalize phone number to WhatsApp JID format
+ * Handles various formats: 0xxx, 62xxx, xxx
+ */
+function normalizePhoneToJID(phone) {
+    if (!phone) return null;
+    
+    let phoneNum = phone.trim().replace(/[^0-9]/g, '');
+    
+    if (phoneNum.startsWith('0')) {
+        phoneNum = '62' + phoneNum.substring(1);
+    } else if (!phoneNum.startsWith('62')) {
+        phoneNum = '62' + phoneNum;
+    }
+    
+    return `${phoneNum}@s.whatsapp.net`;
+}
+
+/**
+ * Send WhatsApp notification to ALL customer phone numbers
+ * Follows pattern from teknisi-workflow-handler.js
+ */
+async function notifyAllCustomerNumbers(ticket, message) {
+    if (!global.raf || !global.raf.sendMessage) {
+        console.log('[NOTIFY_CUSTOMER] WhatsApp not connected');
+        return;
+    }
+    
+    const notifiedNumbers = new Set();
+    
+    // 1. Send to main customer (pelangganId)
+    if (ticket.pelangganId) {
+        try {
+            await global.raf.sendMessage(ticket.pelangganId, { text: message });
+            console.log(`[NOTIFY_CUSTOMER] Sent to main customer: ${ticket.pelangganId}`);
+            notifiedNumbers.add(ticket.pelangganId);
+        } catch (err) {
+            console.error(`[NOTIFY_CUSTOMER] Failed to notify main customer:`, err.message);
+        }
+    }
+    
+    // 2. Send to ALL registered phone numbers
+    if (ticket.pelangganPhone) {
+        const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+        console.log(`[NOTIFY_CUSTOMER] Sending to ${phones.length} phone numbers`);
+        
+        for (const phone of phones) {
+            const phoneJid = normalizePhoneToJID(phone);
+            
+            if (!phoneJid || notifiedNumbers.has(phoneJid)) {
+                continue; // Skip if already notified or invalid
+            }
+            
+            try {
+                await global.raf.sendMessage(phoneJid, { text: message });
+                console.log(`[NOTIFY_CUSTOMER] Sent to additional number: ${phoneJid}`);
+                notifiedNumbers.add(phoneJid);
+            } catch (err) {
+                console.error(`[NOTIFY_CUSTOMER] Failed to notify ${phoneJid}:`, err.message);
+            }
+        }
+    }
+}
 
 // Middleware for authentication
 function ensureAuthenticatedStaff(req, res, next) {
@@ -187,6 +297,7 @@ router.get('/admin/tickets', ensureAdmin, async (req, res) => {
 });
 
 // POST /api/ticket/process - Process a ticket (teknisi)
+// UPDATED: Now follows WhatsApp bot workflow with OTP generation and multi-phone notifications
 router.post('/ticket/process', ensureAuthenticatedStaff, async (req, res) => {
     try {
         const { ticketId } = req.body;
@@ -198,8 +309,12 @@ router.post('/ticket/process', ensureAuthenticatedStaff, async (req, res) => {
             });
         }
         
-        // Find the ticket
-        const reportIndex = global.reports.findIndex(r => r.id === ticketId);
+        // Find the ticket (support both 'id' and 'ticketId' fields)
+        const reportIndex = global.reports.findIndex(r => 
+            r.id === ticketId || r.ticketId === ticketId || 
+            r.id === ticketId.toUpperCase() || r.ticketId === ticketId.toUpperCase()
+        );
+        
         if (reportIndex === -1) {
             return res.status(404).json({
                 status: 404,
@@ -207,64 +322,782 @@ router.post('/ticket/process', ensureAuthenticatedStaff, async (req, res) => {
             });
         }
         
-        const report = global.reports[reportIndex];
+        const ticket = global.reports[reportIndex];
         
-        // Check if ticket is already being processed
-        if (report.status === 'diproses teknisi') {
+        // Check if ticket is already being processed (support multiple status formats)
+        if (ticket.status === 'process' || ticket.status === 'diproses teknisi' || 
+            ticket.status === 'otw' || ticket.status === 'arrived' || ticket.status === 'working') {
             return res.status(400).json({
                 status: 400,
-                message: 'Tiket sudah dalam proses'
+                message: 'Tiket sudah dalam proses atau sedang ditangani'
             });
         }
         
-        // Update ticket status
-        report.status = 'diproses teknisi';
-        report.processed_by = req.user.username;
-        report.processed_at = new Date().toISOString();
+        if (ticket.status === 'selesai' || ticket.status === 'completed' || ticket.status === 'resolved') {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tiket sudah selesai'
+            });
+        }
+        
+        // Find teknisi account from global.accounts
+        // Match by username, ID, or phone number
+        const teknisi = global.accounts.find(acc => 
+            acc.role === 'teknisi' && (
+                acc.username === req.user.username ||
+                acc.id === req.user.id ||
+                (acc.phone_number && req.user.phone && acc.phone_number === req.user.phone)
+            )
+        );
+        
+        if (!teknisi) {
+            console.error(`[TICKET_PROCESS] Teknisi not found in accounts. User:`, req.user);
+            return res.status(403).json({
+                status: 403,
+                message: 'Akun teknisi tidak ditemukan'
+            });
+        }
+        
+        console.log(`[TICKET_PROCESS] Teknisi found: ${teknisi.name || teknisi.username} (ID: ${teknisi.id})`);
+        
+        // Generate OTP (same as WhatsApp bot)
+        const otp = generateOTP();
+        console.log(`[TICKET_PROCESS] Generated OTP: ${otp} for ticket ${ticketId}`);
+        
+        // Update ticket with all required fields (following WhatsApp bot pattern)
+        ticket.status = 'process';  // Use 'process' status like in bot
+        ticket.teknisiId = req.user.id || req.user.username;  // Store teknisi identifier
+        ticket.teknisiName = teknisi.name || teknisi.username;  // IMPORTANT: Use name, not username
+        ticket.teknisiPhone = teknisi.phone_number;  // For customer contact
+        ticket.otp = otp;  // Store OTP for verification later
+        ticket.processedAt = new Date().toISOString();
+        ticket.processedBy = req.user.username;  // Keep for backward compatibility
+        
+        // Ensure ticketId field exists (for consistency with WhatsApp bot)
+        if (!ticket.ticketId) {
+            ticket.ticketId = ticket.id;
+        }
         
         // Save to database
         saveReports(global.reports);
+        console.log(`[TICKET_PROCESS] Ticket ${ticketId} updated with status=process, OTP=${otp}`);
         
-        // Get user details
-        const user = global.users.find(u => u.id === report.user_id);
+        // Get customer (user) details
+        const user = global.users.find(u => u.id === ticket.user_id);
         
-        // Broadcast to admins
+        if (!user) {
+            console.error(`[TICKET_PROCESS] User not found for ticket. user_id: ${ticket.user_id}`);
+            return res.status(404).json({
+                status: 404,
+                message: 'Data pelanggan tidak ditemukan'
+            });
+        }
+        
+        // Get teknisi phone for customer contact (format for wa.me link)
+        const teknisiPhone = (() => {
+            if (!teknisi.phone_number) return null;
+            let phone = teknisi.phone_number.replace(/[^0-9]/g, '');
+            if (phone.startsWith('0')) {
+                return '62' + phone.substring(1);
+            } else if (!phone.startsWith('62')) {
+                return '62' + phone;
+            }
+            return phone;
+        })();
+        
+        // Prepare customer notification message (same format as WhatsApp bot)
+        const customerMessage = `✅ *TIKET DIPROSES*
+
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticket.ticketId || ticket.id}*
+🔧 Teknisi: *${teknisi.name || teknisi.username}*
+${teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''}━━━━━━━━━━━━━━━━
+
+🔐 *KODE OTP: ${otp}*
+
+⚠️ *PENTING:*
+• Simpan kode OTP ini
+• Berikan ke teknisi saat tiba
+• Jangan berikan ke orang lain
+• Kode hanya untuk tiket ini
+
+Teknisi akan segera menuju lokasi Anda.
+
+_Estimasi kedatangan akan diinformasikan._`;
+        
+        // Send to ALL customer phone numbers (following WhatsApp bot pattern)
+        await notifyAllCustomerNumbers(ticket, customerMessage);
+        
+        // Broadcast to admins (using teknisi.name instead of username)
         const broadcastMsg = `🔧 *TIKET DIPROSES*\n\n` +
-            `📋 *ID Tiket:* ${report.id}\n` +
-            `👤 *Pelanggan:* ${user ? user.name : 'Unknown'}\n` +
-            `📦 *Paket:* ${user ? user.package : '-'}\n` +
-            `📝 *Laporan:* ${report.description}\n` +
-            `👨‍🔧 *Teknisi:* ${req.user.username}\n` +
+            `📋 *ID Tiket:* ${ticket.id}\n` +
+            `👤 *Pelanggan:* ${user.name}\n` +
+            `📦 *Paket:* ${user.subscription || user.package || '-'}\n` +
+            `📝 *Laporan:* ${ticket.description || ticket.laporan || '-'}\n` +
+            `👨‍🔧 *Teknisi:* ${teknisi.name || teknisi.username}\n` +
             `⏰ *Waktu:* ${new Date().toLocaleString('id-ID')}\n` +
+            `🔐 *OTP Generated:* ${otp}\n` +
             `📊 *Status:* SEDANG DIPROSES`;
             
         await broadcastToAdmins(broadcastMsg);
         
-        // Send notification to customer via WhatsApp if possible
-        if (global.raf && user && user.phone) {
-            const customerMsg = `Halo ${user.name},\n\n` +
-                `Laporan Anda dengan ID *${report.id}* sedang diproses oleh teknisi *${req.user.username}*.\n\n` +
-                `Kami akan segera menghubungi Anda untuk penanganan lebih lanjut.\n\n` +
-                `Terima kasih atas kesabaran Anda. 🙏`;
-            
-            try {
-                const phoneNumber = user.phone.replace(/[^0-9]/g, '');
-                const jid = phoneNumber.includes('@s.whatsapp.net') ? phoneNumber : `${phoneNumber}@s.whatsapp.net`;
-                await global.raf.sendMessage(jid, { text: customerMsg });
-            } catch (err) {
-                console.error('[TICKET_PROCESS] Failed to send WhatsApp to customer:', err);
-            }
-        }
-        
         return res.json({
             status: 200,
-            message: 'Tiket berhasil diproses'
+            message: 'Tiket berhasil diproses',
+            data: {
+                ticketId: ticket.ticketId || ticket.id,
+                teknisiName: teknisi.name || teknisi.username,
+                otp: otp,
+                status: 'process',
+                customerNotified: true
+            }
         });
     } catch (error) {
         console.error('[API_TICKET_PROCESS_ERROR]', error);
         return res.status(500).json({
             status: 500,
-            message: 'Terjadi kesalahan saat memproses tiket'
+            message: 'Terjadi kesalahan saat memproses tiket',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/ticket/otw - Teknisi on the way (OTW)
+// Follows WhatsApp bot workflow: handleOTW()
+router.post('/ticket/otw', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { ticketId } = req.body;
+        
+        if (!ticketId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'ID tiket harus diisi'
+            });
+        }
+        
+        // Find the ticket
+        const reportIndex = global.reports.findIndex(r => 
+            r.id === ticketId || r.ticketId === ticketId || 
+            r.id === ticketId.toUpperCase() || r.ticketId === ticketId.toUpperCase()
+        );
+        
+        if (reportIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Tiket tidak ditemukan'
+            });
+        }
+        
+        const ticket = global.reports[reportIndex];
+        
+        // Verify teknisi is assigned to this ticket
+        if (ticket.teknisiId && ticket.teknisiId !== req.user.id && ticket.teknisiId !== req.user.username) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Anda bukan teknisi yang menangani tiket ini'
+            });
+        }
+        
+        // Check status - must be 'process' to go OTW
+        if (ticket.status !== 'process' && ticket.status !== 'diproses teknisi') {
+            return res.status(400).json({
+                status: 400,
+                message: `Status tiket tidak sesuai. Harus diproses dulu. Status saat ini: ${ticket.status}`
+            });
+        }
+        
+        // Find teknisi info
+        const teknisi = global.accounts.find(acc => 
+            acc.role === 'teknisi' && (
+                acc.username === req.user.username ||
+                acc.id === req.user.id
+            )
+        );
+        
+        if (!teknisi) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Akun teknisi tidak ditemukan'
+            });
+        }
+        
+        // Update ticket status to OTW
+        ticket.status = 'otw';
+        ticket.otwAt = new Date().toISOString();
+        
+        // Ensure teknisi fields are set (for backward compatibility)
+        if (!ticket.teknisiId) ticket.teknisiId = req.user.id || req.user.username;
+        if (!ticket.teknisiName) ticket.teknisiName = teknisi.name || teknisi.username;
+        if (!ticket.teknisiPhone) ticket.teknisiPhone = teknisi.phone_number;
+        
+        // Save to database
+        saveReports(global.reports);
+        console.log(`[TICKET_OTW] Ticket ${ticketId} status updated to OTW`);
+        
+        // Get teknisi phone for customer contact
+        const teknisiPhone = (() => {
+            if (!teknisi.phone_number) return null;
+            let phone = teknisi.phone_number.replace(/[^0-9]/g, '');
+            if (phone.startsWith('0')) {
+                return '62' + phone.substring(1);
+            } else if (!phone.startsWith('62')) {
+                return '62' + phone;
+            }
+            return phone;
+        })();
+        
+        // Prepare customer notification (same format as WhatsApp bot)
+        const customerMessage = `🚗 *TEKNISI BERANGKAT*
+
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticket.ticketId || ticket.id}*
+🔧 Teknisi: *${teknisi.name || teknisi.username}*
+${teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''}━━━━━━━━━━━━━━━━
+
+Teknisi sedang menuju lokasi Anda.
+
+⏱️ *Estimasi Tiba:* 30-60 menit
+_Waktu dapat berubah tergantung kondisi_
+
+${ticket.otp ? `🔐 *KODE VERIFIKASI:*
+╔════════════════╗
+║  *${ticket.otp}*  ║
+╚════════════════╝
+
+Berikan kode ini saat teknisi tiba.` : ''}`;
+        
+        // Send to ALL customer phone numbers
+        await notifyAllCustomerNumbers(ticket, customerMessage);
+        
+        return res.json({
+            status: 200,
+            message: 'Status OTW berhasil diupdate',
+            data: {
+                ticketId: ticket.ticketId || ticket.id,
+                status: 'otw',
+                teknisiName: teknisi.name || teknisi.username,
+                customerNotified: true
+            }
+        });
+    } catch (error) {
+        console.error('[API_TICKET_OTW_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat update status OTW',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/ticket/arrived - Teknisi arrived at location (Sampai Lokasi)
+// Follows WhatsApp bot workflow: handleSampaiLokasi()
+router.post('/ticket/arrived', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { ticketId } = req.body;
+        
+        if (!ticketId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'ID tiket harus diisi'
+            });
+        }
+        
+        // Find the ticket
+        const reportIndex = global.reports.findIndex(r => 
+            r.id === ticketId || r.ticketId === ticketId || 
+            r.id === ticketId.toUpperCase() || r.ticketId === ticketId.toUpperCase()
+        );
+        
+        if (reportIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Tiket tidak ditemukan'
+            });
+        }
+        
+        const ticket = global.reports[reportIndex];
+        
+        // Verify teknisi is assigned to this ticket
+        if (ticket.teknisiId && ticket.teknisiId !== req.user.id && ticket.teknisiId !== req.user.username) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Anda bukan teknisi yang menangani tiket ini'
+            });
+        }
+        
+        // Check status - can be OTW or process (allow flexibility)
+        if (ticket.status !== 'otw' && ticket.status !== 'process' && ticket.status !== 'diproses teknisi') {
+            return res.status(400).json({
+                status: 400,
+                message: `Status tiket tidak sesuai. Status saat ini: ${ticket.status}`
+            });
+        }
+        
+        // Ensure OTP exists (generate if missing - recovery mechanism)
+        if (!ticket.otp) {
+            console.warn(`[TICKET_ARRIVED] OTP not found for ticket ${ticketId}, generating new OTP`);
+            ticket.otp = generateOTP();
+        }
+        
+        // Find teknisi info
+        const teknisi = global.accounts.find(acc => 
+            acc.role === 'teknisi' && (
+                acc.username === req.user.username ||
+                acc.id === req.user.id
+            )
+        );
+        
+        if (!teknisi) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Akun teknisi tidak ditemukan'
+            });
+        }
+        
+        // Update ticket status to arrived
+        ticket.status = 'arrived';
+        ticket.arrivedAt = new Date().toISOString();
+        
+        // Ensure teknisi fields are set
+        if (!ticket.teknisiId) ticket.teknisiId = req.user.id || req.user.username;
+        if (!ticket.teknisiName) ticket.teknisiName = teknisi.name || teknisi.username;
+        if (!ticket.teknisiPhone) ticket.teknisiPhone = teknisi.phone_number;
+        
+        // Save to database
+        saveReports(global.reports);
+        console.log(`[TICKET_ARRIVED] Ticket ${ticketId} status updated to arrived, OTP: ${ticket.otp}`);
+        
+        // Get teknisi phone for customer contact
+        const teknisiPhone = (() => {
+            if (!teknisi.phone_number) return null;
+            let phone = teknisi.phone_number.replace(/[^0-9]/g, '');
+            if (phone.startsWith('0')) {
+                return '62' + phone.substring(1);
+            } else if (!phone.startsWith('62')) {
+                return '62' + phone;
+            }
+            return phone;
+        })();
+        
+        // Prepare customer notification (same format as WhatsApp bot)
+        const customerMessage = `🎉 *TEKNISI SUDAH TIBA*
+
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticket.ticketId || ticket.id}*
+🔧 Teknisi: *${teknisi.name || teknisi.username}*
+${teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''}━━━━━━━━━━━━━━━━
+
+✅ Teknisi sudah di lokasi Anda
+
+🔐 *KODE VERIFIKASI:*
+╔════════════════╗
+║  *${ticket.otp}*  ║
+╚════════════════╝
+
+⚠️ *PENTING:*
+• Berikan kode ini ke teknisi
+• Untuk memverifikasi identitas
+• Jangan berikan ke orang lain
+
+_Perbaikan akan segera dimulai._`;
+        
+        // Send to ALL customer phone numbers
+        await notifyAllCustomerNumbers(ticket, customerMessage);
+        
+        return res.json({
+            status: 200,
+            message: 'Status arrived berhasil diupdate',
+            data: {
+                ticketId: ticket.ticketId || ticket.id,
+                status: 'arrived',
+                otp: ticket.otp,
+                teknisiName: teknisi.name || teknisi.username,
+                customerNotified: true,
+                nextStep: 'verifikasi OTP'
+            }
+        });
+    } catch (error) {
+        console.error('[API_TICKET_ARRIVED_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat update status arrived',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/ticket/verify-otp - Verify OTP and start work
+// Follows WhatsApp bot workflow: handleVerifikasiOTP()
+router.post('/ticket/verify-otp', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { ticketId, otp } = req.body;
+        
+        if (!ticketId || !otp) {
+            return res.status(400).json({
+                status: 400,
+                message: 'ID tiket dan OTP harus diisi'
+            });
+        }
+        
+        // Find the ticket
+        const reportIndex = global.reports.findIndex(r => 
+            r.id === ticketId || r.ticketId === ticketId || 
+            r.id === ticketId.toUpperCase() || r.ticketId === ticketId.toUpperCase()
+        );
+        
+        if (reportIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Tiket tidak ditemukan'
+            });
+        }
+        
+        const ticket = global.reports[reportIndex];
+        
+        // Verify teknisi is assigned to this ticket
+        if (ticket.teknisiId && ticket.teknisiId !== req.user.id && ticket.teknisiId !== req.user.username) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Anda bukan teknisi yang menangani tiket ini'
+            });
+        }
+        
+        // Check status - must be 'arrived' to verify OTP
+        if (ticket.status !== 'arrived') {
+            return res.status(400).json({
+                status: 400,
+                message: `Harus sampai di lokasi dulu. Status saat ini: ${ticket.status}`
+            });
+        }
+        
+        // Verify OTP
+        if (ticket.otp !== otp.toString().trim()) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Kode OTP salah! Minta kode yang benar dari pelanggan.'
+            });
+        }
+        
+        // Find teknisi info
+        const teknisi = global.accounts.find(acc => 
+            acc.role === 'teknisi' && (
+                acc.username === req.user.username ||
+                acc.id === req.user.id
+            )
+        );
+        
+        if (!teknisi) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Akun teknisi tidak ditemukan'
+            });
+        }
+        
+        // Update ticket status to working
+        ticket.status = 'working';
+        ticket.otpVerifiedAt = new Date().toISOString();
+        ticket.workStartedAt = new Date().toISOString();
+        
+        // Initialize photos array if not exists
+        if (!ticket.photos) {
+            ticket.photos = [];
+        }
+        
+        // Save to database
+        saveReports(global.reports);
+        console.log(`[TICKET_VERIFY_OTP] Ticket ${ticketId} OTP verified, status updated to working`);
+        
+        // Prepare customer notification
+        const customerMessage = `🔧 *PENGERJAAN DIMULAI*
+
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticket.ticketId || ticket.id}*
+🔧 Teknisi: *${teknisi.name || teknisi.username}*
+━━━━━━━━━━━━━━━━
+
+✅ Verifikasi OTP berhasil
+🔧 Teknisi mulai melakukan perbaikan
+
+_Anda akan diinformasikan saat selesai._`;
+        
+        // Send to ALL customer phone numbers
+        await notifyAllCustomerNumbers(ticket, customerMessage);
+        
+        return res.json({
+            status: 200,
+            message: 'OTP berhasil diverifikasi',
+            data: {
+                ticketId: ticket.ticketId || ticket.id,
+                status: 'working',
+                teknisiName: teknisi.name || teknisi.username,
+                workStartedAt: ticket.workStartedAt,
+                customerNotified: true,
+                nextStep: 'upload foto (minimal 2)'
+            }
+        });
+    } catch (error) {
+        console.error('[API_TICKET_VERIFY_OTP_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat verifikasi OTP',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/ticket/upload-photo - Upload photo documentation
+// Follows WhatsApp bot workflow: handleTeknisiPhotoUpload()
+router.post('/ticket/upload-photo', ensureAuthenticatedStaff, upload.single('photo'), async (req, res) => {
+    try {
+        const { ticketId } = req.body;
+        
+        if (!ticketId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'ID tiket harus diisi'
+            });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({
+                status: 400,
+                message: 'File foto harus diupload'
+            });
+        }
+        
+        // Find the ticket
+        const reportIndex = global.reports.findIndex(r => 
+            r.id === ticketId || r.ticketId === ticketId || 
+            r.id === ticketId.toUpperCase() || r.ticketId === ticketId.toUpperCase()
+        );
+        
+        if (reportIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Tiket tidak ditemukan'
+            });
+        }
+        
+        const ticket = global.reports[reportIndex];
+        
+        // Verify teknisi is assigned to this ticket
+        if (ticket.teknisiId && ticket.teknisiId !== req.user.id && ticket.teknisiId !== req.user.username) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Anda bukan teknisi yang menangani tiket ini'
+            });
+        }
+        
+        // Check status - must be 'working' to upload photos
+        if (ticket.status !== 'working') {
+            return res.status(400).json({
+                status: 400,
+                message: `Harus verifikasi OTP dulu. Status saat ini: ${ticket.status}`
+            });
+        }
+        
+        // Initialize photos array if not exists
+        if (!ticket.photos) {
+            ticket.photos = [];
+        }
+        
+        // Check maximum photos limit (max 5 photos)
+        if (ticket.photos.length >= 5) {
+            // Delete the uploaded file since we're rejecting it
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({
+                status: 400,
+                message: 'Maksimal 5 foto sudah tercapai'
+            });
+        }
+        
+        // Store photo info
+        const photoInfo = {
+            path: `/uploads/tickets/${req.file.filename}`,  // Web-accessible path
+            filename: req.file.filename,
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: req.user.username,
+            size: req.file.size
+        };
+        
+        ticket.photos.push(photoInfo);
+        
+        // Save to database
+        saveReports(global.reports);
+        console.log(`[TICKET_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId}. Total: ${ticket.photos.length}`);
+        
+        // Check if minimum photos requirement is met
+        const minPhotos = 2;
+        const canComplete = ticket.photos.length >= minPhotos;
+        
+        return res.json({
+            status: 200,
+            message: `Foto ${ticket.photos.length} berhasil diupload`,
+            data: {
+                ticketId: ticket.ticketId || ticket.id,
+                photoCount: ticket.photos.length,
+                totalPhotos: ticket.photos.length,
+                minPhotos: minPhotos,
+                canComplete: canComplete,
+                photo: photoInfo,
+                nextStep: canComplete ? 'Bisa selesaikan tiket sekarang' : `Perlu ${minPhotos - ticket.photos.length} foto lagi (minimal ${minPhotos} foto)`
+            }
+        });
+    } catch (error) {
+        console.error('[API_TICKET_UPLOAD_PHOTO_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat upload foto',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/ticket/complete - Complete ticket with resolution notes
+// Follows WhatsApp bot workflow: handleSelesaiTicket() / handleCompleteTicket()
+// IMPORTANT: Enforces minimum 2 photos requirement
+router.post('/ticket/complete', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { ticketId, resolutionNotes } = req.body;
+        
+        if (!ticketId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'ID tiket harus diisi'
+            });
+        }
+        
+        // Find the ticket
+        const reportIndex = global.reports.findIndex(r => 
+            r.id === ticketId || r.ticketId === ticketId || 
+            r.id === ticketId.toUpperCase() || r.ticketId === ticketId.toUpperCase()
+        );
+        
+        if (reportIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Tiket tidak ditemukan'
+            });
+        }
+        
+        const ticket = global.reports[reportIndex];
+        
+        // Verify teknisi is assigned to this ticket
+        if (ticket.teknisiId && ticket.teknisiId !== req.user.id && ticket.teknisiId !== req.user.username) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Anda bukan teknisi yang menangani tiket ini'
+            });
+        }
+        
+        // Check status - must be 'working' to complete
+        if (ticket.status !== 'working') {
+            return res.status(400).json({
+                status: 400,
+                message: `Tiket belum dalam status working. Status saat ini: ${ticket.status}`
+            });
+        }
+        
+        // CRITICAL: Check minimum photos requirement (same as WhatsApp bot)
+        const minPhotos = 2;
+        if (!ticket.photos || ticket.photos.length < minPhotos) {
+            return res.status(400).json({
+                status: 400,
+                message: `Minimal ${minPhotos} foto diperlukan! Saat ini: ${ticket.photos ? ticket.photos.length : 0} foto`,
+                data: {
+                    currentPhotos: ticket.photos ? ticket.photos.length : 0,
+                    requiredPhotos: minPhotos,
+                    missing: minPhotos - (ticket.photos ? ticket.photos.length : 0)
+                }
+            });
+        }
+        
+        // Find teknisi info
+        const teknisi = global.accounts.find(acc => 
+            acc.role === 'teknisi' && (
+                acc.username === req.user.username ||
+                acc.id === req.user.id
+            )
+        );
+        
+        if (!teknisi) {
+            return res.status(403).json({
+                status: 403,
+                message: 'Akun teknisi tidak ditemukan'
+            });
+        }
+        
+        // Calculate work duration
+        const workStartedAt = new Date(ticket.workStartedAt);
+        const completedAt = new Date();
+        const durationMs = completedAt - workStartedAt;
+        const durationMinutes = Math.floor(durationMs / 1000 / 60);
+        
+        // Update ticket status to completed/resolved
+        ticket.status = 'resolved';  // Use 'resolved' status like in WhatsApp bot
+        ticket.completedAt = completedAt.toISOString();
+        ticket.resolvedAt = completedAt.toISOString();
+        ticket.resolvedBy = req.user.username;
+        ticket.resolutionNotes = resolutionNotes || 'Selesai';
+        ticket.workDuration = durationMinutes;
+        ticket.photoCount = ticket.photos.length;
+        
+        // Save to database
+        saveReports(global.reports);
+        console.log(`[TICKET_COMPLETE] Ticket ${ticketId} completed. Duration: ${durationMinutes} min, Photos: ${ticket.photos.length}`);
+        
+        // Prepare customer notification (same format as WhatsApp bot)
+        const customerMessage = `✅ *PERBAIKAN SELESAI*
+
+━━━━━━━━━━━━━━━━
+📋 ID Tiket: *${ticket.ticketId || ticket.id}*
+🔧 Teknisi: *${teknisi.name || teknisi.username}*
+⏱️ Durasi: ${durationMinutes} menit
+━━━━━━━━━━━━━━━━
+
+✅ Masalah telah diselesaikan
+📸 Dokumentasi: ${ticket.photos.length} foto
+${resolutionNotes ? `\n📝 *Catatan:*\n${resolutionNotes}\n` : ''}
+*Terima kasih telah menunggu!*
+
+Jika ada masalah lagi, silakan lapor kembali.
+
+_Tiket telah ditutup._`;
+        
+        // Send to ALL customer phone numbers
+        await notifyAllCustomerNumbers(ticket, customerMessage);
+        
+        // Broadcast to admins
+        const broadcastMsg = `✅ *TIKET SELESAI*\n\n` +
+            `📋 *ID Tiket:* ${ticket.id}\n` +
+            `🔧 *Teknisi:* ${teknisi.name || teknisi.username}\n` +
+            `⏱️ *Durasi:* ${durationMinutes} menit\n` +
+            `📸 *Foto:* ${ticket.photos.length} dokumentasi\n` +
+            (resolutionNotes ? `📝 *Catatan:* ${resolutionNotes}\n` : '') +
+            `⏰ *Selesai:* ${new Date().toLocaleString('id-ID')}\n` +
+            `📊 *Status:* SELESAI`;
+            
+        await broadcastToAdmins(broadcastMsg);
+        
+        return res.json({
+            status: 200,
+            message: 'Tiket berhasil diselesaikan',
+            data: {
+                ticketId: ticket.ticketId || ticket.id,
+                status: 'resolved',
+                teknisiName: teknisi.name || teknisi.username,
+                duration: durationMinutes,
+                photoCount: ticket.photos.length,
+                customerNotified: true,
+                completedAt: ticket.completedAt
+            }
+        });
+    } catch (error) {
+        console.error('[API_TICKET_COMPLETE_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat menyelesaikan tiket',
+            error: error.message
         });
     }
 });
