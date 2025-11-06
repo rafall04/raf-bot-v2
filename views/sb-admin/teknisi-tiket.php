@@ -1074,6 +1074,145 @@
             loadTickets();
         });
         
+        /**
+         * Show complete ticket modal with photo preview and resolution notes
+         */
+        function showCompleteModal(ticketId) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            // Get ticket data from DataTable
+            const table = $('#ticketsTable').DataTable();
+            const allData = table.rows().data().toArray();
+            const ticket = allData.find(t => (t.ticketId === ticketId || t.id === ticketId));
+            
+            if (!ticket) {
+                displayGlobalMessage('Data tiket tidak ditemukan', 'danger');
+                return;
+            }
+            
+            // Check minimum photos requirement
+            const photoCount = (ticket.photos && Array.isArray(ticket.photos)) ? ticket.photos.length : 0;
+            if (photoCount < 2) {
+                displayGlobalMessage('Upload minimal 2 foto terlebih dahulu sebelum menyelesaikan tiket', 'warning');
+                return;
+            }
+            
+            // Store ticketId
+            $('#completeTicketId').val(ticketId);
+            
+            // Clear resolution notes
+            $('#resolutionNotes').val('');
+            
+            // Display photos in modal
+            const photoContainer = $('#completedPhotosPreview');
+            photoContainer.empty();
+            
+            if (ticket.photos && ticket.photos.length > 0) {
+                ticket.photos.forEach((photo, index) => {
+                    const photoPath = photo.path || photo;
+                    const html = `
+                        <div class="photo-preview-item">
+                            <img src="${photoPath}" alt="Foto ${index + 1}">
+                            <div class="text-center mt-1">
+                                <small class="text-muted">Foto ${index + 1}</small>
+                            </div>
+                        </div>
+                    `;
+                    photoContainer.append(html);
+                });
+            } else {
+                photoContainer.html('<p class="text-muted">Tidak ada foto</p>');
+            }
+            
+            // Show modal
+            $('#completeTicketModal').modal('show');
+            
+            // Focus on resolution notes after modal shown
+            $('#completeTicketModal').on('shown.bs.modal', function() {
+                $('#resolutionNotes').focus();
+            });
+        }
+        
+        /**
+         * Complete ticket with resolution notes
+         * Final step in the workflow
+         */
+        async function completeTicket() {
+            const ticketId = $('#completeTicketId').val();
+            const resolutionNotes = $('#resolutionNotes').val().trim();
+            
+            // Validation
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            if (!resolutionNotes) {
+                displayGlobalMessage('Catatan penyelesaian harus diisi', 'warning');
+                $('#resolutionNotes').focus();
+                return;
+            }
+            
+            if (resolutionNotes.length < 10) {
+                displayGlobalMessage('Catatan penyelesaian minimal 10 karakter', 'warning');
+                $('#resolutionNotes').focus();
+                return;
+            }
+            
+            // Confirm action
+            if (!confirm(`Selesaikan tiket ${ticketId}?\n\nSetelah diselesaikan, tiket tidak bisa diubah lagi.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/ticket/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        ticketId, 
+                        resolutionNotes 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    // Close modal
+                    $('#completeTicketModal').modal('hide');
+                    
+                    // Show success message with duration info
+                    const duration = result.data.duration || 0;
+                    const photoCount = result.data.photoCount || 0;
+                    
+                    displayGlobalMessage(
+                        `✅ Tiket ${ticketId} berhasil diselesaikan!\n` +
+                        `Durasi: ${duration} menit | Foto: ${photoCount} dokumentasi\n` +
+                        `Pelanggan telah dinotifikasi.`,
+                        'success'
+                    );
+                    
+                    // Refresh table
+                    loadTickets();
+                    
+                    // Clear form
+                    $('#resolutionNotes').val('');
+                    $('#completeTicketId').val('');
+                } else {
+                    displayGlobalMessage(
+                        `Gagal menyelesaikan tiket: ${result.message || 'Error tidak diketahui'}`,
+                        'danger'
+                    );
+                }
+            } catch (error) {
+                console.error('[COMPLETE_TICKET_ERROR]', error);
+                displayGlobalMessage('Terjadi kesalahan koneksi saat menyelesaikan tiket', 'danger');
+            }
+        }
+        
         async function executeProcessTicket(ticketId) {
             if (!ticketId) {
                 displayGlobalMessage('Terjadi kesalahan: ID Tiket tidak ditemukan untuk diproses.', 'danger');
@@ -1338,6 +1477,11 @@
                     e.preventDefault();
                     verifyOTP();
                 }
+            });
+            
+            // Event handler for complete ticket button
+            $('#confirmCompleteTicketBtn').off('click').on('click', function() {
+                completeTicket();
             });
 
             document.getElementById('resolveTicketForm').addEventListener('submit', async function(event) {
