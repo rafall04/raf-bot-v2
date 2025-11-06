@@ -618,26 +618,37 @@
       
       window.bankAccounts.forEach((account, index) => {
         const accountHtml = `
-          <div class="card mb-2">
+          <div class="card mb-3">
             <div class="card-body">
-              <div class="row align-items-center">
-                <div class="col-md-3">
-                  <input type="text" class="form-control" placeholder="Nama Bank" value="${account.bank || ''}" 
-                         onchange="updateBankAccount(${index}, 'bank', this.value)">
+              <div class="row mb-2">
+                <div class="col-md-11">
+                  <div class="mb-2">
+                    <label class="form-label mb-1 small text-muted">Nama Bank</label>
+                    <input type="text" class="form-control" placeholder="Contoh: BCA, BRI, DANA" value="${account.bank || ''}" 
+                           onchange="updateBankAccount(${index}, 'bank', this.value)">
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label mb-1 small text-muted">Nomor Rekening</label>
+                    <input type="text" class="form-control" placeholder="Contoh: 1234567890" value="${account.number || ''}"
+                           onchange="updateBankAccount(${index}, 'number', this.value)">
+                  </div>
+                  <div class="mb-0">
+                    <label class="form-label mb-1 small text-muted">Atas Nama</label>
+                    <input type="text" class="form-control" placeholder="Contoh: MUHAMMAD RAFLI ALDIVA PRATAMA" value="${account.name || ''}"
+                           onchange="updateBankAccount(${index}, 'name', this.value)">
+                  </div>
                 </div>
-                <div class="col-md-4">
-                  <input type="text" class="form-control" placeholder="Nomor Rekening" value="${account.number || ''}"
-                         onchange="updateBankAccount(${index}, 'number', this.value)">
-                </div>
-                <div class="col-md-4">
-                  <input type="text" class="form-control" placeholder="Atas Nama" value="${account.name || ''}"
-                         onchange="updateBankAccount(${index}, 'name', this.value)">
-                </div>
-                <div class="col-md-1">
-                  <button type="button" class="btn btn-danger btn-sm" onclick="removeBankAccount(${index})">
+                <div class="col-md-1 d-flex align-items-center justify-content-center">
+                  <button type="button" class="btn btn-danger btn-sm" onclick="removeBankAccount(${index})" title="Hapus Rekening">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
+              </div>
+              <div class="mt-3 p-2 bg-light rounded">
+                <small class="text-muted d-block mb-1"><strong>Preview format di pesan:</strong></small>
+                <small class="d-block" style="white-space: pre-line; font-family: monospace;"> ${account.bank || '[Bank]'}:
+${account.number || '[Nomor]'}
+a.n ${account.name || '[Nama]'}</small>
               </div>
             </div>
           </div>
