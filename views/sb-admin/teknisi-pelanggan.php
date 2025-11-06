@@ -1024,6 +1024,15 @@
 
         // Function to fetch device metrics in batch (for Redaman, Suhu, Tipe Router)
         // Uptime dihapus dari batch karena sering tidak terdeteksi di batch, akan diambil via individual API.
+        // Debounce helper for device data fetching
+        let deviceFetchTimeout = null;
+        function debouncedFetchDeviceData(singleDeviceId = null) {
+            clearTimeout(deviceFetchTimeout);
+            deviceFetchTimeout = setTimeout(() => {
+                fetchAndCacheDeviceData(singleDeviceId);
+            }, 500);
+        }
+        
         async function fetchAndCacheDeviceData(singleDeviceIdToFetch = null) {
             console.log(`[fetchAndCacheDeviceData] Called. Single Device ID to fetch: ${singleDeviceIdToFetch}`);
 
