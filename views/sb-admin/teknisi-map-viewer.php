@@ -1222,7 +1222,9 @@
             $('#map_transmit_power').val('');
             $('#manageWifiModal').modal('show');
 
-            fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`)
+            fetch(`/api/customer-wifi-info/${deviceId}?_=${new Date().getTime()}`, {
+                credentials: 'include'
+            })
                 .then(response => response.json())
                 .then(result => {
                     formContainer.find('.loading-spinner-container').remove();
