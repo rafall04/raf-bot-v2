@@ -971,7 +971,7 @@ Balas dengan *angka* (1/2/0)`
             pelangganAddress: state.targetUser.address || '',
             pelangganSubscription: state.targetUser.subscription || 'Tidak terinfo', // ADD SUBSCRIPTION
             laporanText: `Internet lemot/lambat - Device ONLINE\n${speedInfo}\nTroubleshooting sudah dilakukan.`,
-            status: 'pending',  // Use new status format
+            status: 'baru',  // Standardized status for teknisi dashboard
             priority: 'MEDIUM',
             estimatedTime: estimasi,  // Add estimation time
             targetTime: targetTime,    // Add target completion time
@@ -1085,7 +1085,7 @@ Terima kasih atas kesabarannya! 🙏`
             pelangganAddress: state.targetUser.address || '',
             pelangganSubscription: state.targetUser.subscription || 'Tidak terinfo', // ADD SUBSCRIPTION
             laporanText: `Internet lemot - Speed di bawah 50% paket\n${speedInfo}`,
-            status: 'pending',  // Use new status format
+            status: 'baru',  // Standardized status for teknisi dashboard
             priority: 'MEDIUM',
             estimatedTime: estimasi,  // Add estimation time
             targetTime: targetTime,    // Add target completion time

@@ -201,7 +201,7 @@ async function createDirectTicket({ user, issueType, priority, deviceStatus, des
         pelangganPhone: user.phone_number || '',
         pelangganAddress: user.address || '',
         laporanText: description,
-        status: 'pending',
+        status: 'baru',  // Standardized status for teknisi dashboard
         priority: priority,
         createdAt: now.toISOString(),
         deviceOnline: deviceStatus?.online !== false,

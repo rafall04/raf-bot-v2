@@ -750,7 +750,7 @@ async function createReportTicket({ sender, state, reply }) {
             pelangganAddress: user.address || '',
             pelangganSubscription: user.subscription || 'Tidak terinfo',  // Add subscription/paket info
             laporanText: laporanText,
-            status: 'pending',
+            status: 'baru',  // Standardized status for teknisi dashboard
             priority: priority,
             createdAt: now.toISOString(),
             deviceOnline: state.deviceStatus?.online !== false,

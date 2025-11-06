@@ -220,7 +220,7 @@
 
                     <div class="card shadow mb-4">
                         <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                            <h6 class="m-0 font-weight-bold text-primary">Daftar Tiket (Baru / Diproses Teknisi)</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">Daftar Tiket Aktif</h6>
                             <button class="btn btn-sm btn-primary" onclick="loadTickets()"><i class="fas fa-sync-alt"></i> Refresh</button>
                         </div>
                         <div class="card-body">
@@ -500,6 +500,7 @@
             // Map status to badge HTML with custom classes
             const statusMap = {
                 'baru': '<span class="badge badge-status-baru">Baru</span>',
+                'pending': '<span class="badge badge-status-baru">Pending</span>', // Same as 'baru' for backward compatibility
                 'process': '<span class="badge badge-status-process">Diproses</span>',
                 'diproses teknisi': '<span class="badge badge-status-process">Diproses</span>',
                 'otw': '<span class="badge badge-status-otw">OTW</span>',
@@ -532,6 +533,7 @@
             // Map statuses to step index
             const statusStepMap = {
                 'baru': -1,
+                'pending': -1,  // Same as 'baru' for backward compatibility
                 'process': 0,
                 'diproses teknisi': 0,
                 'otw': 1,
@@ -1267,8 +1269,8 @@
             // Note: DataTable processing indicator handled automatically by "processing": true option
 
             try {
-                // Fix: Gunakan encodeURIComponent untuk encoding yang benar
-                const statusParam = encodeURIComponent('baru,diproses teknisi');
+                // Fix: Include 'pending' for backward compatibility with old tickets
+                const statusParam = encodeURIComponent('baru,pending,diproses teknisi');
                 const response = await fetch(`/api/tickets?status=${statusParam}&_=${new Date().getTime()}`, {
                     method: 'GET',
                     headers: {
