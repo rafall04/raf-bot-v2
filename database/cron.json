@@ -1,8 +1,8 @@
 {
   "unpaid_schedule": "*/1 * * * *",
   "status_unpaid_schedule": false,
-  "schedule": "*/1 * * * *",
-  "status_schedule": false,
+  "schedule": "* * * * *",
+  "status_schedule": true,
   "status_message_paid_notification": true,
   "schedule_unpaid_action": "* * 11 * *",
   "status_schedule_unpaid_action": false,
