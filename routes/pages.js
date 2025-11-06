@@ -22,8 +22,8 @@ router.get('/login', (req, res) => {
     res.render('sb-admin/login.php');
 });
 
-// Main dashboard
-router.get('/', (req, res) => {
+// Main dashboard - ADMIN ONLY (teknisi should NOT access this)
+router.get('/', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/index.php');
 });
 
@@ -52,8 +52,8 @@ router.get('/admin/daftar-tiket', checkRole(['admin', 'owner', 'superadmin']), (
     res.render('sb-admin/admin-daftar-tiket.php');
 });
 
-// Teknisi pages
-router.get('/pembayaran/teknisi', (req, res) => {
+// Teknisi pages - PROTECTED
+router.get('/pembayaran/teknisi', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/pembayaran/teknisi.php');
 });
 
@@ -61,12 +61,16 @@ router.get('/teknisi-tiket', checkRole(['teknisi', 'admin', 'owner', 'superadmin
     res.render('sb-admin/teknisi-tiket.php');
 });
 
-router.get('/teknisi-pelanggan', (req, res) => {
+router.get('/teknisi-pelanggan', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/teknisi-pelanggan.php');
 });
 
 router.get('/admin/teknisi-request-paket', checkRole(['admin', 'owner', 'superadmin', 'teknisi']), (req, res) => {
     res.render('sb-admin/teknisi-request-paket.php');
+});
+
+router.get('/teknisi-map-viewer', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/teknisi-map-viewer.php');
 });
 
 // Working Hours page

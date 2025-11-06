@@ -448,8 +448,6 @@
                         if (userEntry.name && userEntry.address) {
                             activePppoeUsersMap.set(userEntry.name, userEntry.address);
                         }
-                      credentials: 'include', // ✅ Fixed by script
-                      credentials: 'include', // ✅ Fixed by script
                     });
                     
                     console.log(`[fetchActivePppoeUsers] Loaded ${activePppoeUsersMap.size} PPPoE users`);
@@ -655,7 +653,6 @@
                     currentUsername = data.data.username;
                     $('#loggedInTechnicianInfo').text(currentUsername);
                 }
-              credentials: 'include', // ✅ Fixed by script
             }).catch(err => console.warn("Could not fetch user data: ", err));
 
         // MODIFIED: displayGlobalUserMessage to use a modal
