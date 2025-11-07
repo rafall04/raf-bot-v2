@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "id": "wifi_log_1762413214400_wao6gjzfj",
+    "timestamp": "2025-11-06T07:13:34.400Z",
+    "userId": 1,
+    "deviceId": "00259E-HG8145V5-4857544351D6F7AB",
+    "customerName": "Test User",
+    "customerPhone": "N/A",
+    "changeType": "ssid_name",
+    "changes": {
+      "oldSsidName": "Multiple SSIDs",
+      "newSsidName": "SSID 1: \"1\" → \"TES\"; SSID 5: \"P\" → \"TES\""
+    },
+    "changedBy": "teknisi",
+    "changeSource": "web_admin",
+    "reason": "Tidak ada keterangan",
+    "notes": "",
+    "ipAddress": "::1",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+  }
+]
