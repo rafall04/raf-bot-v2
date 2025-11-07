@@ -1,18 +1,1 @@
-[
-  {
-    "id": "comp_1762522671082_1",
-    "userId": "1",
-    "pppoeUsername": "tr069",
-    "originalProfile": "10Mbps",
-    "compensatedProfile": "50Mbps",
-    "startDate": "2025-11-07T13:37:51.082Z",
-    "endDate": "2025-11-07T13:39:51.082Z",
-    "durationDays": 0,
-    "durationHours": 0,
-    "durationMinutes": 2,
-    "notes": "",
-    "status": "active",
-    "processedBy": "admin",
-    "createdAt": "2025-11-07T13:37:51.082Z"
-  }
-]
+[]
