@@ -1150,182 +1150,99 @@ const createCustomerStatusIcon = (status) => {
 
 
         function initializeMap() {
-            console.log("[InitializeMap] Memulai inisialisasi peta...");
-            if (map) {
-                console.warn("[InitializeMap] Menghapus instance peta sebelumnya.");
-                try {
-                    if (myLocationMarker) {
-                        map.removeLayer(myLocationMarker);
-                        myLocationMarker = null;
-                    }
-                    map.remove();
-                } catch(e) { console.error("Error removing previous map instance:", e); }
-                map = null;
+            // Clean previous map instance
+            if (map) { 
+                map.remove(); 
+                map = null; 
+                if(myLocationMarker) myLocationMarker = null;
             }
-            try {
-                const satelliteMaxZoom = 20;
-                const osmMaxZoom = 22;
+            
+            const satelliteMaxZoom = 20;
+            const osmMaxZoom = 22;
+            
+            // Create map - simple like teknisi version
+            map = L.map('interactiveMap', {
+                maxZoom: satelliteMaxZoom
+            }).setView([-7.2430309,111.846867], 15);
 
-                map = L.map('interactiveMap', {
-                    // fullscreenControl disabled - using manual fullscreen button instead
-                    // fullscreenControl: {
-                    //     position: 'bottomleft',
-                    //     title: 'Layar Penuh Peta (Plugin)',
-                    //     titleCancel: 'Keluar Layar Penuh (Plugin)',
-                    //     pseudoFullscreen: false
-                    // },
-                    maxZoom: satelliteMaxZoom
-                }).setView([-7.2430309,111.846867], 15);
-                console.log("[InitializeMap] Objek peta berhasil dibuat.");
+            // Create tile layers - simple like teknisi
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                maxZoom: osmMaxZoom, 
+                attribution: '&copy; OSM Contributors' 
+            });
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
+                maxZoom: satelliteMaxZoom, 
+                attribution: 'Tiles &copy; Esri' 
+            }).addTo(map);
+            
+            // Add layers
+            networkMarkersLayer.addTo(map); 
+            customerMarkersLayer.addTo(map); 
+            linesLayer.addTo(map);
+            
+            // Add layer control
+            const baseMaps = { "Satelit": satelliteLayer, "OpenStreetMap": osmLayer };
+            const overlayMaps = { 
+                "Aset Jaringan": networkMarkersLayer, 
+                "Pelanggan": customerMarkersLayer, 
+                "Koneksi Antar Aset": linesLayer 
+            };
+            L.control.layers(baseMaps, overlayMaps, {collapsed: true}).addTo(map);
 
-                const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: osmMaxZoom,
-                    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                });
-                const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    maxZoom: 20,
-                    attribution: 'Tiles &copy; Esri'
-                });
-                satelliteLayer.addTo(map);
-
-                networkMarkersLayer.addTo(map);
-                customerMarkersLayer.addTo(map);
-                linesLayer.addTo(map);
-
-                const baseMaps = { "Satelit": satelliteLayer, "OpenStreetMap": osmLayer };
-                const overlayMaps = {
-                    "Aset Jaringan (ODC/ODP)": networkMarkersLayer,
-                    "Pelanggan": customerMarkersLayer,
-                    "Koneksi Antar Aset": linesLayer
-                };
-                
-                const layersControl = L.control.layers(baseMaps, overlayMaps, {collapsed: true}).addTo(map);
-                
-                const layersControlContainer = layersControl.getContainer();
-                // Initialize checkboxes based on current labelVisibility state
-                const labelToggleHtml = `
-                    <div class="leaflet-control-layers-separator"></div>
-                    <div class="label-toggle-section">
-                        <label><input type="checkbox" data-label-type="odc" class="leaflet-control-layers-selector" ${labelVisibility.odc ? 'checked' : ''}><span>Label ODC</span></label>
-                        <label><input type="checkbox" data-label-type="odp" class="leaflet-control-layers-selector" ${labelVisibility.odp ? 'checked' : ''}><span>Label ODP</span></label>
-                        <label><input type="checkbox" data-label-type="customer" class="leaflet-control-layers-selector" ${labelVisibility.customer ? 'checked' : ''}><span>Label Pelanggan</span></label>
-                    </div>`;
-                
-                $(layersControlContainer).append(labelToggleHtml);
-                
-                L.DomEvent.on(layersControlContainer, 'click', function(e) {
-                    if (e.target && e.target.dataset.labelType) {
-                        L.DomEvent.stopPropagation(e);
-                        const labelType = e.target.dataset.labelType;
-                        const isChecked = e.target.checked;
-                        labelVisibility[labelType] = isChecked;
-                        redrawMarkers(labelType);
-                    }
-                });
-
-                const GpsMapControl = L.Control.extend({
-                    options: { position: 'topleft'},
-                    onAdd: function(mapInstanceCtrl) {
-                        const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom-gps');
-                        const iconHTML = '<i class="fas fa-crosshairs"></i>';
-                        const loadingIconHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                        container.innerHTML = iconHTML;
-                        container.title = 'Dapatkan Lokasi GPS Saat Ini';
-
-                        L.DomEvent.on(container, 'click', L.DomEvent.stopPropagation)
-                            .on(container, 'click', L.DomEvent.preventDefault)
-                            .on(container, 'click', function () {
-                                container.innerHTML = loadingIconHTML;
-                                displayGlobalMapMessage("Meminta lokasi GPS Anda...", "info", 3000);
-                                if (navigator.geolocation) {
-                                    navigator.geolocation.getCurrentPosition(
-                                        (position) => processSuccessfulGeolocationMapViewer(position, "Tombol GPS Peta", displayGlobalMapMessage, map, container, iconHTML),
-                                        (error) => {
-                                            handleGeolocationErrorMapViewer(error, "Gagal dari Tombol GPS Peta", displayGlobalMapMessage);
-                                            container.innerHTML = iconHTML;
-                                        },
-                                        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-                                    );
-                                } else {
-                                    handleGeolocationErrorMapViewer({code: -1, message: "Browser tidak mendukung geolokasi."}, "Gagal dari Tombol GPS Peta", displayGlobalMapMessage);
-                                    container.innerHTML = iconHTML;
-                                }
-                            });
-                        return container;
-                    }
-                });
-                if (map) new GpsMapControl().addTo(map);
-
-
-                map.on('baselayerchange', function (e) {
-                    let newMaxZoom = (e.name === "Satelit") ? satelliteMaxZoom : osmMaxZoom;
-                    if (map.options.maxZoom !== newMaxZoom) {
-                        map.options.maxZoom = newMaxZoom;
-                        if (map.getZoom() > newMaxZoom) map.setZoom(newMaxZoom);
-                    }
-                });
-
-                // Add fullscreen event handler - same as teknisi version
-                map.on('fullscreenchange', function () {
-                    $('#manualFullscreenBtn i').toggleClass('fa-expand fa-compress');
-                    if(map) map.invalidateSize();
-                });
-                
-                // Also add document-level fullscreen events (native browser)
-                document.addEventListener('fullscreenchange', handleFullscreenGlobal);
-                document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
-                document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);
-                document.addEventListener('MSFullscreenChange', handleFullscreenGlobal);
-
-                const CollapsibleLegendControl = L.Control.extend({
-                    options: { position: 'bottomright' },
-                    onAdd: function(mapInstance) {
-                        const container = L.DomUtil.create('div', 'legend-control legend-collapsed');
-                        const toggle = L.DomUtil.create('a', 'legend-toggle', container);
-                        toggle.innerHTML = '<i class="fas fa-list-ul"></i>';
-                        toggle.href = '#';
-                        toggle.title = 'Tampilkan Legenda';
-
-                        const legend = L.DomUtil.create('div', 'info legend', container);
-                         const types = [
-                            {name: 'ODC (Cabinet)', iconHtml: '<span class="icon-odc"><i class="fas fa-server"></i></span>'},
-                            {name: 'ODP (Point)', iconHtml: '<span class="icon-odp"><i class="fas fa-network-wired"></i></span>'},
-                            {name: 'Pelanggan Online', iconHtml: '<span class="icon-customer-online"><i class="fas fa-map-marker-alt"></i></span>'},
-                            {name: 'Pelanggan Offline', iconHtml: '<span class="icon-customer-offline"><i class="fas fa-map-marker-alt"></i></span>'},
-                            {name: 'Pelanggan (Lainnya)', iconHtml: '<span class="icon-customer-unknown"><i class="fas fa-map-marker-alt"></i></span>'},
-                            {name: 'Lokasi Saya', iconHtml: '<span class="icon-customer-unknown"><i class="fas fa-street-view"></i></span>'}
-                        ];
-                        let legendHtml = "<h4>Legenda Peta</h4>";
-                        types.forEach(type => { legendHtml += `${type.iconHtml} ${type.name}<br>`; });
-                        legend.innerHTML = legendHtml;
-                        
-                        L.DomEvent.on(container, 'click', L.DomEvent.stopPropagation)
-                                  .on(container, 'mousedown', L.DomEvent.stopPropagation)
-                                  .on(container, 'dblclick', L.DomEvent.stopPropagation);
-
-                        L.DomEvent.on(toggle, 'click', (e) => {
-                            L.DomEvent.stop(e);
-                            L.DomUtil.removeClass(container, 'legend-collapsed');
+            // Add GPS control - simplified like teknisi
+            const GpsMapControl = L.Control.extend({
+                options: { position: 'topleft'},
+                onAdd: function(mapInstanceCtrl) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom-gps');
+                    const iconHTML = '<i class="fas fa-crosshairs"></i>';
+                    const loadingIconHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    container.innerHTML = iconHTML; 
+                    container.title = 'Lokasi Saya';
+                    
+                    L.DomEvent.on(container, 'click', L.DomEvent.stopPropagation)
+                        .on(container, 'click', L.DomEvent.preventDefault)
+                        .on(container, 'click', function () {
+                            container.innerHTML = loadingIconHTML; 
+                            displayGlobalMapMessage("Meminta lokasi GPS...", "info", 3000);
+                            if (navigator.geolocation) {
+                                navigator.geolocation.getCurrentPosition(
+                                    (pos) => processSuccessfulGeolocationMapViewer(pos, "GPS Peta", displayGlobalMapMessage, map, container, iconHTML),
+                                    (err) => { 
+                                        handleGeolocationErrorMapViewer(err, "GPS Gagal", displayGlobalMapMessage); 
+                                        container.innerHTML = iconHTML; 
+                                    },
+                                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                                );
+                            } else { 
+                                handleGeolocationErrorMapViewer({code: -1, message: "Geolokasi tidak didukung."}, "GPS Gagal", displayGlobalMapMessage); 
+                                container.innerHTML = iconHTML; 
+                            }
                         });
-                        
-                        L.DomEvent.on(legend, 'click', (e) => {
-                             L.DomEvent.stop(e);
-                            L.DomUtil.addClass(container, 'legend-collapsed');
-                        });
+                    return container;
+                }
+            });
+            if (map) new GpsMapControl().addTo(map);
 
-                        return container;
-                    }
-                });
-                new CollapsibleLegendControl().addTo(map);
+            
+            // Event listeners - exactly like teknisi
+            map.on('baselayerchange', e => { 
+                map.options.maxZoom = e.name === "Satelit" ? satelliteMaxZoom : osmMaxZoom; 
+                if (map.getZoom() > map.options.maxZoom) map.setZoom(map.options.maxZoom); 
+            });
+            
+            map.on('fullscreenchange', () => { 
+                $('#manualFullscreenBtn i').toggleClass('fa-expand fa-compress'); 
+                if(map) map.invalidateSize(); 
+            });
+            
+            document.addEventListener('fullscreenchange', handleFullscreenGlobal);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
+            document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);
+            document.addEventListener('MSFullscreenChange', handleFullscreenGlobal);
 
-                loadAllMapData();
-                console.log("[InitializeMap] Inisialisasi peta BERHASIL.");
-
-            } catch (error) {
-                console.error("[InitializeMap] ERROR Kritis saat inisialisasi peta:", error);
-                $('#interactiveMap').html('<div class="alert alert-danger text-center">Gagal memuat peta. Periksa konsol browser untuk detail teknis. Coba refresh halaman.</div>');
-                displayGlobalMapMessage("Gagal total menginisialisasi peta. Periksa konsol untuk detail error.", "danger", 0);
-            }
+            
+            // Load map data
+            loadAllMapData();
         }
         
         /**
