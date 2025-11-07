@@ -497,6 +497,7 @@
     <script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
     <script src="/js/sb-admin-2.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/1.6.0/Control.FullScreen.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
@@ -953,12 +954,25 @@
                 else if (asset.type === 'ODP') odpMarkersTechnicianPage.push(marker);
             });
 
+            // Create animated lines from ODP to parent ODC (orange backbone)
             odpMarkersTechnicianPage.forEach(odpMarker => {
                 const odpAsset = odpMarker.assetData;
                 if (odpAsset.parent_odc_id) {
                     const parentOdcMarker = odcMarkersTechnicianPage.find(m => String(m.assetData.id) === String(odpAsset.parent_odc_id));
                     if (parentOdcMarker) {
-                        const line = L.polyline([parentOdcMarker.getLatLng(), odpMarker.getLatLng()], { color: '#ff7800', weight: 2, opacity: 0.7, dashArray: '5, 5' });
+                        // Use animated line (leaflet-ant-path) for better visualization
+                        const line = L.polyline.antPath(
+                            [parentOdcMarker.getLatLng(), odpMarker.getLatLng()], 
+                            {
+                                color: '#ff7800',           // Orange - backbone infrastructure
+                                weight: 2,
+                                opacity: 0.7,
+                                delay: 2000,                // Medium speed animation
+                                dashArray: [10, 15],
+                                pulseColor: '#FFB84D',      // Lighter orange pulse
+                                hardwareAccelerated: true   // Performance optimization
+                            }
+                        );
                         line.connectedEntities = { odcId: parentOdcMarker.assetData.id, odpId: odpAsset.id };
                         odpToOdcLinesTechnicianPage.push(line);
                     }
@@ -1021,7 +1035,53 @@
                             const dist = haversineDistance({ latitude: lat, longitude: lng }, { latitude: parseFloat(odpAsset.latitude), longitude: parseFloat(odpAsset.longitude) });
                             if (!isNaN(dist)) odpDetailsHtml += `<p style="margin-left:15px; font-size:0.9em;">Jarak ke ODP: ${dist.toFixed(0)} m</p>`;
                         }
-                        const line = L.polyline([[lat, lng], odpMarker.getLatLng()], { color: 'rgba(0,100,255,0.7)', weight: 2, opacity: 0.8, dashArray: '5,5' });
+                        
+                        // Create animated line from customer to ODP (color-coded by online status)
+                        let line;
+                        if (onlineStatus === 'online') {
+                            // Green animated line for online customers (fast animation)
+                            line = L.polyline.antPath(
+                                [[lat, lng], odpMarker.getLatLng()], 
+                                {
+                                    color: '#28a745',           // Green - online
+                                    weight: 6,
+                                    opacity: 0.8,
+                                    delay: 1000,                // Fast animation for active connections
+                                    dashArray: [10, 20],
+                                    pulseColor: '#00FF00',      // Bright green pulse
+                                    hardwareAccelerated: true
+                                }
+                            );
+                        } else if (onlineStatus === 'offline') {
+                            // Red animated line for offline customers (slow animation)
+                            line = L.polyline.antPath(
+                                [[lat, lng], odpMarker.getLatLng()], 
+                                {
+                                    color: '#dc3545',           // Red - offline
+                                    weight: 4,
+                                    opacity: 0.6,
+                                    delay: 3000,                // Slower animation for problems
+                                    dashArray: [5, 10],
+                                    pulseColor: '#a92b38',      // Darker red pulse
+                                    hardwareAccelerated: true
+                                }
+                            );
+                        } else {
+                            // Grey animated line for unknown status (medium animation)
+                            line = L.polyline.antPath(
+                                [[lat, lng], odpMarker.getLatLng()], 
+                                {
+                                    color: '#6c757d',           // Grey - unknown
+                                    weight: 3,
+                                    opacity: 0.5,
+                                    delay: 2500,                // Medium-slow animation
+                                    dashArray: [5, 10],
+                                    pulseColor: '#495057',      // Darker grey pulse
+                                    hardwareAccelerated: true
+                                }
+                            );
+                        }
+                        
                         line.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
                         customerToOdpLinesTechnicianPage.push(line);
 
