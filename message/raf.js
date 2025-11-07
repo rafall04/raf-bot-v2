@@ -1041,18 +1041,13 @@ _Foto akan membantu teknisi diagnosis masalah_`);
 
         // --- ALUR DETEKSI INTENT BARU (DIPERBAIKI) ---
 
-        // Specific alias handling for "menu pelanggan"
-        if (chats.toLowerCase().replace(/\s+/g, '') === 'menupelanggan') {
-            intent = 'MENU_PELANGGAN';
-            console.log(color('[MENU_COMMAND]'), `Direct match: "menupelanggan" -> Intent: MENU_PELANGGAN`);
-        } else {
-            // 1. Cek Intent dari Keyword Handler (Prioritas Utama)
-            const keywordResult = getIntentFromKeywords(chats);
-            if (keywordResult) {
-                intent = keywordResult.intent;
-                matchedKeywordLength = keywordResult.matchedKeywordLength;
-                console.log(color('[KEYWORD_COMMAND]'), `Phrase: "${chats}" -> Intent: ${intent} (Matched ${matchedKeywordLength} words)`);
-            } else if (!skipStaticIntents) {
+        // 1. Cek Intent dari Keyword Handler (Prioritas Utama)
+        const keywordResult = getIntentFromKeywords(chats);
+        if (keywordResult) {
+            intent = keywordResult.intent;
+            matchedKeywordLength = keywordResult.matchedKeywordLength;
+            console.log(color('[KEYWORD_COMMAND]'), `Phrase: "${chats}" -> Intent: ${intent} (Matched ${matchedKeywordLength} words)`);
+        } else if (!skipStaticIntents) {
             // 2. Jika tidak ada, cek perintah statis satu kata (Prioritas Kedua)
             // ONLY check staticIntents if NOT in WiFi input state
             const staticIntent = staticIntents[command];
@@ -1067,7 +1062,7 @@ _Foto akan membantu teknisi diagnosis masalah_`);
 
                 console.log(color('[STATIC_COMMAND]'), `Command: "${command}" -> Intent: ${intent}`);
             }
-        }}
+        }
 
         // Lanjutkan ke switch case dengan `intent` yang sudah ditentukan
 
@@ -1462,27 +1457,9 @@ atau ketik:
                 handleSapaanUmum(pushname, reply);
                 break;
             }
-            case 'MENU_PELANGGAN' :
-            case 'menupelanggan': {
-                // Extract phone number from sender
-                const extractedPhone = (/^([^:@]+)[:@]?.*$/.exec(sender))[1];
-                console.log(color('[MENU_PELANGGAN]'), `Looking for user with phone: ${extractedPhone}`);
-                console.log(color('[MENU_PELANGGAN]'), `Total users in database: ${users.length}`);
-                
-                // Find user in database
-                const user = users.find(v => {
-                    const phoneNumbers = v.phone_number.split("|");
-                    return phoneNumbers.find(vv => vv == extractedPhone);
-                });
-                
-                if (!user) {
-                    console.log(color('[MENU_PELANGGAN]'), `User not found for phone: ${extractedPhone}`);
-                    // Show menu anyway for testing, but with warning
-                    reply(`⚠️ Peringatan: Nomor Anda (${extractedPhone}) tidak terdaftar dalam database.\n\n${customermenu(global.config.nama, global.config.namabot)}`);
-                } else {
-                    console.log(color('[MENU_PELANGGAN]'), `User found: ${user.name} (ID: ${user.id})`);
-                    reply(customermenu(global.config.nama, global.config.namabot));
-                }
+            case 'MENU_PELANGGAN': {
+                const { handleMenuPelanggan } = require('./handlers/menu-handler');
+                handleMenuPelanggan(global.config, reply);
             }
             break;
             case 'MENU_UTAMA':
