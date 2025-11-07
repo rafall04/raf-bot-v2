@@ -1,8 +1,8 @@
-# 🚨 FULLSCREEN POPUP Z-INDEX FIX
+# 🚨 FULLSCREEN MODAL VISIBILITY FIX (COMPLETE)
 
 **Date:** 2025-11-07  
 **Issue:** Modals and popups not visible in fullscreen mode  
-**Status:** ✅ **FIXED**
+**Status:** ✅ **FULLY FIXED** (Two-phase solution)
 
 ---
 
@@ -14,11 +14,15 @@ When the map is in fullscreen mode:
 - Leaflet popups may be hidden
 - User must exit fullscreen to see the modals
 
-**Root Cause:** Z-index stacking context issue where the fullscreen container has a higher z-index than modals.
+**Root Causes:** 
+1. Z-index stacking context issue (PHASE 1)
+2. Modals were OUTSIDE the fullscreen container in DOM (PHASE 2)
 
 ---
 
-## ✅ **SOLUTION APPLIED**
+## ✅ **SOLUTION APPLIED (TWO PHASES)**
+
+### **PHASE 1: Z-Index Fix (Partial Solution)**
 
 ### **Z-Index Hierarchy (Highest to Lowest):**
 
@@ -69,17 +73,71 @@ When the map is in fullscreen mode:
 }
 ```
 
+**Result:** Partial fix - worked for popups but NOT for modals.
+
+### **PHASE 2: DOM Movement (Complete Solution)**
+
+**The Real Problem:**
+```html
+<div id="mapContainer">
+    <div id="interactiveMap"></div>
+</div> <!-- mapContainer ends here -->
+
+<!-- Modals are OUTSIDE mapContainer! -->
+<div class="modal" id="wifiInfoModal">...</div>
+<div class="modal" id="wifiManagementModal">...</div>
+```
+
+When `mapContainer` goes fullscreen, only its children are visible. Modals being siblings were invisible!
+
+**The Solution - Move Modals Dynamically:**
+
+```javascript
+// Store original parent of modals
+let modalOriginalParents = new Map();
+
+function moveModalsToFullscreen() {
+    const modals = document.querySelectorAll('.modal');
+    const mapContainer = document.getElementById('mapContainer');
+    
+    modals.forEach(modal => {
+        // Store where modal was originally
+        modalOriginalParents.set(modal, modal.parentNode);
+        // Move modal INTO mapContainer
+        mapContainer.appendChild(modal);
+    });
+}
+
+function restoreModalsPosition() {
+    // Return modals to original position
+    modalOriginalParents.forEach((parent, modal) => {
+        parent.appendChild(modal);
+    });
+    modalOriginalParents.clear();
+}
+
+// In toggleFullScreenManual():
+// Before entering fullscreen -> moveModalsToFullscreen()
+// In handleFullscreenGlobal():
+// After exiting fullscreen -> restoreModalsPosition()
+```
+
 ---
 
 ## 📁 **FILES MODIFIED**
 
 ### **1. views/sb-admin/map-viewer.php**
-- **Lines:** 166-196
-- **Added:** Complete z-index hierarchy for fullscreen compatibility
+- **Phase 1 (Lines 166-196):** Z-index hierarchy CSS
+- **Phase 2 (Lines 1350-1415):** Modal movement functions
+  - `moveModalsToFullscreen()`
+  - `restoreModalsPosition()`
+  - Updated `toggleFullScreenManual()`
+  - Updated `handleFullscreenGlobal()`
 
 ### **2. views/sb-admin/teknisi-map-viewer.php**
-- **Lines:** 107-117
-- **Updated:** Added tooltip z-index and consistency improvements
+- **Phase 1 (Lines 107-117):** Z-index hierarchy CSS
+- **Phase 2 (Lines 826-873):** Modal movement functions
+  - Same implementation as map-viewer.php
 
 ---
 
