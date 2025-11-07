@@ -822,11 +822,35 @@
 
             loadAllMapDataTechnicianPage();
         }
+        
+        // Store original parent of modals for fullscreen fix
+        let modalOriginalParents = new Map();
+        
+        function moveModalsToFullscreen() {
+            const modals = document.querySelectorAll('.modal');
+            const mapContainer = document.getElementById('mapContainer');
+            modals.forEach(modal => {
+                modalOriginalParents.set(modal, modal.parentNode);
+                mapContainer.appendChild(modal);
+            });
+        }
+        
+        function restoreModalsPosition() {
+            modalOriginalParents.forEach((parent, modal) => {
+                parent.appendChild(modal);
+            });
+            modalOriginalParents.clear();
+        }
 
         function toggleFullScreenManual() {
             const mapContainer = document.getElementById('mapContainer');
             if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
-                if (mapContainer.requestFullscreen) mapContainer.requestFullscreen().catch(err => console.error(`Error fullscreen: ${err.message}`));
+                // Move modals into mapContainer before fullscreen
+                moveModalsToFullscreen();
+                if (mapContainer.requestFullscreen) mapContainer.requestFullscreen().catch(err => {
+                    console.error(`Error fullscreen: ${err.message}`);
+                    restoreModalsPosition();
+                });
                 else if (mapContainer.mozRequestFullScreen) mapContainer.mozRequestFullScreen();
                 else if (mapContainer.webkitRequestFullscreen) mapContainer.webkitRequestFullscreen();
                 else if (mapContainer.msRequestFullscreen) mapContainer.msRequestFullscreen();
@@ -837,10 +861,15 @@
                 else if (document.msExitFullscreen) document.msExitFullscreen();
             }
         }
+        
         function handleFullscreenGlobal() {
             const isFull = !!(document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
             $('#manualFullscreenBtn i').toggleClass('fa-expand', !isFull).toggleClass('fa-compress', isFull);
             if (map) setTimeout(() => map.invalidateSize(), 250);
+            // Restore modals when exiting fullscreen
+            if (!isFull) {
+                restoreModalsPosition();
+            }
         }
 
         function setupLegend() {

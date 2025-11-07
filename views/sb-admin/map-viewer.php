@@ -1347,18 +1347,59 @@ function redrawMarkers(markerType) {
     });
 }
 
+        // Store original parent of modals
+        let modalOriginalParents = new Map();
+        
+        function moveModalsToFullscreen() {
+            // Find all modals
+            const modals = document.querySelectorAll('.modal');
+            const mapContainer = document.getElementById('mapContainer');
+            
+            modals.forEach(modal => {
+                // Store original parent
+                modalOriginalParents.set(modal, modal.parentNode);
+                // Move modal into mapContainer
+                mapContainer.appendChild(modal);
+            });
+        }
+        
+        function restoreModalsPosition() {
+            // Restore modals to original position
+            modalOriginalParents.forEach((parent, modal) => {
+                parent.appendChild(modal);
+            });
+            modalOriginalParents.clear();
+        }
+
         function toggleFullScreenManual() {
             const mapContainer = document.getElementById('mapContainer');
+            
             if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
-                if (mapContainer.requestFullscreen) { mapContainer.requestFullscreen().catch(err => console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`)); }
-                else if (mapContainer.mozRequestFullScreen) { mapContainer.mozRequestFullScreen(); }
-                else if (mapContainer.webkitRequestFullscreen) { mapContainer.webkitRequestFullscreen(); }
-                else if (mapContainer.msRequestFullscreen) { mapContainer.msRequestFullscreen(); }
+                // Move modals into mapContainer before going fullscreen
+                moveModalsToFullscreen();
+                
+                if (mapContainer.requestFullscreen) {
+                    mapContainer.requestFullscreen().catch(err => {
+                        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+                        restoreModalsPosition(); // Restore if fullscreen fails
+                    });
+                } else if (mapContainer.mozRequestFullScreen) { /* Firefox */
+                    mapContainer.mozRequestFullScreen();
+                } else if (mapContainer.webkitRequestFullscreen) { /* Chrome, Safari and Opera */
+                    mapContainer.webkitRequestFullscreen();
+                } else if (mapContainer.msRequestFullscreen) { /* IE/Edge */
+                    mapContainer.msRequestFullscreen();
+                }
             } else {
-                if (document.exitFullscreen) { document.exitFullscreen(); }
-                else if (document.mozCancelFullScreen) { document.mozCancelFullScreen(); }
-                else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
-                else if (document.msExitFullscreen) { document.msExitFullscreen(); }
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.mozCancelFullScreen) { /* Firefox */
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) { /* Chrome, Safari and Opera */
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) { /* IE/Edge */
+                    document.msExitFullscreen();
+                }
             }
         }
 
@@ -1367,6 +1408,10 @@ function redrawMarkers(markerType) {
             $('#manualFullscreenBtn i').toggleClass('fa-expand', !isActuallyFullscreen).toggleClass('fa-compress', isActuallyFullscreen);
             $('#manualFullscreenBtn').attr('title', isActuallyFullscreen ? 'Keluar Layar Penuh (Kustom)' : 'Layar Penuh Peta (Kustom)');
             if (map) { setTimeout(function() { map.invalidateSize(); }, 250); }
+            // Restore modals when EXITING fullscreen (not entering)
+            if (!isActuallyFullscreen) {
+                restoreModalsPosition();
+            }
         }
 
         function updateSelectAllCheckbox(type, totalItems, selectedItems) {
