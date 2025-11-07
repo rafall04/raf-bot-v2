@@ -76,7 +76,7 @@ router.get('/speed-requests', ensureAdmin, async (req, res) => {
 });
 
 // GET /api/compensations/active
-router.get('/active', ensureAdmin, async (req, res) => {
+router.get('/compensations/active', ensureAdmin, async (req, res) => {
     try {
         const activeCompensations = global.compensations.filter(comp => comp.status === 'active');
         const detailedActiveCompensations = activeCompensations.map(comp => {
@@ -110,7 +110,7 @@ router.get('/active', ensureAdmin, async (req, res) => {
 });
 
 // POST /api/compensation/apply
-router.post('/apply', ensureAdmin, async (req, res) => {
+router.post('/compensation/apply', ensureAdmin, async (req, res) => {
     const { customerIds, speedProfile, durationDays, durationHours, durationMinutes, notes } = req.body;
     if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
         return res.status(400).json({ message: "Parameter 'customerIds' (array) diperlukan dan tidak boleh kosong." });
