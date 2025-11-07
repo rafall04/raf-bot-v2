@@ -23,7 +23,7 @@
     "longitude": 111.846587,
     "notes": "",
     "parent_odc_id": "ODC-ODC1-001",
-    "ports_used": 0,
+    "ports_used": 1,
     "createdAt": "2025-11-07T08:17:33.214Z",
     "updatedAt": "2025-11-07T08:17:33.214Z"
   }
