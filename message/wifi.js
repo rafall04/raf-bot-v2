@@ -21,37 +21,73 @@ const formatTemplate = (template, data) => {
 
 exports.wifimenu = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.wifimenu || '';
-    return formatTemplate(template, { nama, namabot });
+    // Support both old and new placeholder names for backward compatibility
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.customermenu = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.customermenu || '';
-    return formatTemplate(template, { nama, namabot });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.technicianmenu = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.technicianmenu || '';
-    return formatTemplate(template, { nama, namabot });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.menubelivoucher = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.menubelivoucher || '';
-    return formatTemplate(template, { nama, namabot });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.menuvoucher = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.menuvoucher || '';
-    return formatTemplate(template, { nama, namabot });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.menupasang = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.menupasang || '';
-    return formatTemplate(template, { nama, namabot });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.menuowner = (nama, namabot) => {
     const template = templatesCache.wifiMenuTemplates?.menuowner || '';
-    return formatTemplate(template, { nama, namabot });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot     // Clear naming: Bot name
+    });
 };
 
 exports.menupaket = (nama, namabot) => {
@@ -96,5 +132,11 @@ exports.menupaket = (nama, namabot) => {
     }
 
     const template = templatesCache.wifiMenuTemplates?.menupaket || '';
-    return formatTemplate(template, { nama, namabot, packageList });
+    return formatTemplate(template, { 
+        nama: nama,           // Backward compatibility
+        nama_wifi: nama,      // Clear naming: WiFi provider name
+        namabot: namabot,     // Backward compatibility
+        nama_bot: namabot,    // Clear naming: Bot name
+        packageList: packageList
+    });
 };
