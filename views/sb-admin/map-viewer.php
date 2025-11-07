@@ -814,9 +814,9 @@
 
     <script>
         // VERSION CHECK - If you see this, page is updated!
-        console.log("%c✅ MAP-VIEWER VERSION: 2025-11-07-FINAL LOADED", "background: #4CAF50; color: white; padding: 5px 10px; font-weight: bold;");
-        console.log("%c📍 Using SIMPLE fullscreen (same as teknisi version)", "color: #2196F3; font-weight: bold;");
-        console.log("%c🔧 NO plugin dependency - should work now!", "color: #FF9800; font-weight: bold;");
+        console.log("%c✅ MAP-VIEWER VERSION: 2025-11-07-FIXED-V2 LOADED", "background: #4CAF50; color: white; padding: 5px 10px; font-weight: bold;");
+        console.log("%c📍 Plugin event wrapped in try-catch for safety", "color: #2196F3; font-weight: bold;");
+        console.log("%c🔧 Should work even if plugin fails to load!", "color: #FF9800; font-weight: bold;");
         
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
             console.warn("PERINGATAN: Halaman ini diakses melalui HTTP. Fitur geolokasi mungkin tidak berfungsi optimal. Silakan gunakan HTTPS.");
@@ -1257,12 +1257,21 @@ const createCustomerStatusIcon = (status) => {
                     }
                 });
 
-                // Simple fullscreen event - NO PLUGIN DEPENDENCY
-                map.on('fullscreenchange', function () {
-                    $('#manualFullscreenBtn i').toggleClass('fa-expand').toggleClass('fa-compress');
-                    if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
-                });
+                // Fullscreen events
+                // Try to add plugin event if available (for icon toggle)
+                // This will silently fail if plugin not loaded, which is OK
+                try {
+                    if (typeof map.on === 'function') {
+                        map.on('fullscreenchange', function () {
+                            $('#manualFullscreenBtn i').toggleClass('fa-expand').toggleClass('fa-compress');
+                            if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
+                        });
+                    }
+                } catch(e) {
+                    console.log("[Fullscreen] Plugin event not available, using document events only");
+                }
                 
+                // Always add document-level fullscreen events (native browser events)
                 document.addEventListener('fullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);
