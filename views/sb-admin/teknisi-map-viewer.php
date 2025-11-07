@@ -247,6 +247,11 @@
                 margin-left: 0 !important;
                 justify-content: center;
             }
+            .map-instructions-header #toggleConnectionLinesBtn {
+                width: 100%;
+                margin-top: 8px;
+                margin-left: 0 !important;
+            }
 
             .h4.mb-0.text-gray-800.d-none.d-md-inline-block { font-size: 1.1rem; }
             .legend { max-width: 180px; font-size: 12px; line-height: 20px; }
@@ -322,6 +327,9 @@
                                 <span class="d-inline d-sm-none">Auto</span>
                             </label>
                         </div>
+                        <button id="toggleConnectionLinesBtn" class="btn btn-sm btn-outline-success ml-2" title="Tampilkan/Sembunyikan Garis Koneksi Jaringan">
+                            <i class="fas fa-project-diagram"></i> <span class="d-none d-sm-inline">Koneksi</span>
+                        </button>
                     </div>
                     <div id="globalMessageMap" class="mb-2"></div>
                     <div id="mapContainer">
@@ -532,6 +540,10 @@
         // Auto-refresh variables
         let autoRefreshIntervalId = null;
         const AUTO_REFRESH_INTERVAL_MS = 30000; // 30 seconds
+        
+        // Connection lines visibility
+        let connectionLinesVisible = true; // Lines visible by default
+        
         let selectedCustomerIdsTechnicianPage = new Set();
         let isInitialLoadTechnicianPage = true;
 
@@ -1247,8 +1259,11 @@
             odpMarkersTechnicianPage.forEach(marker => { if (selectedOdpIdsTechnicianPage.has(String(marker.assetData.id))) networkMarkersLayer.addLayer(marker); });
             customerMarkersTechnicianPage.forEach(marker => { if (selectedCustomerIdsTechnicianPage.has(String(marker.customerData.id))) customerMarkersLayer.addLayer(marker); });
 
-            odpToOdcLinesTechnicianPage.forEach(line => { if (line.connectedEntities && selectedOdcIdsTechnicianPage.has(String(line.connectedEntities.odcId)) && selectedOdpIdsTechnicianPage.has(String(line.connectedEntities.odpId))) linesLayer.addLayer(line); });
-            customerToOdpLinesTechnicianPage.forEach(line => { if (line.connectedEntities && selectedCustomerIdsTechnicianPage.has(String(line.connectedEntities.customerId)) && selectedOdpIdsTechnicianPage.has(String(line.connectedEntities.odpId))) linesLayer.addLayer(line); });
+            // Only show connection lines if visibility is enabled
+            if (connectionLinesVisible) {
+                odpToOdcLinesTechnicianPage.forEach(line => { if (line.connectedEntities && selectedOdcIdsTechnicianPage.has(String(line.connectedEntities.odcId)) && selectedOdpIdsTechnicianPage.has(String(line.connectedEntities.odpId))) linesLayer.addLayer(line); });
+                customerToOdpLinesTechnicianPage.forEach(line => { if (line.connectedEntities && selectedCustomerIdsTechnicianPage.has(String(line.connectedEntities.customerId)) && selectedOdpIdsTechnicianPage.has(String(line.connectedEntities.odpId))) linesLayer.addLayer(line); });
+            }
 
             if (myLocationMarker && map.hasLayer(myLocationMarker)) {
                 myLocationMarker.bringToFront();
@@ -1487,6 +1502,10 @@
 
         $(document).ready(function() {
             initializeMap();
+            
+            // Set initial state for connection toggle button (lines visible by default)
+            $('#toggleConnectionLinesBtn').removeClass('btn-outline-success').addClass('btn-success');
+            
             $('#manualFullscreenBtn').on('click', toggleFullScreenManual);
              $('#refreshAllDataBtnMap').on('click', async function() {
                 const button = $(this); const originalHtml = button.html();
@@ -1551,6 +1570,31 @@
                         $(this).next('label').attr('title', 'Aktifkan refresh data otomatis setiap 30 detik');
                     }
                 }
+            });
+
+            // Connection lines toggle event handler
+            $('#toggleConnectionLinesBtn').on('click', function() {
+                connectionLinesVisible = !connectionLinesVisible; // Toggle state
+                
+                const btn = $(this);
+                if (connectionLinesVisible) {
+                    // Lines are now VISIBLE
+                    btn.removeClass('btn-outline-success').addClass('btn-success');
+                    btn.html('<i class="fas fa-project-diagram"></i> <span class="d-none d-sm-inline">Koneksi</span>');
+                    btn.attr('title', 'Sembunyikan Garis Koneksi Jaringan');
+                    displayGlobalMapMessage('Garis koneksi jaringan ditampilkan.', 'success', 3000);
+                    console.log('[ConnectionLines] Connection lines shown.');
+                } else {
+                    // Lines are now HIDDEN
+                    btn.removeClass('btn-success').addClass('btn-outline-success');
+                    btn.html('<i class="fas fa-project-diagram"></i> <span class="d-none d-sm-inline">Koneksi</span>');
+                    btn.attr('title', 'Tampilkan Garis Koneksi Jaringan');
+                    displayGlobalMapMessage('Garis koneksi jaringan disembunyikan.', 'info', 3000);
+                    console.log('[ConnectionLines] Connection lines hidden.');
+                }
+                
+                // Re-apply filters to show/hide lines based on new state
+                applyFiltersTechnicianPage();
             });
 
             $('#openCustomFilterModalBtnMap').on('click', openCustomFilterModalWithCurrentSelectionsTechnicianPage);
