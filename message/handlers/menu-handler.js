@@ -3,7 +3,7 @@
  * Menangani semua tampilan menu
  */
 
-const { wifimenu, menupaket, menubelivoucher, menupasang, menuowner, customermenu, technicianmenu } = require('../wifi');
+const { wifimenu, menupaket, menubelivoucher, menupasang, menuowner, technicianmenu } = require('../wifi');
 const templateManager = require('../../lib/template-manager');
 
 /**

@@ -33,18 +33,7 @@ exports.wifimenu = (nama, namabot, pushname, sender) => {
     });
 };
 
-exports.customermenu = (nama, namabot, pushname, sender) => {
-    const template = templatesCache.wifiMenuTemplates?.customermenu || '';
-    return formatTemplate(template, { 
-        nama: nama,           // Backward compatibility
-        nama_wifi: nama,      // Clear naming: WiFi provider name
-        namabot: namabot,     // Backward compatibility
-        nama_bot: namabot,    // Clear naming: Bot name
-        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
-        sender: sender,       // Full sender ID
-        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
-    });
-};
+// customermenu removed - now using menu_pelanggan from command_templates.json
 
 exports.technicianmenu = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.technicianmenu || '';
