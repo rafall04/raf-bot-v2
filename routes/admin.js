@@ -222,6 +222,39 @@ router.post('/api/templates', ensureAuthenticatedStaff, (req, res) => {
     }
 });
 
+// GET /api/config - Get combined config from config.json and cron.json
+router.get('/api/config', ensureAuthenticatedStaff, (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ message: "Akses ditolak." });
+    }
+
+    try {
+        const mainConfigPath = path.join(__dirname, '..', 'config.json');
+        const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
+        
+        const mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
+        const cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+        
+        // Combine both configs
+        const combinedConfig = {
+            ...mainConfig,
+            ...cronConfig
+        };
+        
+        res.status(200).json({
+            status: 200,
+            data: combinedConfig
+        });
+    } catch (error) {
+        console.error('[API_CONFIG_GET_ERROR]', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil konfigurasi.',
+            error: error.message
+        });
+    }
+});
+
 router.post('/api/cron', ensureAuthenticatedStaff, (req, res) => {
     if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
         return res.status(403).json({ message: "Akses ditolak." });
@@ -230,20 +263,27 @@ router.post('/api/cron', ensureAuthenticatedStaff, (req, res) => {
     const cronDbPath = path.join(__dirname, '..', 'database', 'cron.json');
     const newConfig = req.body;
 
-    // Validate cron expressions
+    // Clean up cron expressions - remove any # symbols
     const cronFields = [
         'unpaid_schedule',
         'schedule',
         'schedule_unpaid_action',
-        'schedule_isolir_notification'
+        'schedule_isolir_notification',
+        'schedule_compensation_revert'
     ];
 
     for (const field of cronFields) {
-        if (newConfig[field] && !isValidCron(newConfig[field])) {
-            return res.status(400).json({
-                message: `Jadwal cron tidak valid untuk kolom '${field}'. Harap gunakan format yang benar.`, 
-                field: field
-            });
+        if (newConfig[field]) {
+            // Remove # from beginning if present
+            newConfig[field] = newConfig[field].replace(/^#\s*/, '');
+            
+            // Validate the cleaned cron expression
+            if (newConfig[field] && !isValidCron(newConfig[field])) {
+                return res.status(400).json({
+                    message: `Jadwal cron tidak valid untuk kolom '${field}'. Harap gunakan format yang benar.`, 
+                    field: field
+                });
+            }
         }
     }
 
