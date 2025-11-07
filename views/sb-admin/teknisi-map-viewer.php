@@ -104,13 +104,17 @@
         .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
         .modal-xl { max-width: 1140px; }
         
-        /* Ensure modals are visible in fullscreen */
+        /* CRITICAL FIX: Ensure modals are visible in fullscreen */
         .modal { z-index: 10000 !important; }
         .modal-backdrop { z-index: 9999 !important; }
         
-        /* Ensure leaflet popups are visible in fullscreen - CRITICAL FIX */
+        /* Ensure leaflet popups are visible in fullscreen */
         .leaflet-popup { z-index: 9998 !important; }
         .leaflet-popup-pane { z-index: 9998 !important; }
+        
+        /* Tooltip should also be visible in fullscreen */
+        .leaflet-tooltip { z-index: 9997 !important; }
+        .leaflet-tooltip-pane { z-index: 9997 !important; }
         
         /* Leaflet overlay layers (markers, paths) must be below popups */
         .leaflet-overlay-pane { z-index: 400 !important; }

@@ -162,6 +162,38 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
         .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
         .modal-lg { max-width: 800px; }
         .modal-xl { max-width: 1140px; }
+        
+        /* CRITICAL FIX: Ensure modals and popups are visible in fullscreen mode */
+        .modal { z-index: 10000 !important; }
+        .modal-backdrop { z-index: 9999 !important; }
+        
+        /* Ensure leaflet popups are also visible in fullscreen */
+        .leaflet-popup { z-index: 9998 !important; }
+        .leaflet-popup-pane { z-index: 9998 !important; }
+        
+        /* Tooltip should also be visible */
+        .leaflet-tooltip { z-index: 9997 !important; }
+        .leaflet-tooltip-pane { z-index: 9997 !important; }
+        
+        /* Ensure proper stacking of leaflet layers */
+        .leaflet-overlay-pane { z-index: 400 !important; }
+        .leaflet-shadow-pane { z-index: 500 !important; }
+        .leaflet-marker-pane { z-index: 600 !important; }
+        
+        /* Additional fullscreen-specific fixes */
+        #mapContainer:fullscreen .modal,
+        #mapContainer:-webkit-full-screen .modal,
+        #mapContainer:-moz-full-screen .modal,
+        #mapContainer:-ms-fullscreen .modal {
+            z-index: 10000 !important;
+        }
+        
+        #mapContainer:fullscreen .modal-backdrop,
+        #mapContainer:-webkit-full-screen .modal-backdrop,
+        #mapContainer:-moz-full-screen .modal-backdrop,
+        #mapContainer:-ms-fullscreen .modal-backdrop {
+            z-index: 9999 !important;
+        }
 
         .form-label { margin-bottom: .3rem; font-size: 0.8rem; font-weight: 500; }
         .form-control-sm { font-size: 0.8rem; padding: .25rem .5rem; height: calc(1.5em + .5rem + 2px); }
