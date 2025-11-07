@@ -227,6 +227,24 @@
                                             <span class="badge badge-primary badge-category" id="ticket-count">0</span>
                                         </a>
                                     </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="command-tab" data-toggle="tab" href="#command" role="tab">
+                                            <i class="fas fa-terminal"></i> Commands
+                                            <span class="badge badge-primary badge-category" id="command-count">0</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="error-tab" data-toggle="tab" href="#error" role="tab">
+                                            <i class="fas fa-exclamation-triangle"></i> Errors
+                                            <span class="badge badge-primary badge-category" id="error-count">0</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="success-tab" data-toggle="tab" href="#success" role="tab">
+                                            <i class="fas fa-check-circle"></i> Success
+                                            <span class="badge badge-primary badge-category" id="success-count">0</span>
+                                        </a>
+                                    </li>
                                 </ul>
 
                                 <!-- Tab Content -->
@@ -288,6 +306,36 @@
                                                     <span class="sr-only">Loading...</span>
                                                 </div>
                                                 <p class="mt-3">Loading ticket templates...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="command" role="tabpanel">
+                                        <div class="template-grid" id="commandTemplates">
+                                            <div class="text-center p-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="sr-only">Loading...</span>
+                                                </div>
+                                                <p class="mt-3">Loading command templates...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="error" role="tabpanel">
+                                        <div class="template-grid" id="errorTemplates">
+                                            <div class="text-center p-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="sr-only">Loading...</span>
+                                                </div>
+                                                <p class="mt-3">Loading error templates...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tab-pane fade" id="success" role="tabpanel">
+                                        <div class="template-grid" id="successTemplates">
+                                            <div class="text-center p-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="sr-only">Loading...</span>
+                                                </div>
+                                                <p class="mt-3">Loading success templates...</p>
                                             </div>
                                         </div>
                                     </div>
@@ -451,7 +499,10 @@
                 response: 0,
                 customer: 0,
                 payment: 0,
-                ticket: 0
+                ticket: 0,
+                command: 0,
+                error: 0,
+                success: 0
             };
 
             function showToast(message, type = 'success') {
@@ -508,7 +559,10 @@
                     response: {},
                     customer: {},
                     payment: {},
-                    ticket: {}
+                    ticket: {},
+                    command: {},
+                    error: {},
+                    success: {}
                 };
 
                 // Reset counts
@@ -553,6 +607,24 @@
                             templateCounts.response++;
                         }
                     }
+                }
+
+                // Command templates
+                if (templates.commandTemplates) {
+                    categorized.command = templates.commandTemplates;
+                    templateCounts.command = Object.keys(templates.commandTemplates).length;
+                }
+
+                // Error templates
+                if (templates.errorTemplates) {
+                    categorized.error = templates.errorTemplates;
+                    templateCounts.error = Object.keys(templates.errorTemplates).length;
+                }
+
+                // Success templates
+                if (templates.successTemplates) {
+                    categorized.success = templates.successTemplates;
+                    templateCounts.success = Object.keys(templates.successTemplates).length;
                 }
 
                 return categorized;
@@ -664,7 +736,10 @@
                 const payload = {
                     notificationTemplates: {},
                     wifiMenuTemplates: {},
-                    responseTemplates: {}
+                    responseTemplates: {},
+                    commandTemplates: {},
+                    errorTemplates: {},
+                    successTemplates: {}
                 };
 
                 // Collect all textarea values
@@ -685,6 +760,12 @@
                         targetGroup = 'wifiMenuTemplates';
                     } else if (group === 'response' || group === 'customer' || group === 'payment') {
                         targetGroup = 'responseTemplates';
+                    } else if (group === 'command') {
+                        targetGroup = 'commandTemplates';
+                    } else if (group === 'error') {
+                        targetGroup = 'errorTemplates';
+                    } else if (group === 'success') {
+                        targetGroup = 'successTemplates';
                     }
                     
                     if (targetGroup) {

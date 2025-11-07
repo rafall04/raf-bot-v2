@@ -163,10 +163,20 @@ router.get('/api/list/packages', ensureAuthenticatedStaff, (req, res) => {
 const templatesDbPath = path.join(__dirname, '..', 'database', 'message_templates.json');
 const wifiMenuTemplatesDbPath = path.join(__dirname, '..', 'database', 'wifi_menu_templates.json');
 const responseTemplatesDbPath = path.join(__dirname, '..', 'database', 'response_templates.json');
+const commandTemplatesDbPath = path.join(__dirname, '..', 'database', 'command_templates.json');
+const errorTemplatesDbPath = path.join(__dirname, '..', 'database', 'error_templates.json');
+const successTemplatesDbPath = path.join(__dirname, '..', 'database', 'success_templates.json');
 
 router.get('/api/templates', ensureAuthenticatedStaff, (req, res) => {
     try {
-        const { notificationTemplates, wifiMenuTemplates, responseTemplates } = templatesCache;
+        const { 
+            notificationTemplates, 
+            wifiMenuTemplates, 
+            responseTemplates,
+            commandTemplates,
+            errorTemplates,
+            successTemplates 
+        } = templatesCache;
 
         // For wifiMenuTemplates, the value is the template string directly.
         // We need to convert it to the { name, template } structure for the frontend.
@@ -182,7 +192,10 @@ router.get('/api/templates', ensureAuthenticatedStaff, (req, res) => {
         const responseData = {
             notificationTemplates: notificationTemplates,
             wifiMenuTemplates: formattedWifiTemplates,
-            responseTemplates: responseTemplates
+            responseTemplates: responseTemplates,
+            commandTemplates: commandTemplates,
+            errorTemplates: errorTemplates,
+            successTemplates: successTemplates
         };
 
         res.status(200).json({ status: 200, message: "Templates loaded successfully from cache.", data: responseData });
@@ -194,8 +207,16 @@ router.get('/api/templates', ensureAuthenticatedStaff, (req, res) => {
 
 router.post('/api/templates', ensureAuthenticatedStaff, (req, res) => {
     try {
-        const { notificationTemplates, wifiMenuTemplates, responseTemplates } = req.body;
+        const { 
+            notificationTemplates, 
+            wifiMenuTemplates, 
+            responseTemplates,
+            commandTemplates,
+            errorTemplates,
+            successTemplates
+        } = req.body;
 
+        // Validate required templates (original ones must exist)
         if (!notificationTemplates || typeof notificationTemplates !== 'object' ||
             !wifiMenuTemplates || typeof wifiMenuTemplates !== 'object' ||
             !responseTemplates || typeof responseTemplates !== 'object') {
@@ -210,6 +231,19 @@ router.post('/api/templates', ensureAuthenticatedStaff, (req, res) => {
 
         // Save response templates
         fs.writeFileSync(responseTemplatesDbPath, JSON.stringify(responseTemplates, null, 2), 'utf8');
+
+        // Save new template types if provided
+        if (commandTemplates && typeof commandTemplates === 'object') {
+            fs.writeFileSync(commandTemplatesDbPath, JSON.stringify(commandTemplates, null, 2), 'utf8');
+        }
+
+        if (errorTemplates && typeof errorTemplates === 'object') {
+            fs.writeFileSync(errorTemplatesDbPath, JSON.stringify(errorTemplates, null, 2), 'utf8');
+        }
+
+        if (successTemplates && typeof successTemplates === 'object') {
+            fs.writeFileSync(successTemplatesDbPath, JSON.stringify(successTemplates, null, 2), 'utf8');
+        }
 
         // The fs.watchFile in templating.js will handle reloading the cache automatically.
         // No manual reload call is needed here.
