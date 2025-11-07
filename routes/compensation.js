@@ -304,8 +304,17 @@ router.post('/compensation/apply', ensureAdmin, async (req, res) => {
                                 const successMsg = `Notifikasi penerapan kompensasi BERHASIL dikirim ke ${normalizedNumber}.`;
                                 userResult.details.push(successMsg);
                             } catch (msgError) {
-                                const errMsg = `GAGAL mengirim notifikasi penerapan ke ${normalizedNumber}: ${msgError.message}`;
-                                console.error(`[KOMPENSASI_APPLY_NOTIF_ERROR] [User: ${user.name}] ${errMsg}`, msgError.stack);
+                                // Check if it's a WhatsApp connection error
+                                const isConnectionError = msgError.message && 
+                                    (msgError.message.includes('Connection') || 
+                                     msgError.message.includes('closed') ||
+                                     msgError.message.includes('ENOTFOUND'));
+                                
+                                const errMsg = isConnectionError 
+                                    ? `WhatsApp tidak terhubung, notifikasi tidak dapat dikirim ke ${normalizedNumber}` 
+                                    : `GAGAL mengirim notifikasi penerapan ke ${normalizedNumber}: ${msgError.message}`;
+                                    
+                                console.error(`[KOMPENSASI_APPLY_NOTIF_ERROR] [User: ${user.name}] ${errMsg}`);
                                 userResult.details.push(`Warning: ${errMsg}`);
                                 if (userResult.status !== 'error_critical') userResult.status = 'warning_partial';
                             }

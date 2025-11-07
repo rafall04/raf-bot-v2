@@ -79,7 +79,9 @@
                             <form id="cronConfigForm" action="/api/cron" method="post">
                                 <div class="mb-3">
                                     <label for="unpaid_schedule" class="form-label">Jadwal Unpaid Pelanggan</label>
-                                    <input type="text" class="form-control" id="unpaid_schedule" name="unpaid_schedule" />
+                                    <input type="text" class="form-control" id="unpaid_schedule" name="unpaid_schedule" 
+                                           placeholder="Contoh: */5 * * * * atau # */5 * * * * untuk disable" />
+                                    <small class="form-text text-muted">Awali dengan # untuk menonaktifkan jadwal</small>
                                 </div>
                                 <div class="mb-3">
                                     <input type="checkbox" name="status_unpaid_schedule" id="status_unpaid_schedule">
@@ -246,24 +248,18 @@
         async function saveCronConfig(event) {
             event.preventDefault();
 
-            // Helper function to clean cron expressions
-            function cleanCronExpression(value) {
-                if (!value) return '';
-                // Remove # from beginning if present
-                return value.replace(/^#\s*/, '').trim();
-            }
-
+            // Don't clean cron expressions - allow # for disabled
             const config = {
-                unpaid_schedule: cleanCronExpression(document.getElementById("unpaid_schedule").value),
+                unpaid_schedule: document.getElementById("unpaid_schedule").value.trim(),
                 status_unpaid_schedule: document.getElementById("status_unpaid_schedule").checked,
-                schedule: cleanCronExpression(document.getElementById("schedule").value),
+                schedule: document.getElementById("schedule").value.trim(),
                 status_schedule: document.getElementById("status_schedule").checked,
                 status_message_paid_notification: document.getElementById("status_message_paid_notification").checked,
-                schedule_unpaid_action: cleanCronExpression(document.getElementById("schedule_unpaid_action").value),
+                schedule_unpaid_action: document.getElementById("schedule_unpaid_action").value.trim(),
                 status_schedule_unpaid_action: document.getElementById("status_schedule_unpaid_action").checked,
-                schedule_isolir_notification: cleanCronExpression(document.getElementById("schedule_isolir_notification").value),
+                schedule_isolir_notification: document.getElementById("schedule_isolir_notification").value.trim(),
                 status_message_isolir_notification: document.getElementById("status_message_isolir_notification").checked,
-                schedule_compensation_revert: cleanCronExpression(document.getElementById("schedule_compensation_revert").value),
+                schedule_compensation_revert: document.getElementById("schedule_compensation_revert").value.trim(),
                 status_compensation_revert: document.getElementById("status_compensation_revert").checked,
                 status_message_compensation_reverted: document.getElementById("status_message_compensation_reverted").checked,
                 status_message_compensation_applied: document.getElementById("status_message_compensation_applied").checked,

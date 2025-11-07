@@ -1,5 +1,5 @@
 {
-  "unpaid_schedule": "* * * * *",
+  "unpaid_schedule": "1 * * * *",
   "status_unpaid_schedule": false,
   "schedule": "* * * * *",
   "status_schedule": false,
@@ -9,9 +9,9 @@
   "schedule_isolir_notification": "*/1 * * * *",
   "status_message_isolir_notification": false,
   "schedule_compensation_revert": "* * * * *",
-  "status_compensation_revert": false,
-  "status_message_compensation_reverted": false,
-  "status_message_compensation_applied": false,
+  "status_compensation_revert": true,
+  "status_message_compensation_reverted": true,
+  "status_message_compensation_applied": true,
   "status_speed_boost_revert": false,
   "status_message_sod_applied": false,
   "status_message_sod_reverted": false

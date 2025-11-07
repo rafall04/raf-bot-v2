@@ -263,7 +263,7 @@ router.post('/api/cron', ensureAuthenticatedStaff, (req, res) => {
     const cronDbPath = path.join(__dirname, '..', 'database', 'cron.json');
     const newConfig = req.body;
 
-    // Clean up cron expressions - remove any # symbols
+    // Validate cron expressions - allow # for disabled schedules
     const cronFields = [
         'unpaid_schedule',
         'schedule',
@@ -274,15 +274,21 @@ router.post('/api/cron', ensureAuthenticatedStaff, (req, res) => {
 
     for (const field of cronFields) {
         if (newConfig[field]) {
-            // Remove # from beginning if present
-            newConfig[field] = newConfig[field].replace(/^#\s*/, '');
+            const value = newConfig[field].trim();
             
-            // Validate the cleaned cron expression
-            if (newConfig[field] && !isValidCron(newConfig[field])) {
-                return res.status(400).json({
-                    message: `Jadwal cron tidak valid untuk kolom '${field}'. Harap gunakan format yang benar.`, 
-                    field: field
-                });
+            // Allow # at beginning (disabled cron)
+            if (value.startsWith('#')) {
+                // It's disabled, keep as-is
+                newConfig[field] = value;
+            } else {
+                // Validate as active cron expression
+                if (!isValidCron(value)) {
+                    return res.status(400).json({
+                        message: `Jadwal cron tidak valid untuk kolom '${field}'. Gunakan format cron yang benar atau awali dengan # untuk menonaktifkan.`, 
+                        field: field
+                    });
+                }
+                newConfig[field] = value;
             }
         }
     }
