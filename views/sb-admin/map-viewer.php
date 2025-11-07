@@ -1,3 +1,10 @@
+<?php
+// FORCE NO CACHE - MUST BE FIRST
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+header("X-Debug-Version: NO-PLUGIN-2025-11-07");
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -814,11 +821,26 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // IMMEDIATE VERSION CHECK - MUST APPEAR FIRST IN CONSOLE!
-        console.log("%c🚨 MAP-VIEWER VERSION: 2025-11-07-NO-PLUGIN LOADED 🚨", "background: #FF0000; color: white; padding: 10px 20px; font-weight: bold; font-size: 16px;");
-        console.log("%c✅ PLUGIN COMPLETELY REMOVED TO FIX ERROR", "background: #4CAF50; color: white; padding: 5px 10px; font-weight: bold;");
-        console.log("%c📍 If you DON'T see this red message, browser is using OLD CACHE!", "color: #2196F3; font-weight: bold;");
-        alert("MAP-VIEWER VERSION: NO-PLUGIN - If you see this alert, new code is loaded!");
+        // CRITICAL VERSION CHECK - THIS MUST EXECUTE IMMEDIATELY!
+        var loadTime = new Date().toISOString();
+        console.log("%c🚨🚨🚨 MAP-VIEWER LOADED AT: " + loadTime + " 🚨🚨🚨", "background: #FF0000; color: yellow; padding: 20px; font-weight: bold; font-size: 20px;");
+        console.log("%c✅ PLUGIN REMOVED - NO MORE FULLSCREEN PLUGIN", "background: #00FF00; color: black; padding: 10px; font-weight: bold; font-size: 16px;");
+        console.log("%c📍 ERROR SHOULD BE GONE NOW!", "background: #0000FF; color: white; padding: 10px; font-weight: bold; font-size: 14px;");
+        
+        // FORCE USER ATTENTION
+        var msg = "🚨 IMPORTANT 🚨\n\n" +
+                  "MAP-VIEWER VERSION: NO-PLUGIN\n" +
+                  "Loaded at: " + loadTime + "\n\n" +
+                  "If you see this message:\n" +
+                  "✅ New code is loaded\n" +
+                  "✅ Error should be fixed\n\n" +
+                  "Click OK to continue";
+        
+        if (confirm(msg)) {
+            console.log("User confirmed seeing new version");
+        } else {
+            console.log("User cancelled - but new version is loaded");
+        }
         
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
             console.warn("PERINGATAN: Halaman ini diakses melalui HTTP. Fitur geolokasi mungkin tidak berfungsi optimal. Silakan gunakan HTTPS.");
