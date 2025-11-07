@@ -198,6 +198,15 @@
         .filter-list-column .list-group-item label { margin-bottom: 0; font-weight: normal; width: 100%; cursor: pointer; }
         .filter-list-column .list-group-item input[type="checkbox"] { margin-right: 8px; }
         .filter-search-input { margin-bottom: 10px; }
+        
+        /* Auto-refresh checkbox styling */
+        .form-check.form-check-inline {
+            white-space: nowrap;
+        }
+        .form-check-label {
+            font-size: 0.875rem;
+            cursor: pointer;
+        }
 
         /* Removed fixed width for sidebar to use default */
         
@@ -231,6 +240,12 @@
             }
             .map-instructions-header #refreshAllDataBtnMap { 
                 margin-top: 8px; 
+            }
+            .map-instructions-header .form-check.form-check-inline {
+                width: 100%;
+                margin-top: 8px;
+                margin-left: 0 !important;
+                justify-content: center;
             }
 
             .h4.mb-0.text-gray-800.d-none.d-md-inline-block { font-size: 1.1rem; }
@@ -300,6 +315,13 @@
                         <button id="refreshAllDataBtnMap" class="btn btn-sm btn-primary ml-2" title="Refresh Status Pelanggan & Redaman">
                             <i class="fas fa-sync-alt"></i> Refresh Data
                         </button>
+                        <div class="form-check form-check-inline ml-3">
+                            <input class="form-check-input" type="checkbox" id="autoRefreshToggle">
+                            <label class="form-check-label" for="autoRefreshToggle" title="Aktifkan refresh data otomatis setiap 30 detik">
+                                <span class="d-none d-sm-inline">Auto Refresh (30s)</span>
+                                <span class="d-inline d-sm-none">Auto</span>
+                            </label>
+                        </div>
                     </div>
                     <div id="globalMessageMap" class="mb-2"></div>
                     <div id="mapContainer">
@@ -505,6 +527,10 @@
 
         let selectedOdcIdsTechnicianPage = new Set();
         let selectedOdpIdsTechnicianPage = new Set();
+        
+        // Auto-refresh variables
+        let autoRefreshIntervalId = null;
+        const AUTO_REFRESH_INTERVAL_MS = 30000; // 30 seconds
         let selectedCustomerIdsTechnicianPage = new Set();
         let isInitialLoadTechnicianPage = true;
 
@@ -1413,6 +1439,60 @@
                 }
             });
 
+            // Auto-refresh toggle event handler
+            $('#autoRefreshToggle').on('change', function() {
+                if ($(this).is(':checked')) {
+                    // Clear any existing interval
+                    if (autoRefreshIntervalId) {
+                        clearInterval(autoRefreshIntervalId);
+                    }
+
+                    // Define the auto-refresh function
+                    const runAutoRefresh = async () => {
+                        console.log(`[AutoRefresh] Running automatic data refresh at ${new Date().toLocaleTimeString()}`);
+                        const refreshBtn = $('#refreshAllDataBtnMap');
+                        
+                        // Skip if manual refresh is already in progress
+                        if (refreshBtn.prop('disabled')) {
+                            console.log('[AutoRefresh] Skipping - manual refresh already in progress.');
+                            return;
+                        }
+                        
+                        try {
+                            await loadAllMapDataTechnicianPage();
+                            console.log('[AutoRefresh] Automatic data refresh finished successfully.');
+                        } catch (error) {
+                            console.error('[AutoRefresh] Error during automatic refresh:', error);
+                        }
+                    };
+
+                    // Run immediately when enabled
+                    runAutoRefresh();
+                    
+                    // Set up interval for periodic refresh
+                    autoRefreshIntervalId = setInterval(runAutoRefresh, AUTO_REFRESH_INTERVAL_MS);
+                    
+                    // Update label and show notification
+                    const label = $(this).next('label');
+                    displayGlobalMapMessage(
+                        `Auto refresh diaktifkan. Data akan diperbarui setiap ${AUTO_REFRESH_INTERVAL_MS / 1000} detik.`, 
+                        'info', 
+                        5000
+                    );
+                    label.attr('title', `Nonaktifkan refresh data otomatis (interval ${AUTO_REFRESH_INTERVAL_MS / 1000} detik)`);
+
+                } else {
+                    // Disable auto-refresh
+                    if (autoRefreshIntervalId) {
+                        clearInterval(autoRefreshIntervalId);
+                        autoRefreshIntervalId = null;
+                        console.log('[AutoRefresh] Auto-refresh stopped.');
+                        displayGlobalMapMessage('Auto refresh dinonaktifkan.', 'info', 5000);
+                        $(this).next('label').attr('title', 'Aktifkan refresh data otomatis setiap 30 detik');
+                    }
+                }
+            });
+
             $('#openCustomFilterModalBtnMap').on('click', openCustomFilterModalWithCurrentSelectionsTechnicianPage);
 
             $(document).on('change', '#customFilterModalMap .filter-item-checkbox-map', function() {
@@ -1469,6 +1549,15 @@
                 const searchTerm = $(this).val().toLowerCase(); const listId = $(this).nextAll('.filter-list-column').first().attr('id');
                 $(`#${listId} li`).each(function() { $(this).toggle($(this).text().toLowerCase().includes(searchTerm)); });
             });
+        });
+
+        // Cleanup auto-refresh interval on page unload to prevent memory leaks
+        $(window).on('beforeunload', function() {
+            if (autoRefreshIntervalId) {
+                clearInterval(autoRefreshIntervalId);
+                autoRefreshIntervalId = null;
+                console.log('[AutoRefresh] Cleaned up on page unload.');
+            }
         });
     </script>
 </body>
