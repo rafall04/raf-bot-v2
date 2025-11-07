@@ -11,10 +11,10 @@
     <!-- VERSION: 2025-11-07-FINAL - Copied working code from teknisi version -->
     <title>Peta Jaringan</title>
 
-    <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
+    <link href="/vendor/fontawesome-free/css/all.min.css?v=<?php echo time(); ?>" rel="stylesheet" type="text/css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="/css/sb-admin-2.min.css" rel="stylesheet">
-  <link href="/css/dashboard-modern.css" rel="stylesheet">
+    <link href="/css/sb-admin-2.min.css?v=<?php echo time(); ?>" rel="stylesheet">
+  <link href="/css/dashboard-modern.css?v=<?php echo time(); ?>" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.10-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2-bootstrap-theme/0.1.0-beta.10/select2-bootstrap.min.css" />
@@ -803,20 +803,22 @@
     </div>
 
 
-    <script src="/vendor/jquery/jquery.min.js"></script>
-    <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-    <script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
-    <script src="/js/sb-admin-2.js"></script>
+    <script src="/vendor/jquery/jquery.min.js?v=<?php echo time(); ?>"></script>
+    <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js?v=<?php echo time(); ?>"></script>
+    <script src="/vendor/jquery-easing/jquery.easing.min.js?v=<?php echo time(); ?>"></script>
+    <script src="/js/sb-admin-2.js?v=<?php echo time(); ?>"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script>
+    <!-- REMOVED PLUGIN TO ELIMINATE ERROR SOURCE -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script> -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // VERSION CHECK - If you see this, page is updated!
-        console.log("%c✅ MAP-VIEWER VERSION: 2025-11-07-FIXED-V2 LOADED", "background: #4CAF50; color: white; padding: 5px 10px; font-weight: bold;");
-        console.log("%c📍 Plugin event wrapped in try-catch for safety", "color: #2196F3; font-weight: bold;");
-        console.log("%c🔧 Should work even if plugin fails to load!", "color: #FF9800; font-weight: bold;");
+        // IMMEDIATE VERSION CHECK - MUST APPEAR FIRST IN CONSOLE!
+        console.log("%c🚨 MAP-VIEWER VERSION: 2025-11-07-NO-PLUGIN LOADED 🚨", "background: #FF0000; color: white; padding: 10px 20px; font-weight: bold; font-size: 16px;");
+        console.log("%c✅ PLUGIN COMPLETELY REMOVED TO FIX ERROR", "background: #4CAF50; color: white; padding: 5px 10px; font-weight: bold;");
+        console.log("%c📍 If you DON'T see this red message, browser is using OLD CACHE!", "color: #2196F3; font-weight: bold;");
+        alert("MAP-VIEWER VERSION: NO-PLUGIN - If you see this alert, new code is loaded!");
         
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
             console.warn("PERINGATAN: Halaman ini diakses melalui HTTP. Fitur geolokasi mungkin tidak berfungsi optimal. Silakan gunakan HTTPS.");
@@ -1257,21 +1259,7 @@ const createCustomerStatusIcon = (status) => {
                     }
                 });
 
-                // Fullscreen events
-                // Try to add plugin event if available (for icon toggle)
-                // This will silently fail if plugin not loaded, which is OK
-                try {
-                    if (typeof map.on === 'function') {
-                        map.on('fullscreenchange', function () {
-                            $('#manualFullscreenBtn i').toggleClass('fa-expand').toggleClass('fa-compress');
-                            if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
-                        });
-                    }
-                } catch(e) {
-                    console.log("[Fullscreen] Plugin event not available, using document events only");
-                }
-                
-                // Always add document-level fullscreen events (native browser events)
+                // Fullscreen events - ONLY using native browser events (no plugin)
                 document.addEventListener('fullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);
