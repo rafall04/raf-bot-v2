@@ -25,6 +25,7 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.10-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2-bootstrap-theme/0.1.0-beta.10/select2-bootstrap.min.css" />
+    <!-- Re-enable fullscreen CSS to match teknisi version -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.css" />
 
     <style>
@@ -816,31 +817,14 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
     <script src="/js/sb-admin-2.js?v=<?php echo time(); ?>"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.min.js"></script>
-    <!-- REMOVED PLUGIN TO ELIMINATE ERROR SOURCE -->
-    <!-- <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script> -->
+    <!-- Re-enable plugin like in teknisi version which works -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // CRITICAL VERSION CHECK - THIS MUST EXECUTE IMMEDIATELY!
-        var loadTime = new Date().toISOString();
-        console.log("%c🚨🚨🚨 MAP-VIEWER LOADED AT: " + loadTime + " 🚨🚨🚨", "background: #FF0000; color: yellow; padding: 20px; font-weight: bold; font-size: 20px;");
-        console.log("%c✅ PLUGIN REMOVED - NO MORE FULLSCREEN PLUGIN", "background: #00FF00; color: black; padding: 10px; font-weight: bold; font-size: 16px;");
-        console.log("%c📍 ERROR SHOULD BE GONE NOW!", "background: #0000FF; color: white; padding: 10px; font-weight: bold; font-size: 14px;");
-        
-        // FORCE USER ATTENTION
-        var msg = "🚨 IMPORTANT 🚨\n\n" +
-                  "MAP-VIEWER VERSION: NO-PLUGIN\n" +
-                  "Loaded at: " + loadTime + "\n\n" +
-                  "If you see this message:\n" +
-                  "✅ New code is loaded\n" +
-                  "✅ Error should be fixed\n\n" +
-                  "Click OK to continue";
-        
-        if (confirm(msg)) {
-            console.log("User confirmed seeing new version");
-        } else {
-            console.log("User cancelled - but new version is loaded");
-        }
+        // Version check - Plugin re-enabled to match teknisi version
+        console.log("[MAP-VIEWER] Version: WORKING-COPY-2025-11-07");
+        console.log("[MAP-VIEWER] Plugin enabled - same as teknisi-map-viewer.php");
         
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
             console.warn("PERINGATAN: Halaman ini diakses melalui HTTP. Fitur geolokasi mungkin tidak berfungsi optimal. Silakan gunakan HTTPS.");
@@ -1281,7 +1265,13 @@ const createCustomerStatusIcon = (status) => {
                     }
                 });
 
-                // Fullscreen events - ONLY using native browser events (no plugin)
+                // Add fullscreen event handler - same as teknisi version
+                map.on('fullscreenchange', function () {
+                    $('#manualFullscreenBtn i').toggleClass('fa-expand fa-compress');
+                    if(map) map.invalidateSize();
+                });
+                
+                // Also add document-level fullscreen events (native browser)
                 document.addEventListener('fullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);
