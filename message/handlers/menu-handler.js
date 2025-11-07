@@ -3,7 +3,7 @@
  * Menangani semua tampilan menu
  */
 
-const { wifimenu, menupaket, menubelivoucher, menupasang, menuowner, customermenu, techinisionmenu } = require('../wifi');
+const { wifimenu, menupaket, menubelivoucher, menupasang, menuowner, customermenu, technicianmenu } = require('../wifi');
 
 /**
  * Handle main menu
@@ -16,7 +16,7 @@ function handleMenuUtama(config, reply) {
  * Handle teknisi menu
  */
 function handleMenuTeknisi(config, reply) {
-    reply(techinisionmenu(config.nama, config.namabot));
+    reply(technicianmenu(config.nama, config.namabot));
 }
 
 /**

@@ -1044,6 +1044,7 @@ _Foto akan membantu teknisi diagnosis masalah_`);
         // Specific alias handling for "menu pelanggan"
         if (chats.toLowerCase().replace(/\s+/g, '') === 'menupelanggan') {
             intent = 'MENU_PELANGGAN';
+            console.log(color('[MENU_COMMAND]'), `Direct match: "menupelanggan" -> Intent: MENU_PELANGGAN`);
         } else {
             // 1. Cek Intent dari Keyword Handler (Prioritas Utama)
             const keywordResult = getIntentFromKeywords(chats);
@@ -1463,9 +1464,25 @@ atau ketik:
             }
             case 'MENU_PELANGGAN' :
             case 'menupelanggan': {
-                const user = users.find(v => v.phone_number.split("|").find(vv => vv == (/^([^:@]+)[:@]?.*$/.exec(sender)[1])));
-                if(!user) throw mess.userNotRegister;
-                reply(customermenu(global.config.nama, global.config.namabot))
+                // Extract phone number from sender
+                const extractedPhone = (/^([^:@]+)[:@]?.*$/.exec(sender))[1];
+                console.log(color('[MENU_PELANGGAN]'), `Looking for user with phone: ${extractedPhone}`);
+                console.log(color('[MENU_PELANGGAN]'), `Total users in database: ${users.length}`);
+                
+                // Find user in database
+                const user = users.find(v => {
+                    const phoneNumbers = v.phone_number.split("|");
+                    return phoneNumbers.find(vv => vv == extractedPhone);
+                });
+                
+                if (!user) {
+                    console.log(color('[MENU_PELANGGAN]'), `User not found for phone: ${extractedPhone}`);
+                    // Show menu anyway for testing, but with warning
+                    reply(`⚠️ Peringatan: Nomor Anda (${extractedPhone}) tidak terdaftar dalam database.\n\n${customermenu(global.config.nama, global.config.namabot)}`);
+                } else {
+                    console.log(color('[MENU_PELANGGAN]'), `User found: ${user.name} (ID: ${user.id})`);
+                    reply(customermenu(global.config.nama, global.config.namabot));
+                }
             }
             break;
             case 'MENU_UTAMA':
