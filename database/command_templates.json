@@ -1,0 +1,34 @@
+{
+  "bantuan": {
+    "name": "Help/Bantuan Command",
+    "template": "Hai ${pushname} 👋\n\n*PANDUAN BANTUAN ${nama_wifi}*\n━━━━━━━━━━━━━━━━━━━\n\n📌 *CARA MENGGUNAKAN BOT:*\n1. Ketik perintah yang diinginkan\n2. Ikuti instruksi yang diberikan\n3. Tunggu respon dari bot\n\n📋 *PERINTAH UTAMA:*\n• *menu* - Tampilkan menu utama\n• *lapor* - Laporkan gangguan\n• *ceksaldo* - Cek saldo Anda\n• *admin* - Hubungi admin\n\n🔧 *TIPS:*\n• Gunakan perintah dengan benar\n• Jangan spam perintah\n• Tunggu respon sebelum mengirim perintah baru\n\n📞 *BUTUH BANTUAN LEBIH?*\nHubungi admin dengan mengetik *admin*\n\n━━━━━━━━━━━━━━━━━━━\n_${nama_bot} - Siap membantu Anda 24/7_"
+  },
+  "sapaan_pagi": {
+    "name": "Morning Greeting",
+    "template": "Selamat pagi ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia."
+  },
+  "sapaan_siang": {
+    "name": "Afternoon Greeting",
+    "template": "Selamat siang ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia."
+  },
+  "sapaan_sore": {
+    "name": "Evening Greeting",
+    "template": "Selamat sore ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia."
+  },
+  "sapaan_malam": {
+    "name": "Night Greeting",
+    "template": "Selamat malam ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia."
+  },
+  "menu_pelanggan": {
+    "name": "Customer Menu",
+    "template": "📱 *MENU PELANGGAN ${nama_wifi}*\n━━━━━━━━━━━━━━━━━━━\n\n📋 *LAYANAN GANGGUAN*\n• *lapor* - Laporkan gangguan\n• *cektiket [ID]* - Cek status tiket\n• *batalkantiket [ID]* - Batalkan tiket\n\n🚀 *SPEED BOOST*\n• *speedboost* - Request speed boost\n• *cekspeed* - Cek status boost\n\n💳 *TAGIHAN & PAKET*\n• *cektagihan* - Cek status tagihan\n• *ubahpaket* - Ubah paket langganan\n\n🔧 *PENGATURAN WIFI*\n• *gantinama* - Ubah nama WiFi\n• *gantisandi* - Ubah password WiFi\n• *cekwifi* - Info WiFi Anda\n• *reboot* - Restart modem\n\n📞 *BANTUAN*\n• *admin* - Hubungi admin\n• *bantuan* - Panduan lengkap\n\n━━━━━━━━━━━━━━━━━━━\n_${nama_bot} - Siap membantu Anda 24/7_"
+  },
+  "cek_saldo": {
+    "name": "Check Balance",
+    "template": "💰 *INFORMASI SALDO*\n\nHalo Kak ${pushname},\n\nSaldo Anda saat ini: *${formatted_saldo}*\n\n${additional_info}\n\nButuh topup? Hubungi admin dengan ketik *admin*"
+  },
+  "saldo_tidak_cukup": {
+    "name": "Insufficient Balance",
+    "template": "❌ *SALDO TIDAK MENCUKUPI*\n\nMaaf Kak ${pushname}, saldo Anda tidak mencukupi.\n\nSaldo saat ini: *${current_saldo}*\nDiperlukan: *${required_saldo}*\n\nSilakan topup terlebih dahulu."
+  }
+}

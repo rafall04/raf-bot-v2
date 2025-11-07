@@ -3,6 +3,8 @@
  * Menangani fungsi-fungsi utilitas dan bantuan
  */
 
+const templateManager = require('../../lib/template-manager');
+
 /**
  * Handle admin contact
  */
@@ -14,10 +16,18 @@ function handleAdminContact(from, ownerNumber, config, msg, sendContact) {
  * Handle bantuan
  */
 function handleBantuan(pushname, config, reply) {
-    const namaLayanan = config.nama || "Layanan Kami";
-    const namaBot = config.namabot || "Bot Kami";
-    
-    const bantuanText = `Hai ${pushname} 👋
+    // Use template if available, fallback to hardcoded
+    if (templateManager.hasTemplate('bantuan')) {
+        const message = templateManager.getTemplate('bantuan', {
+            pushname: pushname
+        });
+        reply(message);
+    } else {
+        // Fallback to hardcoded message if template not found
+        const namaLayanan = config.nama || "Layanan Kami";
+        const namaBot = config.namabot || "Bot Kami";
+        
+        const bantuanText = `Hai ${pushname} 👋
 
 *PANDUAN BANTUAN ${namaLayanan.toUpperCase()}*
 ━━━━━━━━━━━━━━━━━━━
@@ -43,8 +53,9 @@ Hubungi admin dengan mengetik *admin*
 
 ━━━━━━━━━━━━━━━━━━━
 _${namaBot} - Siap membantu Anda 24/7_`;
-    
-    reply(bantuanText);
+        
+        reply(bantuanText);
+    }
 }
 
 /**
@@ -52,19 +63,29 @@ _${namaBot} - Siap membantu Anda 24/7_`;
  */
 function handleSapaanUmum(pushname, reply) {
     const hour = new Date().getHours();
-    let greeting = "";
+    let templateKey = "";
     
     if (hour >= 0 && hour < 12) {
-        greeting = "Selamat pagi";
+        templateKey = "sapaan_pagi";
     } else if (hour >= 12 && hour < 15) {
-        greeting = "Selamat siang";
+        templateKey = "sapaan_siang";
     } else if (hour >= 15 && hour < 18) {
-        greeting = "Selamat sore";
+        templateKey = "sapaan_sore";
     } else {
-        greeting = "Selamat malam";
+        templateKey = "sapaan_malam";
     }
     
-    reply(`${greeting} ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia.`);
+    // Use template if available
+    if (templateManager.hasTemplate(templateKey)) {
+        const message = templateManager.getTemplate(templateKey, {
+            pushname: pushname
+        });
+        reply(message);
+    } else {
+        // Fallback to simple greeting
+        const greeting = templateKey.replace('sapaan_', 'Selamat ');
+        reply(`${greeting} ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia.`);
+    }
 }
 
 /**

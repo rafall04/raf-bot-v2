@@ -4,6 +4,7 @@
  */
 
 const { wifimenu, menupaket, menubelivoucher, menupasang, menuowner, customermenu, technicianmenu } = require('../wifi');
+const templateManager = require('../../lib/template-manager');
 
 /**
  * Handle main menu
@@ -52,10 +53,20 @@ function handleTutorialTopup(config, reply, pushname, sender) {
  * Handle customer menu
  */
 function handleMenuPelanggan(config, reply, pushname, sender) {
-    const namaLayanan = config.nama || "Layanan Kami";
-    const namaBot = config.namabot || "Bot Kami";
-    
-    const menuText = `📱 *MENU PELANGGAN ${namaLayanan.toUpperCase()}*
+    // Try to use template first
+    if (templateManager.hasTemplate('menu_pelanggan')) {
+        const message = templateManager.getTemplate('menu_pelanggan', {
+            pushname: pushname,
+            sender: sender,
+            phone: sender?.replace('@s.whatsapp.net', '')
+        });
+        reply(message);
+    } else {
+        // Fallback to hardcoded menu
+        const namaLayanan = config.nama || "Layanan Kami";
+        const namaBot = config.namabot || "Bot Kami";
+        
+        const menuText = `📱 *MENU PELANGGAN ${namaLayanan.toUpperCase()}*
 ━━━━━━━━━━━━━━━━━━━
 
 📋 *LAYANAN GANGGUAN*
@@ -63,25 +74,19 @@ function handleMenuPelanggan(config, reply, pushname, sender) {
 • *cektiket [ID]* - Cek status tiket
 • *batalkantiket [ID]* - Batalkan tiket
 
-💳 *LAYANAN SALDO & VOUCHER*
-• *ceksaldo* - Cek saldo Anda
-• *topup* - Cara topup saldo
-• *belivoucher [nominal]* - Beli voucher WiFi
-• *voucher* - Lihat harga voucher
+🚀 *SPEED BOOST*
+• *speedboost* - Request speed boost
+• *cekspeed* - Cek status boost
+
+💳 *TAGIHAN & PAKET*
+• *cektagihan* - Cek status tagihan
+• *ubahpaket* - Ubah paket langganan
 
 🔧 *PENGATURAN WIFI*
-• *gantinama [nama]* - Ubah nama WiFi
-• *gantisandi [sandi]* - Ubah password WiFi
-• *gantipassword [sandi]* - Ubah password WiFi
-
-📱 *MANAJEMEN AKSES*
-• *akses list* - Lihat daftar akses
-• *akses tambah 628xxx* - Tambah akses
-• *akses hapus 628xxx* - Hapus akses
-
-🚀 *SPEED ON DEMAND*
-• *speedboost* - Request speed boost
-• *sod* - Request speed boost
+• *gantinama* - Ubah nama WiFi
+• *gantisandi* - Ubah password WiFi
+• *cekwifi* - Info WiFi Anda
+• *reboot* - Restart modem
 
 📞 *BANTUAN*
 • *admin* - Hubungi admin
@@ -90,7 +95,8 @@ function handleMenuPelanggan(config, reply, pushname, sender) {
 ━━━━━━━━━━━━━━━━━━━
 _${namaBot} - Siap membantu Anda 24/7_`;
     
-    reply(menuText);
+        reply(menuText);
+    }
 }
 
 module.exports = {
