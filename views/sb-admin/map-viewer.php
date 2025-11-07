@@ -4,6 +4,11 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <!-- CACHE BUSTER - Force reload on each access -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- VERSION: 2025-11-07-v3 -->
     <title>Peta Jaringan</title>
 
     <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
@@ -808,6 +813,10 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
+        // VERSION CHECK - If you see this, page is updated!
+        console.log("%c✅ MAP-VIEWER VERSION: 2025-11-07-v3 LOADED", "background: #4CAF50; color: white; padding: 5px 10px; font-weight: bold;");
+        console.log("%c📍 Plugin fullscreen DISABLED - using manual fullscreen", "color: #2196F3; font-weight: bold;");
+        
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
             console.warn("PERINGATAN: Halaman ini diakses melalui HTTP. Fitur geolokasi mungkin tidak berfungsi optimal. Silakan gunakan HTTPS.");
         }
