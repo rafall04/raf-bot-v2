@@ -11,6 +11,8 @@ class MonitoringController {
         this.trafficPeriod = '5m';
         this.alerts = [];
         this.currentInterface = 'ether1'; // Store current interface selection
+        this.isConnected = false; // Track connection status
+        this.mikrotikConnected = false; // Track MikroTik connection status
         
         this.init();
     }
@@ -39,11 +41,14 @@ class MonitoringController {
         // Socket event handlers
         this.socket.on('connect', () => {
             console.log('Connected to monitoring server');
+            this.isConnected = true;
             this.updateConnectionStatus('connected');
         });
         
         this.socket.on('disconnect', () => {
             console.log('Disconnected from monitoring server');
+            this.isConnected = false;
+            this.mikrotikConnected = false; // Also reset MikroTik status
             this.updateConnectionStatus('disconnected');
         });
         
@@ -116,14 +121,35 @@ class MonitoringController {
     }
     
     async fetchTrafficHistory() {
+        // Don't fetch history if not connected
+        if (!this.isConnected) {
+            return;
+        }
+        
         try {
             const response = await fetch('/api/monitoring/history');
             if (response.ok) {
                 const result = await response.json();
                 const history = result.data;
                 
+                // Check if MikroTik is connected before updating chart
+                if (!this.mikrotikConnected) {
+                    this.handleDisconnection();
+                    return;
+                }
+                
                 // Update chart with history data
                 if (this.trafficChart && history) {
+                    // Reset to normal state when connected
+                    this.trafficChart.options.plugins.title = {
+                        display: false
+                    };
+                    
+                    // Re-enable animations when connected
+                    this.trafficChart.options.animation = {
+                        duration: 750
+                    };
+                    
                     const labels = history.map(h => new Date(h.time).toLocaleTimeString());
                     const downloadData = history.map(h => h.download);
                     const uploadData = history.map(h => h.upload);
@@ -136,6 +162,8 @@ class MonitoringController {
             }
         } catch (error) {
             console.error('Error fetching traffic history:', error);
+            this.mikrotikConnected = false;
+            this.handleDisconnection();
         }
     }
     
@@ -146,8 +174,14 @@ class MonitoringController {
         
         // Update every 5 seconds
         this.updateInterval = setInterval(() => {
-            this.fetchMonitoringData();
-            this.fetchTrafficHistory();
+            // Only fetch data if connected
+            if (this.isConnected) {
+                this.fetchMonitoringData();
+                this.fetchTrafficHistory();
+            } else {
+                // If not connected, just update UI to show disconnected state
+                this.handleDisconnection();
+            }
         }, 5000);
     }
     
@@ -192,7 +226,9 @@ class MonitoringController {
             // Check if we have an error response
             if (result.status === 503 || result.error) {
                 console.error('[Monitoring] MikroTik Error:', result.message || result.error);
+                this.mikrotikConnected = false; // Set MikroTik as disconnected
                 this.showErrorMessage(result.message || 'MikroTik not connected');
+                this.handleDisconnection(); // Handle disconnection state
                 return;
             }
             
@@ -200,6 +236,7 @@ class MonitoringController {
             
             // Only update if we have valid data
             if (data) {
+                this.mikrotikConnected = true; // Set MikroTik as connected
                 // Debug interface mismatch (uncomment for troubleshooting)
                 // const expectedInterface = document.getElementById('interface-selector')?.value || 
                 //                          document.getElementById('interface-selector')?.getAttribute('data-selected') || 
@@ -229,6 +266,8 @@ class MonitoringController {
             
         } catch (error) {
             console.error('Error fetching monitoring data:', error);
+            this.mikrotikConnected = false; // Set as disconnected on error
+            this.handleDisconnection(); // Handle disconnection state
         }
     }
     
@@ -266,6 +305,16 @@ class MonitoringController {
         const dlTotal = document.getElementById('total-download');
         const ulTotal = document.getElementById('total-upload');
         
+        // Only update if connected to MikroTik
+        if (!this.mikrotikConnected) {
+            // Show N/A when disconnected
+            if (dlCurrent) dlCurrent.textContent = `N/A`;
+            if (ulCurrent) ulCurrent.textContent = `N/A`;
+            if (dlTotal) dlTotal.textContent = `Total: N/A`;
+            if (ulTotal) ulTotal.textContent = `Total: N/A`;
+            return; // Don't update chart when disconnected
+        }
+        
         // Update current rates
         if (dlCurrent) dlCurrent.textContent = `${traffic.download.current || 0} Mbps`;
         if (ulCurrent) ulCurrent.textContent = `${traffic.upload.current || 0} Mbps`;
@@ -274,8 +323,8 @@ class MonitoringController {
         if (dlTotal) dlTotal.textContent = `Total: ${traffic.download.total || 0} GB`;
         if (ulTotal) ulTotal.textContent = `Total: ${traffic.upload.total || 0} GB`;
         
-        // Also update the traffic chart with current data
-        if (this.trafficChart) {
+        // Also update the traffic chart with current data (only when connected)
+        if (this.trafficChart && this.mikrotikConnected) {
             const now = new Date().toLocaleTimeString();
             
             // Keep only last 20 data points
@@ -831,6 +880,47 @@ class MonitoringController {
     updateConnectionStatus(status) {
         // Update any connection status indicators
         console.log('WebSocket connection status:', status);
+        
+        // Update UI based on connection status
+        if (status === 'disconnected') {
+            this.handleDisconnection();
+        }
+    }
+    
+    handleDisconnection() {
+        // Set all traffic indicators to N/A when disconnected
+        const dlCurrent = document.getElementById('current-download');
+        const ulCurrent = document.getElementById('current-upload');
+        const dlTotal = document.getElementById('total-download');
+        const ulTotal = document.getElementById('total-upload');
+        
+        if (dlCurrent) dlCurrent.textContent = `N/A`;
+        if (ulCurrent) ulCurrent.textContent = `N/A`;
+        if (dlTotal) dlTotal.textContent = `Total: N/A`;
+        if (ulTotal) ulTotal.textContent = `Total: N/A`;
+        
+        // Stop chart updates and show disconnected state
+        if (this.trafficChart) {
+            // Clear the chart data to stop animation
+            const emptyData = new Array(this.trafficChart.data.labels.length).fill(0);
+            this.trafficChart.data.datasets[0].data = emptyData;
+            this.trafficChart.data.datasets[1].data = emptyData;
+            
+            // Add disconnected indicator
+            this.trafficChart.options.plugins.title = {
+                display: true,
+                text: 'Network Traffic Monitor (Disconnected - No Connection)',
+                color: '#ef4444',
+                font: {
+                    size: 14,
+                    weight: 'bold'
+                }
+            };
+            
+            // Disable animations when disconnected
+            this.trafficChart.options.animation = false;
+            this.trafficChart.update();
+        }
     }
     
     bindEvents() {

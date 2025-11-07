@@ -1,8 +1,9 @@
-# 🔧 **FIX: Menu Issues & User Detection**
+# 🔧 **FIX: Menu Consistency & Simplification**
 
 **Date:** 8 November 2025  
 **Status:** ✅ **FIXED**  
-**Commit:** 781aa0e
+**Latest Commit:** f33900f (simplified)
+**Previous Commit:** 781aa0e (initial fix)
 
 ---
 
@@ -205,3 +206,48 @@ Tests:
 4. **Show partial functionality even on error (with warnings)**
 
 **Semua masalah menu sudah diperbaiki dan sistem sekarang memberikan informasi debug yang jelas!** 🎉
+
+---
+
+## 🔄 **UPDATE: SIMPLIFICATION (Commit: f33900f)**
+
+### **User Request:**
+"Untuk menu pelanggan itu dibuat simpel seperti menu lain saja, hanya log keyword_command saja cukup."
+
+### **Changes Made:**
+
+1. **Removed Special Handling:**
+   - Deleted special case for "menupelanggan" 
+   - No more [MENU_COMMAND] log
+   - Uses normal keyword detection
+
+2. **Simplified MENU_PELANGGAN:**
+   ```javascript
+   // BEFORE: Complex with user checking
+   case 'MENU_PELANGGAN': {
+       // 20+ lines: Extract phone, find user, log details...
+   }
+   
+   // AFTER: Simple like other menus  
+   case 'MENU_PELANGGAN': {
+       const { handleMenuPelanggan } = require('./handlers/menu-handler');
+       handleMenuPelanggan(global.config, reply);
+   }
+   ```
+
+3. **Consistent Pattern for ALL Menus:**
+   - All detected via keyword handler
+   - All show [KEYWORD_COMMAND] log
+   - All simply call their handlers
+   - No special cases
+
+### **Result:**
+```
+✅ menupelanggan → [KEYWORD_COMMAND] log → Show menu
+✅ menuteknisi → [KEYWORD_COMMAND] log → Show menu  
+✅ All menus work the same way - simple and consistent!
+```
+
+**Test:** `node test/test-menu-consistency.js`
+
+**Final Status:** All menus now 100% consistent! 🎉
