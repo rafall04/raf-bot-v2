@@ -126,6 +126,16 @@ All placeholders follow a clear, consistent naming pattern to avoid confusion.
 
 ---
 
+## ✅ **NOW AVAILABLE IN MENU TEMPLATES**
+
+As of the latest fix, the following user context placeholders are now available in all menu templates:
+
+| Placeholder | Description | Example | Status |
+|-------------|-------------|---------|--------|
+| `${pushname}` | WhatsApp display name | "Budi" | ✅ FIXED |
+| `${sender}` | Full sender ID | "6285233047094@s.whatsapp.net" | ✅ FIXED |
+| `${phone}` | Clean phone number | "6285233047094" | ✅ FIXED |
+
 ## ⚠️ **BACKWARD COMPATIBILITY**
 
 For backward compatibility, the following mappings are maintained:

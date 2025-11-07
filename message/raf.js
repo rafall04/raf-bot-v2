@@ -1459,7 +1459,7 @@ atau ketik:
             }
             case 'MENU_PELANGGAN': {
                 const { handleMenuPelanggan } = require('./handlers/menu-handler');
-                handleMenuPelanggan(global.config, reply);
+                handleMenuPelanggan(global.config, reply, pushname, sender);
             }
             break;
             case 'MENU_UTAMA':
@@ -1467,12 +1467,12 @@ atau ketik:
             case 'menu wifi' :
             case 'menuwifi': {
                 const { handleMenuUtama } = require('./handlers/menu-handler');
-                handleMenuUtama(global.config, reply);
+                handleMenuUtama(global.config, reply, pushname, sender);
             }
             break;
             case 'MENU_TEKNISI': {
                 const { handleMenuTeknisi } = require('./handlers/menu-handler');
-                handleMenuTeknisi(global.config, reply);
+                handleMenuTeknisi(global.config, reply, pushname, sender);
             }
             break;
             // case 'menuvoucher': {
@@ -1481,22 +1481,22 @@ atau ketik:
             break;
             case 'MENU_OWNER': {
                 const { handleMenuOwner } = require('./handlers/menu-handler');
-                handleMenuOwner(global.config, isOwner, reply, mess);
+                handleMenuOwner(global.config, isOwner, reply, pushname, sender);
             }
             break;
             case 'TANYA_CARA_PASANG': {
                 const { handleTanyaCaraPasang } = require('./handlers/menu-handler');
-                handleTanyaCaraPasang(global.config, reply);
+                handleTanyaCaraPasang(global.config, reply, pushname, sender);
             }
             break;
             case 'TANYA_PAKET_BULANAN': {
                 const { handleTanyaPaketBulanan } = require('./handlers/menu-handler');
-                handleTanyaPaketBulanan(global.config, reply);
+                handleTanyaPaketBulanan(global.config, reply, pushname, sender);
             }
             break;
             case 'TUTORIAL_TOPUP': {
                 const { handleTutorialTopup } = require('./handlers/menu-handler');
-                handleTutorialTopup(global.config, reply);
+                handleTutorialTopup(global.config, reply, pushname, sender);
             }
             break;
             case 'listprofstatik': {

@@ -19,78 +19,99 @@ const formatTemplate = (template, data) => {
     return formatted;
 };
 
-exports.wifimenu = (nama, namabot) => {
+exports.wifimenu = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.wifimenu || '';
     // Support both old and new placeholder names for backward compatibility
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.customermenu = (nama, namabot) => {
+exports.customermenu = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.customermenu || '';
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.technicianmenu = (nama, namabot) => {
+exports.technicianmenu = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.technicianmenu || '';
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Teknisi',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.menubelivoucher = (nama, namabot) => {
+exports.menubelivoucher = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.menubelivoucher || '';
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.menuvoucher = (nama, namabot) => {
+exports.menuvoucher = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.menuvoucher || '';
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.menupasang = (nama, namabot) => {
+exports.menupasang = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.menupasang || '';
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.menuowner = (nama, namabot) => {
+exports.menuowner = (nama, namabot, pushname, sender) => {
     const template = templatesCache.wifiMenuTemplates?.menuowner || '';
     return formatTemplate(template, { 
         nama: nama,           // Backward compatibility
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
-        nama_bot: namabot     // Clear naming: Bot name
+        nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Owner',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', '') // Clean phone number
     });
 };
 
-exports.menupaket = (nama, namabot) => {
+exports.menupaket = (nama, namabot, pushname, sender) => {
     // Path to the packages.json file
     const packagesPath = path.join(__dirname, '../database/packages.json');
     let packages = [];
@@ -137,6 +158,9 @@ exports.menupaket = (nama, namabot) => {
         nama_wifi: nama,      // Clear naming: WiFi provider name
         namabot: namabot,     // Backward compatibility
         nama_bot: namabot,    // Clear naming: Bot name
+        pushname: pushname || 'Kak',  // WhatsApp display name with fallback
+        sender: sender,       // Full sender ID
+        phone: sender?.replace('@s.whatsapp.net', ''), // Clean phone number
         packageList: packageList
     });
 };

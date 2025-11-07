@@ -8,50 +8,50 @@ const { wifimenu, menupaket, menubelivoucher, menupasang, menuowner, customermen
 /**
  * Handle main menu
  */
-function handleMenuUtama(config, reply) {
-    reply(wifimenu(config.nama, config.namabot));
+function handleMenuUtama(config, reply, pushname, sender) {
+    reply(wifimenu(config.nama, config.namabot, pushname, sender));
 }
 
 /**
  * Handle teknisi menu
  */
-function handleMenuTeknisi(config, reply) {
-    reply(technicianmenu(config.nama, config.namabot));
+function handleMenuTeknisi(config, reply, pushname, sender) {
+    reply(technicianmenu(config.nama, config.namabot, pushname, sender));
 }
 
 /**
  * Handle owner menu
  */
-function handleMenuOwner(config, isOwner, reply, mess) {
+function handleMenuOwner(config, isOwner, reply, pushname, sender) {
     if (!isOwner) throw mess.owner;
-    reply(menuowner(config.nama, config.namabot));
+    reply(menuowner(config.nama, config.namabot, pushname, sender));
 }
 
 /**
  * Handle cara pasang menu
  */
-function handleTanyaCaraPasang(config, reply) {
-    reply(menupasang(config.nama, config.namabot));
+function handleTanyaCaraPasang(config, reply, pushname, sender) {
+    reply(menupasang(config.nama, config.namabot, pushname, sender));
 }
 
 /**
  * Handle paket bulanan menu
  */
-function handleTanyaPaketBulanan(config, reply) {
-    reply(menupaket(config.nama, config.namabot));
+function handleTanyaPaketBulanan(config, reply, pushname, sender) {
+    reply(menupaket(config.nama, config.namabot, pushname, sender));
 }
 
 /**
  * Handle tutorial topup
  */
-function handleTutorialTopup(config, reply) {
-    reply(menubelivoucher(config.nama, config.namabot));
+function handleTutorialTopup(config, reply, pushname, sender) {
+    reply(menubelivoucher(config.nama, config.namabot, pushname, sender));
 }
 
 /**
  * Handle customer menu
  */
-function handleMenuPelanggan(config, reply) {
+function handleMenuPelanggan(config, reply, pushname, sender) {
     const namaLayanan = config.nama || "Layanan Kami";
     const namaBot = config.namabot || "Bot Kami";
     
