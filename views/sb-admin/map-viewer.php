@@ -1256,13 +1256,12 @@ const createCustomerStatusIcon = (status) => {
                     }
                 });
 
-                // Plugin fullscreen event listener disabled - using manual fullscreen only
-                // map.on('fullscreenchange', function () {
-                //     const isPluginFullscreen = map.isFullscreen();
-                //     $('#manualFullscreenBtn i').toggleClass('fa-expand', !isPluginFullscreen).toggleClass('fa-compress', isPluginFullscreen);
-                //     $('#manualFullscreenBtn').attr('title', isPluginFullscreen ? 'Keluar Layar Penuh (Plugin)' : 'Layar Penuh Peta (Kustom)');
-                //     if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
-                // });
+                // Simple fullscreen event - NO PLUGIN DEPENDENCY
+                map.on('fullscreenchange', function () {
+                    $('#manualFullscreenBtn i').toggleClass('fa-expand').toggleClass('fa-compress');
+                    if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
+                });
+                
                 document.addEventListener('fullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);
