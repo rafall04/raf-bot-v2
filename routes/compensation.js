@@ -8,6 +8,7 @@ const { saveCompensations, saveSpeedRequests } = require('../lib/database');
 const { normalizePhoneNumber } = require('../lib/myfunc');
 const { renderTemplate, templatesCache } = require('../lib/templating');
 const { getUploadDir, getUploadPath, generateFilename } = require('../lib/upload-helper');
+const { rebootRouter } = require('../lib/wifi');
 
 // Configure multer for file uploads (Speed Request proofs)
 const storage = multer.diskStorage({
@@ -91,6 +92,7 @@ router.get('/active', ensureAdmin, async (req, res) => {
                 endDate: comp.endDate,
                 durationDays: comp.durationDays,
                 durationHours: comp.durationHours,
+                durationMinutes: comp.durationMinutes || 0,
                 notes: comp.notes,
                 processedBy: comp.processedBy
             };
@@ -109,23 +111,27 @@ router.get('/active', ensureAdmin, async (req, res) => {
 
 // POST /api/compensation/apply
 router.post('/apply', ensureAdmin, async (req, res) => {
-    const { customerIds, speedProfile, durationDays, durationHours, notes } = req.body;
+    const { customerIds, speedProfile, durationDays, durationHours, durationMinutes, notes } = req.body;
     if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
         return res.status(400).json({ message: "Parameter 'customerIds' (array) diperlukan dan tidak boleh kosong." });
     }
     if (!speedProfile) {
         return res.status(400).json({ message: "Parameter 'speedProfile' (profil Mikrotik baru) diperlukan." });
     }
-    const parsedDurationDays = parseInt(durationDays);
-    const parsedDurationHours = parseInt(durationHours);
+    const parsedDurationDays = parseInt(durationDays || 0);
+    const parsedDurationHours = parseInt(durationHours || 0);
+    const parsedDurationMinutes = parseInt(durationMinutes || 0);
     if (isNaN(parsedDurationDays) || parsedDurationDays < 0) {
         return res.status(400).json({ message: "Parameter 'durationDays' harus angka non-negatif." });
     }
     if (isNaN(parsedDurationHours) || parsedDurationHours < 0 || parsedDurationHours >= 24) {
         return res.status(400).json({ message: "Parameter 'durationHours' harus angka antara 0 dan 23." });
     }
-    if (parsedDurationDays === 0 && parsedDurationHours === 0) {
-        return res.status(400).json({ message: "Total durasi kompensasi (hari atau jam) harus lebih dari 0." });
+    if (isNaN(parsedDurationMinutes) || parsedDurationMinutes < 0 || parsedDurationMinutes >= 60) {
+        return res.status(400).json({ message: "Parameter 'durationMinutes' harus angka antara 0 dan 59." });
+    }
+    if (parsedDurationDays === 0 && parsedDurationHours === 0 && parsedDurationMinutes === 0) {
+        return res.status(400).json({ message: "Total durasi kompensasi (hari, jam, atau menit) harus lebih dari 0." });
     }
     
     let notificationConfig;
@@ -200,6 +206,9 @@ router.post('/apply', ensureAdmin, async (req, res) => {
         if (parsedDurationHours > 0) {
             endDate.setHours(startDate.getHours() + parsedDurationHours);
         }
+        if (parsedDurationMinutes > 0) {
+            endDate.setMinutes(startDate.getMinutes() + parsedDurationMinutes);
+        }
         
         const newCompensationId = `comp_${Date.now()}_${userId}`;
         const compensationEntry = {
@@ -212,6 +221,7 @@ router.post('/apply', ensureAdmin, async (req, res) => {
             endDate: endDate.toISOString(),
             durationDays: parsedDurationDays,
             durationHours: parsedDurationHours,
+            durationMinutes: parsedDurationMinutes,
             notes: notes || "",
             status: "pending_apply",
             processedBy,
@@ -260,6 +270,10 @@ router.post('/apply', ensureAdmin, async (req, res) => {
                     if (parsedDurationHours > 0) {
                         if (parsedDurationDays > 0) durasiLengkapStr += " ";
                         durasiLengkapStr += `${parsedDurationHours} jam`;
+                    }
+                    if (parsedDurationMinutes > 0) {
+                        if (parsedDurationDays > 0 || parsedDurationHours > 0) durasiLengkapStr += " ";
+                        durasiLengkapStr += `${parsedDurationMinutes} menit`;
                     }
                     if (durasiLengkapStr === "") durasiLengkapStr = "Durasi tidak valid";
                     

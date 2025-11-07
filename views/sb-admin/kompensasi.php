@@ -130,38 +130,54 @@
                                 </div>
 
                                 <label>Durasi Peningkatan Kecepatan:</label>
-                                <div class="duration-input-group mb-3">
-                                    <div class="form-group mb-0">
-                                        <label for="durationDays">Hari:</label>
-                                        <select class="form-control" id="durationDays" name="durationDays">
-                                            <option value="0">0 Hari</option>
-                                            <option value="1">1 Hari</option>
-                                            <option value="2">2 Hari</option>
-                                            <option value="3">3 Hari</option>
-                                            <option value="5">5 Hari</option>
-                                            <option value="7" selected>7 Hari</option>
-                                            <option value="14">14 Hari</option>
-                                            <option value="30">30 Hari</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group mb-0">
-                                        <label for="durationHours">Jam:</label>
-                                        <select class="form-control" id="durationHours" name="durationHours">
-                                            <option value="0" selected>0 Jam</option>
-                                            <option value="1">1 Jam</option>
-                                            <option value="2">2 Jam</option>
-                                            <option value="3">3 Jam</option>
-                                            <option value="4">4 Jam</option>
-                                            <option value="5">5 Jam</option>
-                                            <option value="6">6 Jam</option>
-                                            <option value="8">8 Jam</option>
-                                            <option value="12">12 Jam</option>
-                                            <option value="18">18 Jam</option>
-                                            <option value="23">23 Jam</option>
-                                        </select>
-                                    </div>
-                                </div>
-
+                <div class="duration-input-group mb-3">
+                    <div class="form-group mb-0">
+                        <label for="durationDays">Hari:</label>
+                        <select class="form-control" id="durationDays" name="durationDays">
+                            <option value="0">0 Hari</option>
+                            <option value="1">1 Hari</option>
+                            <option value="2">2 Hari</option>
+                            <option value="3">3 Hari</option>
+                            <option value="5">5 Hari</option>
+                            <option value="7" selected>7 Hari</option>
+                            <option value="14">14 Hari</option>
+                            <option value="30">30 Hari</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="durationHours">Jam:</label>
+                        <select class="form-control" id="durationHours" name="durationHours">
+                            <option value="0" selected>0 Jam</option>
+                            <option value="1">1 Jam</option>
+                            <option value="2">2 Jam</option>
+                            <option value="3">3 Jam</option>
+                            <option value="4">4 Jam</option>
+                            <option value="5">5 Jam</option>
+                            <option value="6">6 Jam</option>
+                            <option value="8">8 Jam</option>
+                            <option value="12">12 Jam</option>
+                            <option value="18">18 Jam</option>
+                            <option value="23">23 Jam</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="durationMinutes">Menit (untuk ujicoba):</label>
+                        <select class="form-control" id="durationMinutes" name="durationMinutes">
+                            <option value="0" selected>0 Menit</option>
+                            <option value="1">1 Menit</option>
+                            <option value="2">2 Menit</option>
+                            <option value="3">3 Menit</option>
+                            <option value="5">5 Menit</option>
+                            <option value="10">10 Menit</option>
+                            <option value="15">15 Menit</option>
+                            <option value="20">20 Menit</option>
+                            <option value="30">30 Menit</option>
+                            <option value="45">45 Menit</option>
+                            <option value="50">50 Menit</option>
+                            <option value="55">55 Menit</option>
+                        </select>
+                    </div>
+                </div>
                                 <div class="form-group">
                                     <label for="notes">Catatan (Opsional):</label>
                                     <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Tambahkan catatan jika perlu, misal alasan kompensasi"></textarea>
@@ -455,20 +471,124 @@
                 if (result.data && result.data.length > 0) {
                     listBody.innerHTML = ''; 
                     result.data.forEach(comp => {
-                        const endDate = new Date(comp.endDate);
-                        // Opsi format tanggal yang lebih umum dan lengkap
-                        const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'shortOffset' };
-                        const formattedEndDate = endDate.toLocaleDateString('id-ID', options);
+                    const endDate = new Date(comp.endDate);
+                    // Opsi format tanggal yang lebih umum dan lengkap
+                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'shortOffset' };
+                    const formattedEndDate = endDate.toLocaleDateString('id-ID', options);
 
-                        let durasiStr = "";
-                        if (comp.durationDays > 0) durasiStr += `${comp.durationDays} hari `;
-                        if (comp.durationHours > 0) durasiStr += `${comp.durationHours} jam`;
-                        if (durasiStr.trim() === "") durasiStr = "-";
+                    let durasiStr = "";
+                    if (comp.durationDays > 0) durasiStr += `${comp.durationDays} hari `;
+                    if (comp.durationHours > 0) durasiStr += `${comp.durationHours} jam `;
+                    if (comp.durationMinutes > 0) durasiStr += `${comp.durationMinutes} menit`;
+                    if (durasiStr.trim() === "") durasiStr = "-";
 
 
-                        const row = `<tr>
-                            <td>${comp.userName || 'N/A'}</td>
-                            <td>${comp.pppoeUsername || 'N/A'}</td>
+                    const row = `<tr>
+                        <td>${comp.userName || 'N/A'}</td>
+                        <td>${comp.pppoeUsername || 'N/A'}</td>
+                        <td>${comp.originalProfile || 'N/A'}</td>
+                        <td>${comp.compensatedProfile || 'N/A'}</td>
+                        <td>${durasiStr.trim()}</td>
+                        <td>${formattedEndDate}</td>
+                        <td>${comp.notes || '-'}</td>
+                    </tr>`;
+                    listBody.insertAdjacentHTML('beforeend', row); // Lebih efisien daripada innerHTML +=
+                });
+            } else {
+                listBody.innerHTML = '<tr><td colspan="7" class="text-center">Tidak ada pelanggan yang sedang mendapatkan kompensasi aktif.</td></tr>';
+            }
+        } catch (error) {
+            console.error("Error memuat daftar kompensasi aktif:", error);
+            listBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Gagal memuat data: ${error.message}</td></tr>`;
+        }
+    }
+
+    document.getElementById('compensationForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        if (!currentUser) {
+            showResultModal('Sesi Tidak Valid', '<p class="text-danger">Sesi Anda tidak valid atau telah berakhir. Silakan login kembali.</p><p>Halaman akan dialihkan...</p>', 'modal-danger');
+            setTimeout(() => { window.location.href = '/login'; }, 3000);
+            return;
+        }
+
+        if (selectedCustomerIds.size === 0) {
+            showResultModal('Input Tidak Lengkap', '<p>Silakan pilih setidaknya satu pelanggan.</p>', 'modal-warning');
+            return;
+        }
+        const speedProfile = document.getElementById('speedProfile').value;
+        const durationDays = parseInt(document.getElementById('durationDays').value);
+        const durationHours = parseInt(document.getElementById('durationHours').value);
+
+        if (!speedProfile) {
+            showResultModal('Input Tidak Lengkap', '<p>Silakan pilih profil kecepatan baru.</p>', 'modal-warning');
+            return;
+        }
+        if (isNaN(durationDays) || isNaN(durationHours) || (durationDays < 0) || (durationHours < 0) || (durationDays === 0 && durationHours === 0) ) {
+            showResultModal('Input Tidak Lengkap', '<p>Durasi kompensasi (hari atau jam) harus lebih dari 0 dan tidak boleh negatif.</p>', 'modal-warning');
+            return;
+        }
+
+        const formData = {
+            customerIds: Array.from(selectedCustomerIds),
+            speedProfile: speedProfile,
+            durationDays: durationDays,
+            durationHours: durationHours,
+            notes: document.getElementById('notes').value
+        };
+
+        const submitButton = this.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.innerHTML;
+        submitButton.disabled = true;
+        submitButton.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Memproses...`;
+
+        let response;
+        try {
+            response = await fetch('/api/compensation/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, // Hapus header Authorization manual
+                credentials: 'include', // ✅ Fixed by script
+                body: JSON.stringify(formData)
+            });
+
+            let result;
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                result = await response.json();
+            } else {
+                const responseText = await response.text();
+                console.error("Respons server bukan JSON:", responseText);
+                // Buat objek result default jika respons bukan JSON, terutama untuk error server
+                result = { 
+                    message: `Server memberikan respons yang tidak terduga (Status: ${response.status}). Isi respons: ${responseText.substring(0,200)}...`, 
+                    details: [] 
+                };
+                 // Khusus untuk 401/403, kita akan menimpanya nanti
+                if (response.status === 401 || response.status === 403) {
+                    result.message = "Sesi tidak valid atau akses ditolak."; // Pesan lebih standar untuk 401/403
+                }
+            }
+
+            let modalTitle = "Informasi";
+            let modalBodyHtml = "";
+            let modalType = "modal-info";
+
+            if (response.ok || response.status === 207) { // Sukses atau Multi-Status
+                modalTitle = result.message || 'Proses Selesai';
+                modalBodyHtml = `<p>${result.message || 'Operasi kompensasi telah diproses.'}</p>`;
+                if (result.details && Array.isArray(result.details) && result.details.length > 0) {
+                    modalBodyHtml += "<h5>Rincian Proses per Pelanggan:</h5><ul>";
+                    result.details.forEach(userResult => {
+                        let statusClass = 'warning'; // Default untuk warning_partial
+                        if (userResult.status === 'success') statusClass = 'success';
+                        else if (userResult.status === 'error_critical') statusClass = 'danger';
+
+                        modalBodyHtml += `<li><strong>ID ${userResult.userId} (PPPoE: ${userResult.pppoeUsername || 'N/A'})</strong><br/>Status: <span class="font-weight-bold text-${statusClass}">${userResult.status}</span>`;
+                        if (userResult.details && Array.isArray(userResult.details) && userResult.details.length > 0) {
+                            modalBodyHtml += "<ul>";
+                            userResult.details.forEach(msg => { modalBodyHtml += `<li class="user-detail-item">${msg}</li>`; });
+                            modalBodyHtml += "</ul>";
+                        }
+                        modalBodyHtml += `</li>`;
                             <td>${comp.originalProfile || 'N/A'}</td>
                             <td>${comp.compensatedProfile || 'N/A'}</td>
                             <td>${durasiStr.trim()}</td>
@@ -501,13 +621,16 @@
             const speedProfile = document.getElementById('speedProfile').value;
             const durationDays = parseInt(document.getElementById('durationDays').value);
             const durationHours = parseInt(document.getElementById('durationHours').value);
+            const durationMinutes = parseInt(document.getElementById('durationMinutes').value);
 
             if (!speedProfile) {
                 showResultModal('Input Tidak Lengkap', '<p>Silakan pilih profil kecepatan baru.</p>', 'modal-warning');
                 return;
             }
-            if (isNaN(durationDays) || isNaN(durationHours) || (durationDays < 0) || (durationHours < 0) || (durationDays === 0 && durationHours === 0) ) {
-                showResultModal('Input Tidak Lengkap', '<p>Durasi kompensasi (hari atau jam) harus lebih dari 0 dan tidak boleh negatif.</p>', 'modal-warning');
+            if (isNaN(durationDays) || isNaN(durationHours) || isNaN(durationMinutes) || 
+                (durationDays < 0) || (durationHours < 0) || (durationMinutes < 0) || 
+                (durationDays === 0 && durationHours === 0 && durationMinutes === 0) ) {
+                showResultModal('Input Tidak Lengkap', '<p>Durasi kompensasi (hari, jam, atau menit) harus lebih dari 0 dan tidak boleh negatif.</p>', 'modal-warning');
                 return;
             }
 
@@ -516,6 +639,7 @@
                 speedProfile: speedProfile,
                 durationDays: durationDays,
                 durationHours: durationHours,
+                durationMinutes: durationMinutes,
                 notes: document.getElementById('notes').value
             };
 
@@ -589,6 +713,7 @@
                         document.getElementById('compensationForm').reset();
                         document.getElementById('durationDays').value = "7"; 
                         document.getElementById('durationHours').value = "0";
+                        document.getElementById('durationMinutes').value = "0";
                     }
                     loadActiveCompensations(); // Selalu refresh daftar setelah submit
                 } else { // Error (400, 401, 403, 500 dll.)
