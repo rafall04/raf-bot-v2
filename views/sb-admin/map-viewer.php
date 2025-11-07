@@ -1149,12 +1149,13 @@ const createCustomerStatusIcon = (status) => {
                 const osmMaxZoom = 22;
 
                 map = L.map('interactiveMap', {
-                    fullscreenControl: {
-                        position: 'bottomleft',
-                        title: 'Layar Penuh Peta (Plugin)',
-                        titleCancel: 'Keluar Layar Penuh (Plugin)',
-                        pseudoFullscreen: false
-                    },
+                    // fullscreenControl disabled - using manual fullscreen button instead
+                    // fullscreenControl: {
+                    //     position: 'bottomleft',
+                    //     title: 'Layar Penuh Peta (Plugin)',
+                    //     titleCancel: 'Keluar Layar Penuh (Plugin)',
+                    //     pseudoFullscreen: false
+                    // },
                     maxZoom: satelliteMaxZoom
                 }).setView([-7.2430309,111.846867], 15);
                 console.log("[InitializeMap] Objek peta berhasil dibuat.");
@@ -1246,12 +1247,13 @@ const createCustomerStatusIcon = (status) => {
                     }
                 });
 
-                map.on('fullscreenchange', function () {
-                    const isPluginFullscreen = map.isFullscreen();
-                    $('#manualFullscreenBtn i').toggleClass('fa-expand', !isPluginFullscreen).toggleClass('fa-compress', isPluginFullscreen);
-                    $('#manualFullscreenBtn').attr('title', isPluginFullscreen ? 'Keluar Layar Penuh (Plugin)' : 'Layar Penuh Peta (Kustom)');
-                    if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
-                });
+                // Plugin fullscreen event listener disabled - using manual fullscreen only
+                // map.on('fullscreenchange', function () {
+                //     const isPluginFullscreen = map.isFullscreen();
+                //     $('#manualFullscreenBtn i').toggleClass('fa-expand', !isPluginFullscreen).toggleClass('fa-compress', isPluginFullscreen);
+                //     $('#manualFullscreenBtn').attr('title', isPluginFullscreen ? 'Keluar Layar Penuh (Plugin)' : 'Layar Penuh Peta (Kustom)');
+                //     if(map) { setTimeout(function() { map.invalidateSize(); }, 250); }
+                // });
                 document.addEventListener('fullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
                 document.addEventListener('mozfullscreenchange', handleFullscreenGlobal);

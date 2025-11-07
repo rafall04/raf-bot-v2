@@ -772,7 +772,8 @@
 
             const satelliteMaxZoom = 20; const osmMaxZoom = 22;
             map = L.map('interactiveMap', {
-                fullscreenControl: { pseudoFullscreen: false, title: { 'false': 'Layar Penuh', 'true': 'Keluar Layar Penuh' }},
+                // fullscreenControl disabled - manual fullscreen button used instead
+                // fullscreenControl: { pseudoFullscreen: false, title: { 'false': 'Layar Penuh', 'true': 'Keluar Layar Penuh' }},
                 maxZoom: satelliteMaxZoom
             }).setView([-7.2430309,111.846867], 15);
 
