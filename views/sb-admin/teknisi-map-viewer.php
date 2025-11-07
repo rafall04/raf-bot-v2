@@ -103,11 +103,34 @@
 
         .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
         .modal-xl { max-width: 1140px; }
+        
         /* Ensure modals are visible in fullscreen */
         .modal { z-index: 10000 !important; }
         .modal-backdrop { z-index: 9999 !important; }
-        /* Ensure leaflet popups are visible in fullscreen */
+        
+        /* Ensure leaflet popups are visible in fullscreen - CRITICAL FIX */
+        .leaflet-popup { z-index: 9998 !important; }
         .leaflet-popup-pane { z-index: 9998 !important; }
+        
+        /* Leaflet overlay layers (markers, paths) must be below popups */
+        .leaflet-overlay-pane { z-index: 400 !important; }
+        .leaflet-shadow-pane { z-index: 500 !important; }
+        .leaflet-marker-pane { z-index: 600 !important; }
+        
+        /* In fullscreen mode, ensure proper stacking */
+        #mapContainer:fullscreen .leaflet-popup,
+        #mapContainer:-webkit-full-screen .leaflet-popup,
+        #mapContainer:-moz-full-screen .leaflet-popup,
+        #mapContainer:-ms-fullscreen .leaflet-popup {
+            z-index: 9998 !important;
+        }
+        
+        #mapContainer:fullscreen .leaflet-popup-pane,
+        #mapContainer:-webkit-full-screen .leaflet-popup-pane,
+        #mapContainer:-moz-full-screen .leaflet-popup-pane,
+        #mapContainer:-ms-fullscreen .leaflet-popup-pane {
+            z-index: 9998 !important;
+        }
         .form-label { margin-bottom: .3rem; font-size: 0.8rem; font-weight: 500; }
         .form-control-sm { font-size: 0.8rem; padding: .25rem .5rem; height: calc(1.5em + .5rem + 2px); }
         .loading-spinner-container { text-align: center; padding: 20px; }
