@@ -24,11 +24,126 @@
         .action-buttons-admin .btn { margin-bottom: 5px; margin-right: 5px; }
         .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
         
-        /* Status badges for tickets */
-        .badge-baru { background: rgba(59, 130, 246, 0.1); color: var(--info); }
-        .badge-diproses { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
-        .badge-selesai { background: rgba(16, 185, 129, 0.1); color: var(--success); }
-        .badge-dibatalkan { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+        /* Status badges per TICKET_STATUS_STANDARD.md */
+        .badge-status-baru { background: #6f42c1; color: #fff; }
+        .badge-status-process { background: #17a2b8; color: #fff; }
+        .badge-status-otw { background: #ffc107; color: #000; }
+        .badge-status-arrived { background: #fd7e14; color: #fff; }
+        .badge-status-working { background: #20c997; color: #fff; }
+        .badge-status-resolved { background: #28a745; color: #fff; }
+        .badge-status-cancelled { background: #6c757d; color: #fff; }
+        
+        /* Photo Gallery Styles */
+        .photo-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .photo-thumbnail {
+            width: 150px;
+            height: 150px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+        }
+        .photo-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+        .photo-thumbnail:hover img {
+            transform: scale(1.1);
+        }
+        .photo-count-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+        
+        /* Workflow Progress */
+        .workflow-progress {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            margin: 10px 0;
+        }
+        .workflow-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        .workflow-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 60%;
+            width: 80%;
+            height: 2px;
+            background: #ddd;
+        }
+        .workflow-step.completed:not(:last-child)::after {
+            background: #28a745;
+        }
+        .step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #ddd;
+            color: #666;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 5px;
+        }
+        .workflow-step.completed .step-icon,
+        .workflow-step.active .step-icon {
+            background: #28a745;
+            color: white;
+        }
+        .step-label {
+            font-size: 0.75rem;
+            color: #666;
+        }
+        .workflow-step.completed .step-label,
+        .workflow-step.active .step-label {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        /* Detail Section */
+        .detail-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fc;
+            border-radius: 5px;
+        }
+        .detail-section h6 {
+            color: #4e73df;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .detail-item {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .detail-label {
+            min-width: 120px;
+            font-weight: 500;
+            color: #666;
+        }
+        .detail-value {
+            color: #333;
+        }
     </style>
 </head>
 
@@ -79,8 +194,11 @@
                                 <select id="filterStatus" class="form-control form-control-modern">
                                     <option value="all" selected>Semua Status</option>
                                     <option value="baru">Baru</option>
-                                    <option value="diproses teknisi">Diproses Teknisi</option>
-                                    <option value="selesai">Selesai</option>
+                                    <option value="process">Process (OTP Generated)</option>
+                                    <option value="otw">OTW (On The Way)</option>
+                                    <option value="arrived">Arrived (Tiba di Lokasi)</option>
+                                    <option value="working">Working (Sedang Dikerjakan)</option>
+                                    <option value="resolved">Resolved (Selesai)</option>
                                     <option value="dibatalkan pelanggan">Dibatalkan Pelanggan</option>
                                     <option value="dibatalkan admin">Dibatalkan Admin</option>
                                 </select>
@@ -124,6 +242,7 @@
                                             <th>Pelanggan (WA)</th>
                                             <th>Detail Pelanggan (Sistem)</th>
                                             <th>Isi Laporan</th>
+                                            <th>Foto</th>
                                             <th>Status</th>
                                             <th>Tgl Dibuat</th>
                                             <th>Diproses Oleh</th>
@@ -148,6 +267,98 @@
     <a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
     <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog"><div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Ready to Leave?</h5><button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body">Select "Logout" below if you are ready to end your current session.</div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button><a class="btn btn-primary" href="/logout">Logout</a></div></div></div></div>
 
+    <!-- Ticket Detail Modal -->
+    <div class="modal fade" id="ticketDetailModal" tabindex="-1" role="dialog" aria-labelledby="ticketDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="ticketDetailModalLabel">Detail Tiket</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Workflow Progress -->
+                    <div class="workflow-progress">
+                        <div class="workflow-step" id="step-baru">
+                            <div class="step-icon"><i class="fas fa-plus"></i></div>
+                            <div class="step-label">Baru</div>
+                        </div>
+                        <div class="workflow-step" id="step-process">
+                            <div class="step-icon"><i class="fas fa-cog"></i></div>
+                            <div class="step-label">Process</div>
+                        </div>
+                        <div class="workflow-step" id="step-otw">
+                            <div class="step-icon"><i class="fas fa-car"></i></div>
+                            <div class="step-label">OTW</div>
+                        </div>
+                        <div class="workflow-step" id="step-arrived">
+                            <div class="step-icon"><i class="fas fa-map-marker-alt"></i></div>
+                            <div class="step-label">Arrived</div>
+                        </div>
+                        <div class="workflow-step" id="step-working">
+                            <div class="step-icon"><i class="fas fa-wrench"></i></div>
+                            <div class="step-label">Working</div>
+                        </div>
+                        <div class="workflow-step" id="step-resolved">
+                            <div class="step-icon"><i class="fas fa-check"></i></div>
+                            <div class="step-label">Resolved</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Ticket Info -->
+                    <div class="detail-section">
+                        <h6>Informasi Tiket</h6>
+                        <div class="detail-item">
+                            <span class="detail-label">ID Tiket:</span>
+                            <span class="detail-value" id="detail-ticketId">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Status:</span>
+                            <span class="detail-value" id="detail-status">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Pelanggan:</span>
+                            <span class="detail-value" id="detail-customer">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Laporan:</span>
+                            <span class="detail-value" id="detail-report">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Dibuat:</span>
+                            <span class="detail-value" id="detail-created">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Teknisi Info -->
+                    <div class="detail-section">
+                        <h6>Informasi Teknisi</h6>
+                        <div class="detail-item">
+                            <span class="detail-label">Teknisi:</span>
+                            <span class="detail-value" id="detail-teknisi">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">OTP:</span>
+                            <span class="detail-value" id="detail-otp">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Photos Section -->
+                    <div class="detail-section">
+                        <h6>Dokumentasi Foto</h6>
+                        <div class="photo-gallery" id="detail-photos">
+                            <p class="text-muted">Memuat foto...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="modal fade" id="cancelTicketModal" tabindex="-1" role="dialog" aria-labelledby="cancelTicketModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
             <div class="modal-content">
@@ -221,12 +432,75 @@
         }
         function formatTicketDetailsAdmin(d) { return d ? `Nama: ${d.name||'N/A'}\nAlamat: ${d.address||'N/A'}\nPaket: ${d.subscription||'N/A'}\nPPPoE: ${d.pppoe_username||'N/A'}` : 'N/A';}
         function getStatusBadgeAdmin(s) { 
-            if (s === 'baru') return '<span class="badge badge-warning">Baru</span>';
-            if (s === 'diproses teknisi') return '<span class="badge badge-info">Diproses</span>';
-            if (s === 'selesai') return '<span class="badge badge-success">Selesai</span>';
-            if (s === 'dibatalkan pelanggan') return '<span class="badge badge-secondary">Dibatalkan Pelanggan</span>';
-            if (s === 'dibatalkan admin') return '<span class="badge badge-danger">Dibatalkan Admin</span>';
-            return `<span class="badge badge-dark">${s || 'N/A'}</span>`;
+            // Per TICKET_STATUS_STANDARD.md
+            if (s === 'baru') return '<span class="badge badge-status-baru">Baru</span>';
+            if (s === 'process' || s === 'diproses teknisi') return '<span class="badge badge-status-process">Process</span>';
+            if (s === 'otw') return '<span class="badge badge-status-otw">OTW</span>';
+            if (s === 'arrived') return '<span class="badge badge-status-arrived">Arrived</span>';
+            if (s === 'working') return '<span class="badge badge-status-working">Working</span>';
+            if (s === 'resolved' || s === 'selesai') return '<span class="badge badge-status-resolved">Resolved</span>';
+            if (s === 'dibatalkan pelanggan') return '<span class="badge badge-status-cancelled">Dibatalkan Pelanggan</span>';
+            if (s === 'dibatalkan admin') return '<span class="badge badge-status-cancelled">Dibatalkan Admin</span>';
+            return `<span class="badge badge-secondary">${s || 'N/A'}</span>`;
+        }
+        
+        function showTicketDetail(ticket) {
+            // Open detail modal with full ticket information
+            const detailModal = $('#ticketDetailModal');
+            if (!detailModal.length) {
+                console.error('Detail modal not found');
+                return;
+            }
+            
+            // Populate modal with ticket data
+            $('#detail-ticketId').text(ticket.ticketId || '-');
+            $('#detail-status').html(getStatusBadgeAdmin(ticket.status));
+            $('#detail-customer').text(ticket.pelangganPushName || '-');
+            $('#detail-report').text(ticket.laporanText || '-');
+            $('#detail-otp').text(ticket.otp || '-');
+            $('#detail-teknisi').text(ticket.teknisiName || '-');
+            $('#detail-created').text(ticket.createdAt ? new Date(ticket.createdAt).toLocaleString('id-ID') : '-');
+            
+            // Show photos if available
+            const photoContainer = $('#detail-photos');
+            photoContainer.empty();
+            
+            if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
+                ticket.teknisiPhotos.forEach((photo, index) => {
+                    photoContainer.append(`
+                        <div class="photo-thumbnail" onclick="viewPhoto('${photo}')">
+                            <img src="/uploads/teknisi/${photo}" alt="Photo ${index + 1}">
+                        </div>
+                    `);
+                });
+            } else {
+                photoContainer.append('<p class="text-muted">Belum ada foto dokumentasi</p>');
+            }
+            
+            // Show workflow progress
+            updateWorkflowProgress(ticket.status);
+            
+            detailModal.modal('show');
+        }
+        
+        function updateWorkflowProgress(status) {
+            const steps = ['baru', 'process', 'otw', 'arrived', 'working', 'resolved'];
+            const currentIndex = steps.indexOf(status);
+            
+            $('.workflow-step').removeClass('completed active');
+            steps.forEach((step, index) => {
+                const stepEl = $(`#step-${step}`);
+                if (index < currentIndex) {
+                    stepEl.addClass('completed');
+                } else if (index === currentIndex) {
+                    stepEl.addClass('active');
+                }
+            });
+        }
+        
+        function viewPhoto(photoUrl) {
+            // Open photo in full screen modal
+            window.open(`/uploads/teknisi/${photoUrl}`, '_blank');
         }
         
         let dataTableInstance;
@@ -303,6 +577,26 @@
                         row.insertCell().textContent = `${ticket.pelangganPushName || 'N/A'} (${ticket.pelangganId ? ticket.pelangganId.split('@')[0] : 'N/A'})`;
                         row.insertCell().innerHTML = `<div class="ticket-details-admin">${formatTicketDetailsAdmin(ticket.pelangganDataSystem)}</div>`;
                         row.insertCell().innerHTML = `<div class="report-text-admin">${ticket.laporanText || '-'}</div>`;
+                        
+                        // Photo column
+                        let photoCell = row.insertCell();
+                        if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
+                            photoCell.innerHTML = `
+                                <button class="btn btn-sm btn-info" onclick='showTicketDetail(${JSON.stringify(ticket).replace(/'/g, "\\'")})' title="Lihat ${ticket.teknisiPhotos.length} foto">
+                                    <i class="fas fa-camera"></i> ${ticket.teknisiPhotos.length}
+                                </button>
+                            `;
+                        } else if (ticket.photoCount > 0 || ticket.photos) {
+                            const count = ticket.photoCount || (ticket.photos ? ticket.photos.length : 0);
+                            photoCell.innerHTML = `
+                                <button class="btn btn-sm btn-info" onclick='showTicketDetail(${JSON.stringify(ticket).replace(/'/g, "\\'")})' title="Lihat ${count} foto">
+                                    <i class="fas fa-camera"></i> ${count}
+                                </button>
+                            `;
+                        } else {
+                            photoCell.innerHTML = '<span class="text-muted">-</span>';
+                        }
+                        
                         row.insertCell().innerHTML = getStatusBadgeAdmin(ticket.status);
                         row.insertCell().textContent = ticket.createdAt ? new Date(ticket.createdAt).toLocaleString('id-ID', {dateStyle:'short', timeStyle:'short'}) : '-';
                         
