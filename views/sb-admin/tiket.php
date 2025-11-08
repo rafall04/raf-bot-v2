@@ -455,7 +455,13 @@
             // Populate modal with ticket data
             $('#detail-ticketId').text(ticket.ticketId || '-');
             $('#detail-status').html(getStatusBadgeAdmin(ticket.status));
-            $('#detail-customer').text(ticket.pelangganPushName || '-');
+            
+            // Smart customer name resolution - check ALL possible fields
+            const customerName = ticket.pelangganName || 
+                               ticket.pelangganPushName || 
+                               (ticket.pelangganDataSystem ? ticket.pelangganDataSystem.name : null) ||
+                               'Customer';
+            $('#detail-customer').text(customerName);
             $('#detail-report').text(ticket.laporanText || '-');
             $('#detail-otp').text(ticket.otp || '-');
             $('#detail-teknisi').text(ticket.teknisiName || '-');
@@ -627,7 +633,12 @@
                     tickets.forEach(ticket => {
                         let row = ticketsTableBody.insertRow();
                         row.insertCell().textContent = ticket.ticketId || '-';
-                        row.insertCell().textContent = `${ticket.pelangganPushName || 'N/A'} (${ticket.pelangganId ? ticket.pelangganId.split('@')[0] : 'N/A'})`;
+                        // Smart customer name resolution - check ALL possible fields
+                        const customerName = ticket.pelangganName || 
+                                           ticket.pelangganPushName || 
+                                           (ticket.pelangganDataSystem ? ticket.pelangganDataSystem.name : null) ||
+                                           'Customer';
+                        row.insertCell().textContent = `${customerName} (${ticket.pelangganId ? ticket.pelangganId.split('@')[0] : 'N/A'})`;
                         row.insertCell().innerHTML = `<div class="ticket-details-admin">${formatTicketDetailsAdmin(ticket.pelangganDataSystem)}</div>`;
                         row.insertCell().innerHTML = `<div class="report-text-admin">${ticket.laporanText || '-'}</div>`;
                         
