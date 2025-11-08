@@ -903,13 +903,22 @@ router.post('/ticket/upload-photo', ensureAuthenticatedStaff, upload.single('pho
             });
         }
         
-        // Initialize photos array if not exists
+        // Initialize BOTH photos arrays for compatibility
         if (!ticket.photos) {
             ticket.photos = [];
         }
+        if (!ticket.teknisiPhotos) {
+            ticket.teknisiPhotos = [];
+        }
         
         // Check maximum photos limit (max 5 photos)
-        if (ticket.photos.length >= 5) {
+        // Check BOTH arrays to get total count
+        const totalPhotos = Math.max(
+            ticket.photos.length,
+            ticket.teknisiPhotos.length
+        );
+        
+        if (totalPhotos >= 5) {
             // Delete the uploaded file since we're rejecting it
             fs.unlinkSync(req.file.path);
             return res.status(400).json({
@@ -918,7 +927,7 @@ router.post('/ticket/upload-photo', ensureAuthenticatedStaff, upload.single('pho
             });
         }
         
-        // Store photo info
+        // Store photo info in BOTH fields for compatibility
         const photoInfo = {
             path: `/uploads/tickets/${req.file.filename}`,  // Web-accessible path
             filename: req.file.filename,
@@ -927,27 +936,49 @@ router.post('/ticket/upload-photo', ensureAuthenticatedStaff, upload.single('pho
             size: req.file.size
         };
         
+        // Store in photos field (for web dashboard compatibility)
         ticket.photos.push(photoInfo);
+        
+        // ALSO store filename in teknisiPhotos (for WhatsApp bot compatibility)
+        // Move file to teknisi folder for consistency
+        const oldPath = req.file.path;
+        const newPath = path.join(__dirname, '..', 'uploads', 'teknisi', req.file.filename);
+        
+        // Ensure teknisi folder exists
+        const teknisiDir = path.join(__dirname, '..', 'uploads', 'teknisi');
+        if (!fs.existsSync(teknisiDir)) {
+            fs.mkdirSync(teknisiDir, { recursive: true });
+        }
+        
+        // Copy file to teknisi folder
+        fs.copyFileSync(oldPath, newPath);
+        
+        // Add to teknisiPhotos array (just filename, like WhatsApp does)
+        ticket.teknisiPhotos.push(req.file.filename);
         
         // Save to database
         saveReports(global.reports);
         console.log(`[TICKET_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId}. Total: ${ticket.photos.length}`);
         
+        // Update photoCount for consistency
+        ticket.teknisiPhotoCount = ticket.teknisiPhotos.length;
+        
         // Check if minimum photos requirement is met
         const minPhotos = 2;
-        const canComplete = ticket.photos.length >= minPhotos;
+        const currentTotal = ticket.teknisiPhotos.length;
+        const canComplete = currentTotal >= minPhotos;
         
         return res.json({
             status: 200,
-            message: `Foto ${ticket.photos.length} berhasil diupload`,
+            message: `Foto ${currentTotal} berhasil diupload`,
             data: {
                 ticketId: ticket.ticketId || ticket.id,
-                photoCount: ticket.photos.length,
-                totalPhotos: ticket.photos.length,
+                photoCount: currentTotal,
+                totalPhotos: currentTotal,
                 minPhotos: minPhotos,
                 canComplete: canComplete,
                 photo: photoInfo,
-                nextStep: canComplete ? 'Bisa selesaikan tiket sekarang' : `Perlu ${minPhotos - ticket.photos.length} foto lagi (minimal ${minPhotos} foto)`
+                nextStep: canComplete ? 'Bisa selesaikan tiket sekarang' : `Perlu ${minPhotos - currentTotal} foto lagi (minimal ${minPhotos} foto)`
             }
         });
     } catch (error) {

@@ -465,11 +465,59 @@
             const photoContainer = $('#detail-photos');
             photoContainer.empty();
             
+            // Check BOTH teknisiPhotos (from WhatsApp) AND photos (from Web Dashboard)
+            let allPhotos = [];
+            
+            // Collect photos from teknisiPhotos field (WhatsApp uploads)
             if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
-                ticket.teknisiPhotos.forEach((photo, index) => {
+                ticket.teknisiPhotos.forEach(photo => {
+                    allPhotos.push({
+                        type: 'whatsapp',
+                        path: `/uploads/teknisi/${photo}`,
+                        filename: photo
+                    });
+                });
+            }
+            
+            // Collect photos from photos field (Web Dashboard uploads)
+            if (ticket.photos && ticket.photos.length > 0) {
+                ticket.photos.forEach(photo => {
+                    // Handle both object format and string format
+                    if (typeof photo === 'object') {
+                        allPhotos.push({
+                            type: 'web',
+                            path: photo.path || `/uploads/tickets/${photo.filename}`,
+                            filename: photo.filename
+                        });
+                    } else {
+                        // If it's a string, treat as filename
+                        allPhotos.push({
+                            type: 'web',
+                            path: `/uploads/tickets/${photo}`,
+                            filename: photo
+                        });
+                    }
+                });
+            }
+            
+            // Also check completionPhotos field (alternative field sometimes used)
+            if (ticket.completionPhotos && ticket.completionPhotos.length > 0) {
+                ticket.completionPhotos.forEach(photo => {
+                    allPhotos.push({
+                        type: 'completion',
+                        path: `/uploads/teknisi/${photo}`,
+                        filename: photo
+                    });
+                });
+            }
+            
+            // Display all collected photos
+            if (allPhotos.length > 0) {
+                allPhotos.forEach((photo, index) => {
                     photoContainer.append(`
-                        <div class="photo-thumbnail" onclick="viewPhoto('${photo}')">
-                            <img src="/uploads/teknisi/${photo}" alt="Photo ${index + 1}">
+                        <div class="photo-thumbnail" onclick="viewPhotoFullPath('${photo.path}')" title="Photo ${index + 1} (${photo.type})">
+                            <img src="${photo.path}" alt="Photo ${index + 1}" onerror="this.onerror=null; this.src='/img/no-image.png';">
+                            <span class="photo-count-badge">${index + 1}</span>
                         </div>
                     `);
                 });
@@ -501,6 +549,11 @@
         function viewPhoto(photoUrl) {
             // Open photo in full screen modal
             window.open(`/uploads/teknisi/${photoUrl}`, '_blank');
+        }
+        
+        function viewPhotoFullPath(fullPath) {
+            // Open photo with full path in new window
+            window.open(fullPath, '_blank');
         }
         
         let dataTableInstance;
