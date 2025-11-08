@@ -252,10 +252,6 @@
                     <input type="number" class="form-control" id="accessLimit" name="accessLimit" />
                   </div>
                   <div class="mb-3">
-                    <label for="check_schedule" class="form-label">Jadwal Cek redaman</label>
-                    <input type="text" class="form-control" id="check_schedule" name="check_schedule" />
-                  </div>
-                  <div class="mb-3">
                     <label for="rx_tolerance">Toleransi Redaman</label>
                     <input type="number" class="form-control" id="rx_tolerance" name="rx_tolerance" />
                   </div>
@@ -414,7 +410,6 @@
                 setValue('rekening_details', json.data.rekening_details);
                 setValue('genieacsBaseUrl', json.data.genieacsBaseUrl);
                 setValue('accessLimit', json.data.accessLimit);
-                setValue('check_schedule', json.data.check_schedule);
                 setValue('rx_tolerance', json.data.rx_tolerance);
                 setValue('ipaymuSecret', json.data.ipaymuSecret);
                 setValue('ipaymuVA', json.data.ipaymuVA);

@@ -14,5 +14,7 @@
   "status_message_compensation_applied": true,
   "status_speed_boost_revert": false,
   "status_message_sod_applied": false,
-  "status_message_sod_reverted": false
+  "status_message_sod_reverted": false,
+  "check_schedule": "0 */6 * * *",
+  "status_check_schedule": true
 }

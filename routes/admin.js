@@ -303,7 +303,8 @@ router.post('/api/cron', ensureAuthenticatedStaff, (req, res) => {
         'schedule',
         'schedule_unpaid_action',
         'schedule_isolir_notification',
-        'schedule_compensation_revert'
+        'schedule_compensation_revert',
+        'check_schedule'  // Added redaman check schedule
     ];
 
     for (const field of cronFields) {

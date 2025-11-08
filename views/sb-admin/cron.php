@@ -149,6 +149,16 @@
                                     <input type="checkbox" name="status_message_sod_reverted" id="status_message_sod_reverted">
                                     <label for="status_message_sod_reverted" class="form-label">Enable / Disable Notifikasi Saat Speed on Demand Berakhir</label>
                                 </div>
+                                <hr>
+                                <div class="mb-3">
+                                    <label for="check_schedule" class="form-label">Jadwal Cek Redaman (Cron Expression)</label>
+                                    <input type="text" class="form-control" id="check_schedule" name="check_schedule" placeholder="0 */6 * * * (Default: setiap 6 jam)" />
+                                    <small class="text-muted">Format: menit jam tanggal bulan hari. Contoh: "0 */6 * * *" untuk setiap 6 jam</small>
+                                </div>
+                                <div class="mb-3">
+                                    <input type="checkbox" name="status_check_schedule" id="status_check_schedule">
+                                    <label for="status_check_schedule" class="form-label">Enable / Disable Jadwal Cek Redaman</label>
+                                </div>
                                 <button type="submit" class="btn btn-primary">Simpan</button>
                             </form>
                         </div>
@@ -227,6 +237,8 @@
                     document.getElementById("status_speed_boost_revert").checked = result.data.status_speed_boost_revert || false;
                     document.getElementById("status_message_sod_applied").checked = result.data.status_message_sod_applied || false;
                     document.getElementById("status_message_sod_reverted").checked = result.data.status_message_sod_reverted || false;
+                    document.getElementById("check_schedule").value = result.data.check_schedule || "0 */6 * * *";
+                    document.getElementById("status_check_schedule").checked = result.data.status_check_schedule !== false;
                 } else {
                     console.error("No data found in the response:", result);
                      Swal.fire({
@@ -266,6 +278,8 @@
                 status_speed_boost_revert: document.getElementById("status_speed_boost_revert").checked,
                 status_message_sod_applied: document.getElementById("status_message_sod_applied").checked,
                 status_message_sod_reverted: document.getElementById("status_message_sod_reverted").checked,
+                check_schedule: document.getElementById("check_schedule").value.trim(),
+                status_check_schedule: document.getElementById("status_check_schedule").checked
             };
 
             try {
