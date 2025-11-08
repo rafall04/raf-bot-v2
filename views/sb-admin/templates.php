@@ -186,6 +186,59 @@
                         </div>
                     </div>
 
+                    <!-- Placeholder Documentation Card -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3" style="background-color: #f8f9fa;">
+                            <h6 class="m-0 font-weight-bold text-info">
+                                <i class="fas fa-info-circle"></i> Standar Placeholder untuk Template
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <h6 class="font-weight-bold text-primary">🏢 System</h6>
+                                    <ul class="small list-unstyled">
+                                        <li><code>${nama_wifi}</code> - Nama layanan WiFi</li>
+                                        <li><code>${nama_bot}</code> - Nama bot WhatsApp</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="font-weight-bold text-primary">👤 User</h6>
+                                    <ul class="small list-unstyled">
+                                        <li><code>${nama_pelanggan}</code> - Nama pelanggan</li>
+                                        <li><code>${pushname}</code> - Nama WhatsApp</li>
+                                        <li><code>${username}</code> - Username sistem</li>
+                                        <li><code>${phone}</code> - Nomor telepon</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="font-weight-bold text-primary">💳 Billing</h6>
+                                    <ul class="small list-unstyled">
+                                        <li><code>${nama_paket}</code> - Nama paket</li>
+                                        <li><code>${harga_formatted}</code> - Harga (Rp)</li>
+                                        <li><code>${periode}</code> - Periode tagihan</li>
+                                        <li><code>${jatuh_tempo}</code> - Jatuh tempo</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="font-weight-bold text-primary">🔧 Technical</h6>
+                                    <ul class="small list-unstyled">
+                                        <li><code>${ticket_id}</code> - ID tiket</li>
+                                        <li><code>${nama_teknisi}</code> - Nama teknisi</li>
+                                        <li><code>${ssid}</code> - Nama WiFi (SSID)</li>
+                                        <li><code>${tanggal}</code> - Tanggal</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning mt-3 mb-0 small">
+                                <i class="fas fa-exclamation-triangle"></i> <strong>PENTING:</strong> 
+                                Jangan gunakan <code>${nama}</code> saja (ambigu), gunakan <code>${nama_pelanggan}</code> atau <code>${nama_wifi}</code> sesuai konteks.
+                                Jangan gunakan <code>${namabot}</code>, gunakan <code>${nama_bot}</code>.
+                                Jangan gunakan <code>${paket}</code>, gunakan <code>${nama_paket}</code>.
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="row">
                         <div class="col-lg-9">
                             <form id="templatesForm">
@@ -355,39 +408,39 @@
                         
                         <!-- Sidebar with Placeholders -->
                         <div class="col-lg-3">
-                            <div class="placeholder-sidebar">
-                                <div class="card shadow mb-4">
-                                    <div class="card-header py-3">
-                                        <h6 class="m-0 font-weight-bold text-primary">
-                                            <i class="fas fa-tags"></i> Available Placeholders
-                                        </h6>
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">
+                                        <i class="fas fa-lightbulb"></i> Quick Reference
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info" style="font-size: 0.85rem;">
+                                        <i class="fas fa-info-circle"></i> Gunakan placeholder standar ini di template Anda.
                                     </div>
-                                    <div class="card-body">
-                                        <div class="alert alert-info" style="font-size: 0.85rem;">
-                                            <i class="fas fa-info-circle"></i> Gunakan placeholder ini di template Anda.
-                                        </div>
 
-                                        <div class="accordion" id="placeholderAccordion">
-                                            <!-- General Placeholders -->
-                                            <div class="card">
-                                                <div class="card-header p-2" id="headingGeneral">
-                                                    <h6 class="mb-0">
-                                                        <button class="btn btn-link btn-sm text-left" type="button" data-toggle="collapse" data-target="#collapseGeneral">
-                                                            <i class="fas fa-globe"></i> Umum & Pengguna
-                                                        </button>
-                                                    </h6>
+                                    <div class="accordion" id="placeholderAccordion">
+                                        <!-- General Placeholders -->
+                                        <div class="card">
+                                            <div class="card-header p-2" id="headingGeneral">
+                                                <h6 class="mb-0">
+                                                    <button class="btn btn-link btn-sm text-left" type="button" data-toggle="collapse" data-target="#collapseGeneral">
+                                                        <i class="fas fa-globe"></i> Umum & Pengguna
+                                                    </button>
+                                                </h6>
+                                            </div>
+                                            <div id="collapseGeneral" class="collapse show" data-parent="#placeholderAccordion">
+                                                <div class="card-body p-2">
+                                                    <ul class="placeholder-list">
+                                                        <li><code>${nama_pelanggan}</code> - Nama pelanggan</li>
+                                                        <li><code>${pushname}</code> - Nama WhatsApp</li>
+                                                        <li><code>${nama_wifi}</code> - Nama WiFi</li>
+                                                        <li><code>${nama_bot}</code> - Nama bot</li>
+                                                        <li><code>${phone}</code> - No. telepon</li>
+                                                    </ul>
                                                 </div>
-                                                <div id="collapseGeneral" class="collapse show" data-parent="#placeholderAccordion">
-                                                    <div class="card-body p-2">
-                                                        <ul class="placeholder-list">
-                                                            <li><code>${nama}</code> - Nama pelanggan</li>
-                                                            <li><code>${pushname}</code> - Nama WhatsApp</li>
-                                                            <li><code>${nama_wifi}</code> - Nama WiFi</li>
-                                                            <li><code>${nama_bot}</code> - Nama bot</li>
-                                                            <li><code>${telfon}</code> - No. admin</li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
+                                            </div>
+                                        </div>
                                             </div>
 
                                             <!-- Billing Placeholders -->

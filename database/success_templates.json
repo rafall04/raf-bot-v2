@@ -37,7 +37,7 @@
   },
   "user_added": {
     "name": "User Added Success",
-    "template": "✅ *USER BERHASIL DITAMBAHKAN*\n\n👤 Detail User:\n• Username: ${username}\n• Nama: ${nama}\n• Paket: ${package}\n• Status: *AKTIF*\n\nUser dapat langsung menggunakan layanan."
+    "template": "✅ *USER BERHASIL DITAMBAHKAN*\n\n👤 Detail User:\n• Username: ${username}\n• Nama: ${nama_pelanggan}\n• Paket: ${package}\n• Status: *AKTIF*\n\nUser dapat langsung menggunakan layanan."
   },
   "voucher_purchased": {
     "name": "Voucher Purchase Success",
