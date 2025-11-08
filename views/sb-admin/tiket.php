@@ -389,9 +389,36 @@
                                 <option value="">Memuat pelanggan...</option>
                             </select>
                         </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="prioritySelect">Prioritas:</label>
+                                <select class="form-control" id="prioritySelect" name="priority" required>
+                                    <option value="HIGH">🔴 URGENT (30-60 menit)</option>
+                                    <option value="MEDIUM" selected>🟡 NORMAL (2-4 jam)</option>
+                                    <option value="LOW">🟢 LOW (6-12 jam)</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="issueTypeSelect">Tipe Masalah:</label>
+                                <select class="form-control" id="issueTypeSelect" name="issueType" required>
+                                    <option value="MATI">💀 Internet Mati Total</option>
+                                    <option value="LEMOT">🐌 Internet Lemot</option>
+                                    <option value="PUTUS_NYAMBUNG">🔄 Putus-Nyambung</option>
+                                    <option value="WIFI">📶 Masalah WiFi</option>
+                                    <option value="HARDWARE">🔧 Masalah Hardware</option>
+                                    <option value="GENERAL" selected>📋 Lainnya/Umum</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <div class="form-group">
                             <label for="laporanTextInput">Deskripsi Laporan Kendala:</label>
                             <textarea class="form-control" id="laporanTextInput" name="laporanText" rows="4" placeholder="Jelaskan kendala yang dialami pelanggan..." required></textarea>
+                        </div>
+                        
+                        <div class="alert alert-info" role="alert">
+                            <strong>ℹ️ Info:</strong> Tiket akan otomatis dikirim ke semua teknisi via WhatsApp
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -764,29 +791,24 @@
                 event.preventDefault();
                 const customerUserId = document.getElementById('customerSelect').value;
                 const laporanText = document.getElementById('laporanTextInput').value;
+                const priority = document.getElementById('prioritySelect').value;
+                const issueType = document.getElementById('issueTypeSelect').value;
                 const submitBtn = document.getElementById('submitNewTicketBtn');
 
                 if (!customerUserId) { // Hanya cek customerUserId karena laporanText sudah 'required'
-                    displayGlobalAdminMessage('Harap pilih pelanggan dari daftar.', 'warning');
-                     $('#customerSelect').select2('open'); // Fokuskan kembali ke select2
                     return;
                 }
-                 if (laporanText.trim() === "") {
-                    displayGlobalAdminMessage('Deskripsi laporan tidak boleh kosong.', 'warning');
-                    document.getElementById('laporanTextInput').focus();
-                    return;
-                }
-
-
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Membuat...';
-
+                
                 try {
                     const response = await fetch('/api/admin/ticket/create', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include', // ✅ Fixed by script
-                        body: JSON.stringify({ customerUserId, laporanText })
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ 
+                            customerUserId, 
+                            laporanText,
+                            priority,
+                            issueType
+                        })
                     });
                     const result = await response.json();
 
@@ -797,16 +819,18 @@
                         $('#customerSelect').val(null).trigger('change'); 
                         loadTickets(); 
                     } else {
-                        displayGlobalAdminMessage(`Gagal membuat tiket: ${result.message || 'Error tidak diketahui.'}`, 'danger');
+                        displayGlobalAdminMessage(result.message || 'Gagal membuat tiket', 'danger');
                     }
-                } catch (error) {
-                    console.error('Error creating ticket by admin:', error);
-                    displayGlobalAdminMessage('Terjadi kesalahan koneksi saat membuat tiket.', 'danger');
-                } finally {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = 'Buat Tiket';
+                } catch(error) {
+                    console.error('Error creating ticket:', error);
+                    displayGlobalAdminMessage('Terjadi kesalahan koneksi saat membuat tiket', 'danger');
                 }
             });
+
+            const submitBtn = document.getElementById('submitNewTicketBtn');
+
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Buat Tiket';
         });
     </script>
 </body>

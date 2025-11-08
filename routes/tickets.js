@@ -1229,10 +1229,21 @@ router.post('/ticket/resolve', ensureAuthenticatedStaff, async (req, res) => {
     }
 });
 
-// POST /api/admin/ticket/create - Admin create ticket
+// Helper function to generate ticket ID (consistent with WhatsApp bot)
+function generateTicketId(length = 7) {
+    const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let result = '';
+    const charactersLength = characters.length;
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+// POST /api/admin/ticket/create - Admin create ticket (UPDATED to match WhatsApp bot)
 router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
     try {
-        const { customerUserId, laporanText } = req.body;
+        const { customerUserId, laporanText, priority, issueType } = req.body;
         
         if (!customerUserId || !laporanText) {
             return res.status(400).json({
@@ -1242,7 +1253,7 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
         }
         
         // Find the user
-        const user = global.users.find(u => u.id === customerUserId);
+        const user = global.users.find(u => u.id === parseInt(customerUserId));
         if (!user) {
             return res.status(404).json({
                 status: 404,
@@ -1250,18 +1261,45 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
             });
         }
         
-        // Generate ticket ID
-        const ticketId = 'TKT' + Date.now() + Math.random().toString(36).substr(2, 5).toUpperCase();
+        // Generate ticket ID (consistent with WhatsApp bot)
+        const ticketId = generateTicketId(7);
         
-        // Create new ticket
+        // Create ticket with SAME structure as WhatsApp bot
         const newTicket = {
-            id: ticketId,
-            user_id: customerUserId,
-            description: laporanText,
+            ticketId: ticketId,  // Use ticketId, not id
+            pelangganUserId: user.id,
+            pelangganId: user.phone_number ? `${user.phone_number}@s.whatsapp.net` : '',
+            pelangganName: user.name || user.username || 'Customer',
+            pelangganPhone: user.phone_number || '',
+            pelangganAddress: user.address || '',
+            pelangganSubscription: user.subscription || 'Tidak terinfo',
+            pelangganDataSystem: {
+                id: user.id,
+                name: user.name,
+                address: user.address,
+                subscription: user.subscription,
+                pppoe_username: user.pppoe_username
+            },
+            laporanText: laporanText,
             status: 'baru',
-            created_at: new Date().toISOString(),
-            created_by: req.user.username,
-            created_by_admin: true
+            priority: priority || 'MEDIUM',  // Add priority field
+            issueType: issueType || 'GENERAL',  // Add issue type
+            createdAt: new Date().toISOString(),
+            createdBy: req.user.username,
+            createdByAdmin: true,
+            deviceOnline: null,  // Unknown from admin panel
+            troubleshootingDone: false,
+            assignedTeknisiId: null,
+            assignedTeknisiName: null,
+            processingStartedAt: null,
+            processedByTeknisiId: null,
+            processedByTeknisiName: null,
+            resolvedAt: null,
+            resolvedByTeknisiId: null,
+            resolvedByTeknisiName: null,
+            cancellationReason: null,
+            cancellationTimestamp: null,
+            cancelledBy: null
         };
         
         // Add to reports
@@ -1270,35 +1308,266 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
         // Save to database
         saveReports(global.reports);
         
-        // Send notification to customer via WhatsApp if possible
-        if (global.raf && user.phone) {
-            const customerMsg = `Halo ${user.name},\n\n` +
+        // Notify customer via WhatsApp
+        if (global.raf && user.phone_number) {
+            const customerMsg = `✨ *TIKET LAPORAN DIBUAT OLEH ADMIN* ✨\n\n` +
+                `Halo ${user.name || 'Pelanggan'},\n\n` +
                 `Admin telah membuat tiket laporan untuk Anda:\n\n` +
+                `━━━━━━━━━━━━━━━━\n` +
                 `📋 *ID Tiket:* ${ticketId}\n` +
+                `⚡ *Prioritas:* ${priority === 'HIGH' ? '🔴 URGENT' : priority === 'MEDIUM' ? '🟡 NORMAL' : '🟢 LOW'}\n` +
                 `📝 *Laporan:* ${laporanText}\n` +
-                `⏰ *Waktu:* ${new Date().toLocaleString('id-ID')}\n\n` +
+                `⏰ *Waktu:* ${new Date().toLocaleString('id-ID')}\n` +
+                `━━━━━━━━━━━━━━━━\n\n` +
                 `Tim teknisi kami akan segera menangani laporan ini.\n` +
+                `Anda dapat cek status dengan: *cektiket ${ticketId}*\n\n` +
                 `Terima kasih. 🙏`;
             
             try {
-                const phoneNumber = user.phone.replace(/[^0-9]/g, '');
-                const jid = phoneNumber.includes('@s.whatsapp.net') ? phoneNumber : `${phoneNumber}@s.whatsapp.net`;
-                await global.raf.sendMessage(jid, { text: customerMsg });
+                let phoneJid = user.phone_number.trim();
+                if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                    if (phoneJid.startsWith('0')) {
+                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                    } else if (phoneJid.startsWith('62')) {
+                        phoneJid = `${phoneJid}@s.whatsapp.net`;
+                    } else {
+                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                    }
+                }
+                await global.raf.sendMessage(phoneJid, { text: customerMsg });
             } catch (err) {
                 console.error('[ADMIN_CREATE_TICKET] Failed to send WhatsApp to customer:', err);
             }
         }
         
+        // NOTIFY ALL TEKNISI (like WhatsApp bot does)
+        const teknisiAccounts = global.accounts.filter(acc => acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== '');
+        const waktuLaporFormatted = new Date(newTicket.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
+        
+        const urgentIcon = newTicket.priority === 'HIGH' ? '🚨' : newTicket.priority === 'MEDIUM' ? '📢' : '📌';
+        const messageToTeknisi = `${urgentIcon} *TIKET BARU DARI ADMIN*\n\n` +
+            `━━━━━━━━━━━━━━━━\n` +
+            `📋 ID Tiket: *${ticketId}*\n` +
+            `⚡ Prioritas: ${newTicket.priority === 'HIGH' ? '🔴 URGENT' : newTicket.priority === 'MEDIUM' ? '🟡 NORMAL' : '🟢 LOW'}\n` +
+            `🏷️ Tipe: ${issueType || 'GENERAL'}\n` +
+            `━━━━━━━━━━━━━━━━\n\n` +
+            `*Informasi Pelanggan:*\n` +
+            `👤 Nama: ${user.name || 'N/A'}\n` +
+            `📱 No: ${user.phone_number || 'N/A'}\n` +
+            `📍 Alamat: ${user.address || 'N/A'}\n` +
+            `📦 Paket: ${user.subscription || 'N/A'}\n` +
+            `${user.pppoe_username ? `🌐 PPPoE: ${user.pppoe_username}\n` : ''}` +
+            `\n*Isi Laporan:*\n${laporanText}\n\n` +
+            `⏰ Waktu: ${waktuLaporFormatted}\n` +
+            `👤 Dibuat oleh: Admin ${req.user.username}\n\n` +
+            `━━━━━━━━━━━━━━━━\n` +
+            `*LANGKAH SELANJUTNYA:*\n\n` +
+            `1️⃣ Proses tiket: *proses ${ticketId}*\n` +
+            `2️⃣ Mulai perjalanan: *otw ${ticketId}*\n` +
+            `3️⃣ Sampai lokasi: *sampai ${ticketId}*\n\n` +
+            `Mohon segera ditangani. Terima kasih! 🙏`;
+        
+        // Send to all teknisi
+        for (const teknisi of teknisiAccounts) {
+            let teknisiJid = teknisi.phone_number.trim();
+            if (!teknisiJid.endsWith('@s.whatsapp.net')) {
+                if (teknisiJid.startsWith('0')) {
+                    teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
+                } else if (teknisiJid.startsWith('62')) {
+                    teknisiJid = `${teknisiJid}@s.whatsapp.net`;
+                } else {
+                    teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+                }
+            }
+            try {
+                await global.raf.sendMessage(teknisiJid, { text: messageToTeknisi });
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Delay to prevent spam
+            } catch (err) {
+                console.error(`[ADMIN_CREATE_TICKET] Failed to notify teknisi ${teknisi.username}:`, err);
+            }
+        }
+        
         return res.json({
             status: 200,
-            message: 'Tiket berhasil dibuat',
+            message: 'Tiket berhasil dibuat dan teknisi telah dinotifikasi',
             data: newTicket
         });
     } catch (error) {
         console.error('[API_ADMIN_TICKET_CREATE_ERROR]', error);
         return res.status(500).json({
             status: 500,
-            message: 'Terjadi kesalahan saat membuat tiket'
+            message: 'Terjadi kesalahan saat membuat tiket',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/ticket/create - Teknisi create ticket (SAME logic as admin)
+router.post('/ticket/create', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { customerUserId, laporanText, priority, issueType } = req.body;
+        
+        if (!customerUserId || !laporanText) {
+            return res.status(400).json({
+                status: 400,
+                message: 'User ID dan laporan harus diisi'
+            });
+        }
+        
+        // Find the user
+        const user = global.users.find(u => u.id === parseInt(customerUserId));
+        if (!user) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Pelanggan tidak ditemukan'
+            });
+        }
+        
+        // Generate ticket ID (consistent with WhatsApp bot)
+        const ticketId = generateTicketId(7);
+        
+        // Create ticket with SAME structure as WhatsApp bot
+        const newTicket = {
+            ticketId: ticketId,
+            pelangganUserId: user.id,
+            pelangganId: user.phone_number ? `${user.phone_number}@s.whatsapp.net` : '',
+            pelangganName: user.name || user.username || 'Customer',
+            pelangganPhone: user.phone_number || '',
+            pelangganAddress: user.address || '',
+            pelangganSubscription: user.subscription || 'Tidak terinfo',
+            pelangganDataSystem: {
+                id: user.id,
+                name: user.name,
+                address: user.address,
+                subscription: user.subscription,
+                pppoe_username: user.pppoe_username
+            },
+            laporanText: laporanText,
+            status: 'baru',
+            priority: priority || 'MEDIUM',
+            issueType: issueType || 'GENERAL',
+            createdAt: new Date().toISOString(),
+            createdBy: req.user.username,
+            createdByRole: req.user.role,  // Track who created (admin/teknisi)
+            deviceOnline: null,
+            troubleshootingDone: false,
+            assignedTeknisiId: req.user.role === 'teknisi' ? req.user.id : null,
+            assignedTeknisiName: req.user.role === 'teknisi' ? req.user.username : null,
+            processingStartedAt: null,
+            processedByTeknisiId: null,
+            processedByTeknisiName: null,
+            resolvedAt: null,
+            resolvedByTeknisiId: null,
+            resolvedByTeknisiName: null,
+            cancellationReason: null,
+            cancellationTimestamp: null,
+            cancelledBy: null
+        };
+        
+        // Add to reports
+        global.reports.push(newTicket);
+        
+        // Save to database
+        saveReports(global.reports);
+        
+        // Notify customer via WhatsApp
+        if (global.raf && user.phone_number) {
+            const creatorInfo = req.user.role === 'teknisi' ? `Teknisi ${req.user.username}` : `Admin ${req.user.username}`;
+            const customerMsg = `✨ *TIKET LAPORAN DIBUAT* ✨\n\n` +
+                `Halo ${user.name || 'Pelanggan'},\n\n` +
+                `${creatorInfo} telah membuat tiket laporan untuk Anda:\n\n` +
+                `━━━━━━━━━━━━━━━━\n` +
+                `📋 *ID Tiket:* ${ticketId}\n` +
+                `⚡ *Prioritas:* ${priority === 'HIGH' ? '🔴 URGENT' : priority === 'MEDIUM' ? '🟡 NORMAL' : '🟢 LOW'}\n` +
+                `📝 *Laporan:* ${laporanText}\n` +
+                `⏰ *Waktu:* ${new Date().toLocaleString('id-ID')}\n` +
+                `━━━━━━━━━━━━━━━━\n\n` +
+                `Tim teknisi kami akan segera menangani laporan ini.\n` +
+                `Anda dapat cek status dengan: *cektiket ${ticketId}*\n\n` +
+                `Terima kasih. 🙏`;
+            
+            try {
+                let phoneJid = user.phone_number.trim();
+                if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                    if (phoneJid.startsWith('0')) {
+                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                    } else if (phoneJid.startsWith('62')) {
+                        phoneJid = `${phoneJid}@s.whatsapp.net`;
+                    } else {
+                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                    }
+                }
+                await global.raf.sendMessage(phoneJid, { text: customerMsg });
+            } catch (err) {
+                console.error('[CREATE_TICKET] Failed to send WhatsApp to customer:', err);
+            }
+        }
+        
+        // NOTIFY OTHER TEKNISI (not the creator)
+        const teknisiAccounts = global.accounts.filter(acc => 
+            acc.role === 'teknisi' && 
+            acc.phone_number && 
+            acc.phone_number.trim() !== '' &&
+            acc.username !== req.user.username  // Don't notify creator
+        );
+        
+        const waktuLaporFormatted = new Date(newTicket.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
+        const urgentIcon = newTicket.priority === 'HIGH' ? '🚨' : newTicket.priority === 'MEDIUM' ? '📢' : '📌';
+        const creatorInfo = req.user.role === 'teknisi' ? `Teknisi ${req.user.username}` : `Admin ${req.user.username}`;
+        
+        const messageToTeknisi = `${urgentIcon} *TIKET BARU*\n\n` +
+            `━━━━━━━━━━━━━━━━\n` +
+            `📋 ID Tiket: *${ticketId}*\n` +
+            `⚡ Prioritas: ${newTicket.priority === 'HIGH' ? '🔴 URGENT' : newTicket.priority === 'MEDIUM' ? '🟡 NORMAL' : '🟢 LOW'}\n` +
+            `🏷️ Tipe: ${issueType || 'GENERAL'}\n` +
+            `━━━━━━━━━━━━━━━━\n\n` +
+            `*Informasi Pelanggan:*\n` +
+            `👤 Nama: ${user.name || 'N/A'}\n` +
+            `📱 No: ${user.phone_number || 'N/A'}\n` +
+            `📍 Alamat: ${user.address || 'N/A'}\n` +
+            `📦 Paket: ${user.subscription || 'N/A'}\n` +
+            `${user.pppoe_username ? `🌐 PPPoE: ${user.pppoe_username}\n` : ''}` +
+            `\n*Isi Laporan:*\n${laporanText}\n\n` +
+            `⏰ Waktu: ${waktuLaporFormatted}\n` +
+            `👤 Dibuat oleh: ${creatorInfo}\n\n` +
+            `━━━━━━━━━━━━━━━━\n` +
+            `*LANGKAH SELANJUTNYA:*\n\n` +
+            `1️⃣ Proses tiket: *proses ${ticketId}*\n` +
+            `2️⃣ Mulai perjalanan: *otw ${ticketId}*\n` +
+            `3️⃣ Sampai lokasi: *sampai ${ticketId}*\n\n` +
+            `Mohon segera ditangani. Terima kasih! 🙏`;
+        
+        // Send to other teknisi
+        for (const teknisi of teknisiAccounts) {
+            let teknisiJid = teknisi.phone_number.trim();
+            if (!teknisiJid.endsWith('@s.whatsapp.net')) {
+                if (teknisiJid.startsWith('0')) {
+                    teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
+                } else if (teknisiJid.startsWith('62')) {
+                    teknisiJid = `${teknisiJid}@s.whatsapp.net`;
+                } else {
+                    teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+                }
+            }
+            try {
+                await global.raf.sendMessage(teknisiJid, { text: messageToTeknisi });
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Delay to prevent spam
+            } catch (err) {
+                console.error(`[CREATE_TICKET] Failed to notify teknisi ${teknisi.username}:`, err);
+            }
+        }
+        
+        return res.json({
+            status: 200,
+            message: 'Tiket berhasil dibuat dan telah dinotifikasi',
+            data: newTicket
+        });
+    } catch (error) {
+        console.error('[API_TICKET_CREATE_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat membuat tiket',
+            error: error.message
         });
     }
 });

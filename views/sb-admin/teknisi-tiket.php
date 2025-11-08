@@ -7,9 +7,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>Manajemen Tiket Laporan - Teknisi</title>
     <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
     <link href="/css/sb-admin-2.min.css" rel="stylesheet">
-  <link href="/css/dashboard-modern.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="/css/dashboard-modern.css" rel="stylesheet">
     <link href="/vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <style>
         .ticket-details {
@@ -215,7 +216,12 @@
                     </ul>
                 </nav>
                 <div class="container-fluid">
-                    <h1 class="h3 mb-4 text-gray-800">Manajemen Tiket Laporan</h1>
+                    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+                        <h1 class="h3 mb-0 text-gray-800">Manajemen Tiket Laporan</h1>
+                        <button class="btn btn-primary" data-toggle="modal" data-target="#createTicketModal">
+                            <i class="fas fa-ticket-alt"></i> Buat Tiket Baru
+                        </button>
+                    </div>
                     <div id="globalMessage" class="mb-3"></div>
 
                     <div class="card shadow mb-4">
@@ -259,8 +265,7 @@
         <i class="fas fa-angle-up"></i>
     </a>
 
-    <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel"
-        aria-hidden="true">
+    <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
@@ -275,6 +280,65 @@
                     <a class="btn btn-primary" href="/logout">Logout</a>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Create Ticket Modal -->
+    <div class="modal fade" id="createTicketModal" tabindex="-1" role="dialog" aria-labelledby="createTicketModalLabel">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <form id="createTicketForm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createTicketModalLabel">Buat Tiket Laporan Baru</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="customerSelect">Pilih Pelanggan:</label>
+                            <select class="form-control" id="customerSelect" name="customerUserId" style="width: 100%;" required>
+                                <option value="">Memuat pelanggan...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="prioritySelect">Prioritas:</label>
+                                <select class="form-control" id="prioritySelect" name="priority" required>
+                                    <option value="HIGH">🔴 URGENT (30-60 menit)</option>
+                                    <option value="MEDIUM" selected>🟡 NORMAL (2-4 jam)</option>
+                                    <option value="LOW">🟢 LOW (6-12 jam)</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="issueTypeSelect">Tipe Masalah:</label>
+                                <select class="form-control" id="issueTypeSelect" name="issueType" required>
+                                    <option value="MATI">💀 Internet Mati Total</option>
+                                    <option value="LEMOT">🐌 Internet Lemot</option>
+                                    <option value="PUTUS_NYAMBUNG">🔄 Putus-Nyambung</option>
+                                    <option value="WIFI">📶 Masalah WiFi</option>
+                                    <option value="HARDWARE">🔧 Masalah Hardware</option>
+                                    <option value="GENERAL" selected>📋 Lainnya/Umum</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="laporanTextInput">Deskripsi Laporan Kendala:</label>
+                            <textarea class="form-control" id="laporanTextInput" name="laporanText" rows="4" placeholder="Jelaskan kendala yang dialami pelanggan..." required></textarea>
+                        </div>
+                        
+                        <div class="alert alert-info" role="alert">
+                            <strong>ℹ️ Info:</strong> Tiket akan otomatis dikirim ke pelanggan dan teknisi lain via WhatsApp
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        <button type="submit" class="btn btn-success" id="submitNewTicketBtn">Buat Tiket</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -424,6 +488,7 @@
     <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
     <script src="/js/sb-admin-2.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="/vendor/datatables/jquery.dataTables.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
@@ -1290,6 +1355,88 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Select2 for customer dropdown
+            $('#customerSelect').select2({
+                theme: "bootstrap",
+                dropdownParent: $('#createTicketModal'),
+                placeholder: 'Cari dan pilih pelanggan...',
+                allowClear: true,
+                ajax: {
+                    url: '/api/users',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            search: params.term,
+                            page: params.page || 1,
+                            role: 'pelanggan'
+                        };
+                    },
+                    processResults: function (data, params) {
+                        params.page = params.page || 1;
+                        const users = data.data || data;
+                        return {
+                            results: users.map(user => ({
+                                id: user.id,
+                                text: `${user.name || `ID: ${user.id}`} (${user.pppoe_username || 'No PPPoE'}) - ${user.phone_number ? user.phone_number.split('|')[0] : 'No HP'}`
+                            })),
+                            pagination: {
+                                more: (params.page * 10) < (data.total || users.length)
+                            }
+                        };
+                    },
+                    cache: true
+                }
+            });
+
+            // Handle create ticket form submission
+            document.getElementById('createTicketForm').addEventListener('submit', async function(event) {
+                event.preventDefault();
+                const customerUserId = document.getElementById('customerSelect').value;
+                const laporanText = document.getElementById('laporanTextInput').value;
+                const priority = document.getElementById('prioritySelect').value;
+                const issueType = document.getElementById('issueTypeSelect').value;
+                const submitBtn = document.getElementById('submitNewTicketBtn');
+
+                if (!customerUserId) {
+                    displayMessage('Silakan pilih pelanggan', 'warning');
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat tiket...';
+
+                try {
+                    const response = await fetch('/api/ticket/create', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            customerUserId,
+                            laporanText,
+                            priority,
+                            issueType
+                        })
+                    });
+                    const result = await response.json();
+
+                    if (response.ok && (result.status === 201 || result.status === 200)) {
+                        displayMessage(result.message || 'Tiket berhasil dibuat dan teknisi telah dinotifikasi', 'success');
+                        $('#createTicketModal').modal('hide');
+                        document.getElementById('createTicketForm').reset();
+                        $('#customerSelect').val(null).trigger('change');
+                        loadTickets(); // Refresh ticket list
+                    } else {
+                        displayMessage(result.message || 'Gagal membuat tiket', 'danger');
+                    }
+                } catch(error) {
+                    console.error('Error creating ticket:', error);
+                    displayMessage('Terjadi kesalahan koneksi saat membuat tiket', 'danger');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Buat Tiket';
+                }
+            });
+
             // Inisialisasi DataTable sekali saat halaman dimuat
             $('#ticketsTable').DataTable({
                 "data": [], // Mulai dengan data kosong
