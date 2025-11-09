@@ -3075,4 +3075,638 @@ function getNestedValue(obj, path) {
     return current;
 }
 
+// ====================
+// Database Migration APIs
+// ====================
+
+// Note: exec is already imported at the top of this file (line 5)
+const sqlite3 = require('sqlite3').verbose();
+
+// Get database information
+router.get('/api/database/info', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const dbPath = path.join(__dirname, '..', 'database.sqlite');
+        const stats = fs.statSync(dbPath);
+        
+        // Get user count and column info from database
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
+        
+        const getInfo = () => new Promise((resolve, reject) => {
+            let info = {
+                size: `${(stats.size / 1024).toFixed(1)} KB`,
+                lastModified: new Date(stats.mtime).toLocaleString(),
+                totalUsers: 0,
+                totalColumns: 0
+            };
+            
+            // Get user count
+            db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
+                if (err) {
+                    console.error('[DB_INFO] Error counting users:', err);
+                    info.totalUsers = 'N/A';
+                } else {
+                    info.totalUsers = row.count;
+                }
+                
+                // Get column count
+                db.all("PRAGMA table_info(users)", [], (err, columns) => {
+                    if (err) {
+                        console.error('[DB_INFO] Error getting columns:', err);
+                        info.totalColumns = 'N/A';
+                    } else {
+                        info.totalColumns = columns.length;
+                    }
+                    
+                    db.close();
+                    resolve(info);
+                });
+            });
+        });
+        
+        const info = await getInfo();
+        
+        res.status(200).json({
+            status: 200,
+            message: "Database info retrieved",
+            data: info
+        });
+        
+    } catch (error) {
+        console.error('[DB_INFO] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Error getting database info",
+            data: null
+        });
+    }
+});
+
+// Get database backup list
+router.get('/api/database/backups', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const rootDir = path.join(__dirname, '..');
+        const backupsDir = path.join(rootDir, 'backups');
+        
+        // Create backups directory if it doesn't exist
+        if (!fs.existsSync(backupsDir)) {
+            fs.mkdirSync(backupsDir, { recursive: true });
+        }
+        
+        // Get backups from backups directory
+        const backupFiles = fs.existsSync(backupsDir) ? 
+            fs.readdirSync(backupsDir).filter(file => 
+                file.startsWith('database.backup.') && file.endsWith('.sqlite')
+            ) : [];
+        
+        // Sort by timestamp (newest first)
+        const backups = backupFiles.map(filename => {
+            const filePath = path.join(backupsDir, filename);
+            const stats = fs.statSync(filePath);
+            const timestamp = parseInt(filename.match(/database\.backup\.(\d+)\.sqlite/)[1]);
+            
+            return {
+                filename: filename,
+                created: new Date(timestamp).toLocaleString(),
+                size: `${(stats.size / 1024).toFixed(1)} KB`,
+                timestamp: timestamp
+            };
+        }).sort((a, b) => b.timestamp - a.timestamp);
+        
+        res.status(200).json({
+            status: 200,
+            message: "Backup list retrieved",
+            data: backups
+        });
+        
+    } catch (error) {
+        console.error('[DB_BACKUPS] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Error getting backup list",
+            data: []
+        });
+    }
+});
+
+// Check database schema
+router.post('/api/database/check-schema', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const expectedColumns = [
+            'id', 'name', 'username', 'password', 'phone_number', 'address',
+            'latitude', 'longitude', 'subscription', 'device_id', 'status',
+            'paid', 'send_invoice', 'is_corporate', 'corporate_name',
+            'corporate_address', 'corporate_npwp', 'corporate_pic_name',
+            'corporate_pic_phone', 'corporate_pic_email', 'pppoe_username',
+            'pppoe_password', 'connected_odp_id', 'bulk', 'created_at',
+            'updated_at', 'otp', 'otpTimestamp'
+        ];
+        
+        const dbPath = path.join(__dirname, '..', 'database.sqlite');
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
+        
+        const checkSchema = () => new Promise((resolve, reject) => {
+            db.all("PRAGMA table_info(users)", [], (err, columns) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                
+                const existingColumns = columns.map(col => col.name);
+                const missingColumns = expectedColumns.filter(col => 
+                    !existingColumns.includes(col)
+                );
+                
+                db.close();
+                resolve({
+                    existingColumns: existingColumns,
+                    missingColumns: missingColumns,
+                    totalExpected: expectedColumns.length,
+                    totalExisting: existingColumns.length
+                });
+            });
+        });
+        
+        const result = await checkSchema();
+        
+        res.status(200).json({
+            status: 200,
+            message: "Schema check complete",
+            data: result
+        });
+        
+    } catch (error) {
+        console.error('[DB_CHECK_SCHEMA] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Error checking schema: " + error.message,
+            data: null
+        });
+    }
+});
+
+// Run database migration
+router.post('/api/database/migrate-schema', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const scriptPath = path.join(__dirname, '..', 'tools', 'smart-migrate-database.js');
+        
+        if (!fs.existsSync(scriptPath)) {
+            return res.status(404).json({
+                status: 404,
+                message: "Migration script not found",
+                data: null
+            });
+        }
+        
+        // Run migration script
+        exec(`node "${scriptPath}"`, { cwd: path.join(__dirname, '..') }, async (error, stdout, stderr) => {
+            if (error) {
+                console.error('[DB_MIGRATE] Error:', error);
+                console.error('[DB_MIGRATE] Stderr:', stderr);
+                
+                return res.status(500).json({
+                    status: 500,
+                    message: "Migration failed: " + error.message,
+                    data: null
+                });
+            }
+            
+            // Parse output to extract useful info
+            const output = stdout.toString();
+            let backupFile = null;
+            let addedColumns = [];
+            
+            // Extract backup filename
+            const backupMatch = output.match(/Creating backup: ([^\n]+)/);
+            if (backupMatch) {
+                // Get just the filename without path
+                const fullPath = backupMatch[1].trim();
+                backupFile = path.basename(fullPath);
+            }
+            
+            // Extract added columns
+            const columnMatches = output.match(/✅ Added column: (\w+)/g);
+            if (columnMatches) {
+                addedColumns = columnMatches.map(match => 
+                    match.replace('✅ Added column: ', '').split(' ')[0]
+                );
+            }
+            
+            // Check if already up to date
+            const upToDate = output.includes('Database schema is already up to date!');
+            
+            console.log('[DB_MIGRATE] Migration completed successfully');
+            
+            // Auto-reload database after migration
+            const { reloadUsersFromDatabase } = require('../lib/database-reload');
+            
+            try {
+                const reloadResult = await reloadUsersFromDatabase();
+                console.log('[DB_MIGRATE] Database reloaded in memory:', reloadResult.message);
+                
+                res.status(200).json({
+                    status: 200,
+                    message: upToDate ? "Database already up to date" : "Migration completed successfully. No restart needed!",
+                    data: {
+                        backupFile: backupFile,
+                        addedColumns: addedColumns,
+                        upToDate: upToDate,
+                        output: output,
+                        reloadResult: reloadResult,
+                        restartRequired: false
+                    }
+                });
+            } catch (reloadErr) {
+                console.error('[DB_MIGRATE] Error reloading database:', reloadErr);
+                
+                // Migration succeeded but reload failed
+                res.status(200).json({
+                    status: 200,
+                    message: upToDate ? "Database already up to date" : "Migration completed. Please restart for changes to take effect.",
+                    data: {
+                        backupFile: backupFile,
+                        addedColumns: addedColumns,
+                        upToDate: upToDate,
+                        output: output,
+                        reloadError: reloadErr.message,
+                        restartRequired: true
+                    }
+                });
+            }
+        });
+        
+    } catch (error) {
+        console.error('[DB_MIGRATE] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Error starting migration: " + error.message,
+            data: null
+        });
+    }
+});
+
+// Upload and replace database
+router.post('/api/database/upload', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        // Check for multer middleware
+        const multer = require('multer');
+        const upload = multer({
+            dest: path.join(__dirname, '..', 'temp'),
+            limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+            fileFilter: (req, file, cb) => {
+                const ext = path.extname(file.originalname).toLowerCase();
+                if (['.sqlite', '.db', '.sqlite3'].includes(ext)) {
+                    cb(null, true);
+                } else {
+                    cb(new Error('Invalid file type. Only SQLite files are allowed.'));
+                }
+            }
+        }).single('database');
+        
+        // Process upload
+        upload(req, res, async (err) => {
+            if (err) {
+                console.error('[DB_UPLOAD] Upload error:', err);
+                return res.status(400).json({
+                    status: 400,
+                    message: err.message || 'Upload failed',
+                    data: null
+                });
+            }
+            
+            if (!req.file) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'No file uploaded',
+                    data: null
+                });
+            }
+            
+            const uploadedPath = req.file.path;
+            const dbPath = path.join(__dirname, '..', 'database.sqlite');
+            const autoMigrate = req.body.autoMigrate === 'true';
+            
+            // Validate SQLite file
+            const sqlite3Test = require('sqlite3').verbose();
+            const testDb = new sqlite3Test.Database(uploadedPath, sqlite3Test.OPEN_READONLY, (testErr) => {
+                if (testErr) {
+                    // Not a valid SQLite file - safe cleanup
+                    try {
+                        if (fs.existsSync(uploadedPath)) {
+                            fs.unlinkSync(uploadedPath);
+                        }
+                    } catch (unlinkErr) {
+                        console.error('[DB_UPLOAD] Warning: Could not delete invalid file:', unlinkErr.message);
+                    }
+                    
+                    return res.status(400).json({
+                        status: 400,
+                        message: 'File is not a valid SQLite database',
+                        data: null
+                    });
+                }
+                
+                // Check if users table exists
+                testDb.get("SELECT name FROM sqlite_master WHERE type='table' AND name='users'", [], async (checkErr, row) => {
+                    // Close database and wait for it to complete
+                    await new Promise((resolve) => {
+                        testDb.close((closeErr) => {
+                            if (closeErr) {
+                                console.error('[DB_UPLOAD] Error closing test database:', closeErr);
+                            }
+                            resolve();
+                        });
+                    });
+                    
+                    if (checkErr || !row) {
+                        // Safe cleanup with try-catch
+                        try {
+                            if (fs.existsSync(uploadedPath)) {
+                                fs.unlinkSync(uploadedPath);
+                            }
+                        } catch (unlinkErr) {
+                            console.error('[DB_UPLOAD] Error cleaning up file:', unlinkErr);
+                        }
+                        
+                        return res.status(400).json({
+                            status: 400,
+                            message: 'Database does not contain users table',
+                            data: null
+                        });
+                    }
+                    
+                    // Create backup of current database
+                    const timestamp = Date.now();
+                    const backupsDir = path.join(__dirname, '..', 'backups');
+                    
+                    // Create backups directory if it doesn't exist
+                    if (!fs.existsSync(backupsDir)) {
+                        fs.mkdirSync(backupsDir, { recursive: true });
+                    }
+                    
+                    const backupPath = path.join(backupsDir, `database.backup.${timestamp}.sqlite`);
+                    
+                    try {
+                        // Backup current database
+                        if (fs.existsSync(dbPath)) {
+                            fs.copyFileSync(dbPath, backupPath);
+                            console.log(`[DB_UPLOAD] Current database backed up to: ${path.basename(backupPath)}`);
+                        }
+                        
+                        // Replace with uploaded database
+                        fs.copyFileSync(uploadedPath, dbPath);
+                        console.log(`[DB_UPLOAD] Database replaced with uploaded file: ${req.file.originalname}`);
+                        
+                        // Clean up uploaded file with retry logic
+                        let cleanupSuccess = false;
+                        for (let i = 0; i < 3; i++) {
+                            try {
+                                if (fs.existsSync(uploadedPath)) {
+                                    fs.unlinkSync(uploadedPath);
+                                    cleanupSuccess = true;
+                                    break;
+                                } else {
+                                    cleanupSuccess = true;
+                                    break;
+                                }
+                            } catch (unlinkErr) {
+                                if (i < 2) {
+                                    // Wait a bit before retry
+                                    await new Promise(resolve => setTimeout(resolve, 100));
+                                } else {
+                                    console.error('[DB_UPLOAD] Warning: Could not delete temp file:', unlinkErr.message);
+                                    // Don't fail the whole operation just because of cleanup
+                                }
+                            }
+                        }
+                        
+                        let migrationResult = null;
+                        
+                        // Run migration if requested
+                        if (autoMigrate) {
+                            console.log('[DB_UPLOAD] Running automatic migration...');
+                            
+                            const scriptPath = path.join(__dirname, '..', 'tools', 'smart-migrate-database.js');
+                            
+                            if (fs.existsSync(scriptPath)) {
+                                // Run migration using child_process
+                                await new Promise((resolve, reject) => {
+                                    exec(`node "${scriptPath}"`, { cwd: path.join(__dirname, '..') }, (migErr, stdout, stderr) => {
+                                        if (migErr) {
+                                            console.error('[DB_UPLOAD] Migration error:', migErr);
+                                            console.error('[DB_UPLOAD] Stderr:', stderr);
+                                            // Don't fail the whole request, just note the migration failed
+                                            migrationResult = {
+                                                success: false,
+                                                error: migErr.message
+                                            };
+                                        } else {
+                                            // Parse migration output
+                                            const output = stdout.toString();
+                                            let addedColumns = [];
+                                            
+                                            const columnMatches = output.match(/✅ Added column: (\w+)/g);
+                                            if (columnMatches) {
+                                                addedColumns = columnMatches.map(match => 
+                                                    match.replace('✅ Added column: ', '').split(' ')[0]
+                                                );
+                                            }
+                                            
+                                            const upToDate = output.includes('Database schema is already up to date!');
+                                            
+                                            migrationResult = {
+                                                success: true,
+                                                addedColumns: addedColumns,
+                                                upToDate: upToDate
+                                            };
+                                            
+                                            console.log('[DB_UPLOAD] Migration completed successfully');
+                                        }
+                                        resolve();
+                                    });
+                                });
+                            }
+                        }
+                        
+                        // Reload users from new database WITHOUT RESTART
+                        const { reloadUsersFromDatabase } = require('../lib/database-reload');
+                        
+                        try {
+                            const reloadResult = await reloadUsersFromDatabase();
+                            console.log('[DB_UPLOAD] Database reloaded in memory:', reloadResult.message);
+                            
+                            res.status(200).json({
+                                status: 200,
+                                message: 'Database uploaded and replaced successfully. No restart needed!',
+                                data: {
+                                    originalName: req.file.originalname,
+                                    backupFile: path.basename(backupPath),
+                                    migrationResult: migrationResult,
+                                    reloadResult: reloadResult,
+                                    restartRequired: false
+                                }
+                            });
+                        } catch (reloadErr) {
+                            console.error('[DB_UPLOAD] Error reloading database:', reloadErr);
+                            
+                            // Still return success but note that restart might be needed
+                            res.status(200).json({
+                                status: 200,
+                                message: 'Database uploaded successfully. Please restart the application for changes to take effect.',
+                                data: {
+                                    originalName: req.file.originalname,
+                                    backupFile: path.basename(backupPath),
+                                    migrationResult: migrationResult,
+                                    reloadError: reloadErr.message,
+                                    restartRequired: true
+                                }
+                            });
+                        }
+                        
+                    } catch (replaceErr) {
+                        console.error('[DB_UPLOAD] Error replacing database:', replaceErr);
+                        
+                        // Safe cleanup with try-catch
+                        try {
+                            if (fs.existsSync(uploadedPath)) {
+                                fs.unlinkSync(uploadedPath);
+                            }
+                        } catch (cleanupErr) {
+                            console.error('[DB_UPLOAD] Warning: Could not delete temp file:', cleanupErr.message);
+                            // Don't fail response just because of cleanup
+                        }
+                        
+                        res.status(500).json({
+                            status: 500,
+                            message: 'Error replacing database: ' + replaceErr.message,
+                            data: null
+                        });
+                    }
+                });
+            });
+        });
+        
+    } catch (error) {
+        console.error('[DB_UPLOAD] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error processing upload: ' + error.message,
+            data: null
+        });
+    }
+});
+
+// Reload database from disk to memory (no restart needed)
+router.post('/api/database/reload', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { reloadUsersFromDatabase } = require('../lib/database-reload');
+        
+        console.log('[DB_RELOAD_API] Manual database reload requested');
+        
+        const result = await reloadUsersFromDatabase();
+        
+        res.status(200).json({
+            status: 200,
+            message: 'Database reloaded successfully from disk to memory',
+            data: {
+                oldCount: result.oldCount,
+                newCount: result.newCount,
+                oldColumns: result.oldColumns,
+                newColumns: result.newColumns,
+                message: result.message
+            }
+        });
+        
+    } catch (error) {
+        console.error('[DB_RELOAD_API] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error reloading database: ' + error.message,
+            data: null
+        });
+    }
+});
+
+// Restore database from backup
+router.post('/api/database/restore', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const { filename } = req.body;
+        
+        if (!filename) {
+            return res.status(400).json({
+                status: 400,
+                message: "Filename is required",
+                data: null
+            });
+        }
+        
+        // Security check - filename must match expected pattern
+        if (!filename.match(/^database\.backup\.\d+\.sqlite$/)) {
+            return res.status(400).json({
+                status: 400,
+                message: "Invalid backup filename",
+                data: null
+            });
+        }
+        
+        const backupsDir = path.join(__dirname, '..', 'backups');
+        const backupPath = path.join(backupsDir, filename);
+        const dbPath = path.join(__dirname, '..', 'database.sqlite');
+        
+        if (!fs.existsSync(backupPath)) {
+            return res.status(404).json({
+                status: 404,
+                message: "Backup file not found",
+                data: null
+            });
+        }
+        
+        // Create a backup of current database before restoring
+        const timestamp = Date.now();
+        const currentBackupPath = path.join(backupsDir, `database.backup.${timestamp}.sqlite`);
+        
+        try {
+            // Backup current database
+            fs.copyFileSync(dbPath, currentBackupPath);
+            console.log(`[DB_RESTORE] Current database backed up to: ${path.basename(currentBackupPath)}`);
+            
+            // Restore from backup
+            fs.copyFileSync(backupPath, dbPath);
+            console.log(`[DB_RESTORE] Database restored from: ${filename}`);
+            
+            // Reload users from restored database
+            const initDatabase = require('../lib/database').initializeDatabase;
+            initDatabase((err) => {
+                if (err) {
+                    console.error('[DB_RESTORE] Error reloading database:', err);
+                }
+            });
+            
+            res.status(200).json({
+                status: 200,
+                message: "Database restored successfully",
+                data: {
+                    restoredFrom: filename,
+                    currentBackup: path.basename(currentBackupPath)
+                }
+            });
+            
+        } catch (copyError) {
+            console.error('[DB_RESTORE] Error during restore:', copyError);
+            res.status(500).json({
+                status: 500,
+                message: "Error during restore: " + copyError.message,
+                data: null
+            });
+        }
+        
+    } catch (error) {
+        console.error('[DB_RESTORE] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Error restoring database: " + error.message,
+            data: null
+        });
+    }
+});
+
 module.exports = router;

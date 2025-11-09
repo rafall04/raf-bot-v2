@@ -381,6 +381,9 @@ async function startApp() {
         // Initialize upload directories
         initializeUploadDirs();
         
+        // Initialize temp folder cleanup
+        require('./lib/temp-cleanup');
+        
         // Initialize topup expiry checker
         const { initTopupExpiryChecker } = require('./lib/topup-expiry');
         initTopupExpiryChecker();

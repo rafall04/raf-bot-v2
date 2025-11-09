@@ -71,6 +71,9 @@ downloads/
 *.bak
 *.old
 backup/
+backups/*.sqlite
+backups/*.db
+!backups/.gitkeep
 
 # Test files
 coverage/

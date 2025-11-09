@@ -505,6 +505,9 @@
                                 <button data-toggle="modal" data-target="#createModal" class="btn btn-success-custom btn-sm">
                                     <i class="fas fa-user-plus"></i> <span>Tambah Pelanggan</span>
                                 </button>
+                                <a href="/migrate" class="btn btn-dark btn-sm" title="Migrasi database SQLite lama">
+                                    <i class="fas fa-database"></i> Migrasi DB
+                                </a>
                             </div>
                         </div>
                     </div>

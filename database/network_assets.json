@@ -9,7 +9,7 @@
     "longitude": 111.846824,
     "notes": "",
     "parent_odc_id": null,
-    "ports_used": 1,
+    "ports_used": 0,
     "createdAt": "2025-11-07T08:17:08.585Z",
     "updatedAt": "2025-11-07T08:17:08.585Z"
   },
@@ -23,7 +23,7 @@
     "longitude": 111.846587,
     "notes": "",
     "parent_odc_id": "ODC-ODC1-001",
-    "ports_used": 1,
+    "ports_used": 0,
     "createdAt": "2025-11-07T08:17:33.214Z",
     "updatedAt": "2025-11-07T08:17:33.214Z"
   }
