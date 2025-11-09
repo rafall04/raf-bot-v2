@@ -11,18 +11,22 @@ This guide provides a complete architectural overview of the RAF Bot V2 system, 
 4. REFACTORING_SUMMARY.md
 5. routes/README.md
 6. BUGFIX_BROADCAST_AUTH.md (Critical auth issue)
-7. MASS_FIX_FETCH_CREDENTIALS.md (Pending fixes)
-8. BUGFIX_INDEX_SYNTAX_ERROR.md (JavaScript syntax fix)
-9. BUGFIX_BROADCAST_PLACEHOLDER.md (Placeholder not working)
-10. ANALYSIS_CRON_JOBS.md (Cron jobs complete audit)
-11. FEATURE_CONFIGURABLE_DELAY.md (Configurable WhatsApp delay)
-12. BUGFIX_CONFIG_SYNTAX_ERROR.md (Config page syntax fix)
-13. BUGFIX_TEMPLATES_SYNTAX_ERROR.md (Templates page syntax fix)
-14. BUGFIX_CRON_REMINDER_NOT_SENDING.md (Cron reminder day check)
-15. BUGFIX_MASS_SYNTAX_ERRORS.md (5 admin pages syntax fix)
-16. BUGFIX_USERS_EDIT_NOT_UPDATING.md (Users edit missing credentials - CRITICAL)
-17. BUGFIX_USERS_PAID_STATUS_NOT_UPDATING.md (Paid checkbox FormData issue - CRITICAL)
-18. BUGFIX_TEKNISI_SECURITY_AND_SYNTAX.md (Teknisi dashboard access + 3 syntax errors - CRITICAL SECURITY)
+7. BUGFIX_WHATSAPP_SESSION_TIMEOUT.md (WhatsApp session handling)
+8. BUGFIX_BAD_MAC_ERROR.md (WhatsApp encryption recovery)
+9. BUGFIX_MULTIPLE_PHONE_NUMBERS.md (Multi-phone notification support)
+10. BUGFIX_WHATSAPP_START_ERROR.md (WhatsApp QR scan fix)
+11. MASS_FIX_FETCH_CREDENTIALS.md (Pending fixes)
+12. BUGFIX_INDEX_SYNTAX_ERROR.md (JavaScript syntax fix)
+13. BUGFIX_BROADCAST_PLACEHOLDER.md (Placeholder not working)
+14. ANALYSIS_CRON_JOBS.md (Cron jobs complete audit)
+15. FEATURE_CONFIGURABLE_DELAY.md (Configurable WhatsApp delay)
+16. BUGFIX_CONFIG_SYNTAX_ERROR.md (Config page syntax fix)
+17. BUGFIX_TEMPLATES_SYNTAX_ERROR.md (Templates page syntax fix)
+18. BUGFIX_CRON_REMINDER_NOT_SENDING.md (Cron reminder day check)
+19. BUGFIX_MASS_SYNTAX_ERRORS.md (5 admin pages syntax fix)
+20. BUGFIX_USERS_EDIT_NOT_UPDATING.md (Users edit missing credentials - CRITICAL)
+21. BUGFIX_USERS_PAID_STATUS_NOT_UPDATING.md (Paid checkbox FormData issue - CRITICAL)
+22. BUGFIX_TEKNISI_SECURITY_AND_SYNTAX.md (Teknisi dashboard access + 3 syntax errors - CRITICAL SECURITY)
 
 ## 📊 SYSTEM OVERVIEW (November 2025)
 
@@ -790,6 +794,11 @@ node test/stress-test-[component].js
 | **Teknisi multiword commands** | Wrong split index | Use matchedKeywordLength |
 | **Cron reminder not sending** | Day check mismatch | Check logs for day mismatch, use test mode. See BUGFIX_CRON_REMINDER_NOT_SENDING.md |
 | **Photos lost on concurrent upload** | Race condition | Use queue in teknisi-photo-handler-v3 |
+| **Ticket creation stuck loading** | WhatsApp timeout blocks HTTP | Use async notifications with setImmediate() |
+| **WhatsApp session timeout** | Stale encryption session | Add retry logic + 15s timeout. See BUGFIX_WHATSAPP_SESSION_TIMEOUT.md |
+| **Bad MAC Error** | Corrupted encryption session | Auto session recovery. See BUGFIX_BAD_MAC_ERROR.md |
+| **Multiple phone numbers fail** | Not splitting by pipe | Split by `\|` and send to each. See BUGFIX_MULTIPLE_PHONE_NUMBERS.md |
+| **WhatsApp start error 500** | Missing global.rafect alias | Add alias in index.js. See BUGFIX_WHATSAPP_START_ERROR.md |
 
 ### Error Recovery Patterns:
 

@@ -284,7 +284,7 @@
     </div>
 
     <!-- Create Ticket Modal -->
-    <div class="modal fade" id="createTicketModal" tabindex="-1" role="dialog" aria-labelledby="createTicketModalLabel">
+    <div class="modal fade" id="createTicketModal" tabindex="-1" role="dialog" aria-labelledby="createTicketModalLabel" aria-modal="true">
         <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
             <form id="createTicketForm">
                 <div class="modal-content">
@@ -306,9 +306,9 @@
                             <div class="form-group col-md-6">
                                 <label for="prioritySelect">Prioritas:</label>
                                 <select class="form-control" id="prioritySelect" name="priority" required>
-                                    <option value="HIGH">🔴 URGENT (30-60 menit)</option>
-                                    <option value="MEDIUM" selected>🟡 NORMAL (2-4 jam)</option>
-                                    <option value="LOW">🟢 LOW (6-12 jam)</option>
+                                    <option value="HIGH">🔴 URGENT (2-4 jam)</option>
+                                    <option value="MEDIUM" selected>🟡 NORMAL (6-12 jam)</option>
+                                    <option value="LOW">🟢 LOW (1-2 hari)</option>
                                 </select>
                             </div>
                             <div class="form-group col-md-6">
@@ -658,8 +658,13 @@
                     break;
                     
                 case 'otw':
-                    // On The Way - Sampai button only
+                    // On The Way - Share Location & Sampai buttons
                     html += `
+                        <button class="btn btn-sm btn-primary" 
+                                onclick="shareCurrentLocation('${ticketId}')" 
+                                title="Bagikan lokasi terkini">
+                            <i class="fas fa-location-arrow action-btn-icon"></i> Share Lokasi
+                        </button>
                         <button class="btn btn-sm btn-warning" 
                                 onclick="sampaiTicket('${ticketId}')" 
                                 title="Tandai sudah sampai">
@@ -723,7 +728,89 @@
         }
         
         /**
-         * Update ticket status to OTW (On The Way)
+         * Get current location using browser Geolocation API
+         * Returns promise with location data
+         */
+        function getCurrentLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation tidak didukung browser Anda'));
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: new Date().toISOString()
+                        });
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            });
+        }
+        
+        /**
+         * Share current location for a ticket
+         * Used when teknisi is already OTW and wants to update location
+         */
+        async function shareCurrentLocation(ticketId) {
+            if (!ticketId) {
+                displayGlobalMessage('ID Tiket tidak valid', 'danger');
+                return;
+            }
+            
+            try {
+                displayGlobalMessage('🎐 Mendapatkan lokasi...', 'info');
+                const locationData = await getCurrentLocation();
+                
+                // Send location update to server
+                const response = await fetch('/api/ticket/share-location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ 
+                        ticketId,
+                        location: locationData 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    displayGlobalMessage(`✓ Lokasi berhasil dibagikan ke pelanggan`, 'success');
+                    
+                    // Show Google Maps link that was sent
+                    const mapsUrl = `https://www.google.com/maps?q=${locationData.latitude},${locationData.longitude}`;
+                    displayGlobalMessage(`🗺️ Link: ${mapsUrl}`, 'info');
+                } else {
+                    displayGlobalMessage(`Gagal membagikan lokasi: ${result.message || 'Error'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Location sharing error:', error);
+                if (error.code === 1) {
+                    displayGlobalMessage('❌ Akses lokasi ditolak. Silakan izinkan akses lokasi di browser.', 'danger');
+                } else if (error.code === 2) {
+                    displayGlobalMessage('❌ Tidak dapat mendapatkan lokasi. Pastikan GPS aktif.', 'danger');
+                } else if (error.code === 3) {
+                    displayGlobalMessage('❌ Timeout mendapatkan lokasi. Silakan coba lagi.', 'warning');
+                } else {
+                    displayGlobalMessage('❌ Gagal mendapatkan lokasi', 'danger');
+                }
+            }
+        }
+        
+        /**
+         * Update ticket status to OTW (On The Way) with optional location sharing
          * Calls API endpoint created in Phase 1
          */
         async function otwTicket(ticketId) {
@@ -732,9 +819,20 @@
                 return;
             }
             
-            // Confirm action
-            if (!confirm(`Update status tiket ${ticketId} ke OTW (On The Way)?`)) {
-                return;
+            // Ask if user wants to share location
+            const shareLocation = confirm(`Update status tiket ${ticketId} ke OTW (On The Way)?\n\nApakah Anda ingin membagikan lokasi real-time kepada pelanggan?`);
+            
+            let locationData = null;
+            
+            if (shareLocation) {
+                // Get current location if user agrees
+                try {
+                    locationData = await getCurrentLocation();
+                    displayGlobalMessage('📍 Lokasi berhasil didapatkan', 'info');
+                } catch (error) {
+                    console.error('Failed to get location:', error);
+                    displayGlobalMessage('⚠️ Tidak dapat mengakses lokasi. Melanjutkan tanpa lokasi.', 'warning');
+                }
             }
             
             try {
@@ -742,7 +840,10 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ ticketId })
+                    body: JSON.stringify({ 
+                        ticketId,
+                        location: locationData 
+                    })
                 });
                 
                 const result = await response.json();
@@ -834,8 +935,10 @@
             
             // Focus on input after modal shown
             $('#verifyOtpModal').on('shown.bs.modal', function() {
+                $(this).removeAttr('aria-hidden');
+                $(this).attr('aria-modal', 'true');
                 $('#otpInput').focus();
-            });
+            })
         }
         
         /**
@@ -876,6 +979,8 @@
                 const result = await response.json();
                 
                 if (response.ok && result.status === 200) {
+                    // Blur focus before closing modal
+                    $('#verifyOtpModal').find(':focus').blur();
                     // Close modal
                     $('#verifyOtpModal').modal('hide');
                     
@@ -1355,12 +1460,94 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Fix for modal aria-hidden issue
+            $('#createTicketModal').on('show.bs.modal', function () {
+                // Remove focus from any active element before showing modal
+                document.activeElement.blur();
+            });
+            
+            $('#createTicketModal').on('shown.bs.modal', function () {
+                $(this).removeAttr('aria-hidden');
+                $(this).attr('aria-modal', 'true');
+                // Focus on first input instead of close button
+                $('#customerSelect').select2('focus');
+            });
+            
+            $('#createTicketModal').on('hide.bs.modal', function () {
+                // Blur any focused element in the modal before hiding
+                $(this).find(':focus').blur();
+            });
+            
+            $('#createTicketModal').on('hidden.bs.modal', function () {
+                // Reset form values after modal is completely hidden
+                document.getElementById('createTicketForm').reset();
+                $('#customerSelect').val(null).trigger('change');
+                // Return focus to the trigger button
+                $('[data-target="#createTicketModal"]').focus();
+            });
+            
+            // Fix for verifyOtpModal aria-hidden issue
+            $('#verifyOtpModal').on('show.bs.modal', function () {
+                document.activeElement.blur();
+            });
+            
+            $('#verifyOtpModal').on('hide.bs.modal', function () {
+                $(this).find(':focus').blur();
+            });
+            
+            $('#verifyOtpModal').on('hidden.bs.modal', function () {
+                $('#otpInput').val('');  // Clear OTP input
+            });
+            
+            // Fix for uploadPhotoModal aria-hidden issue
+            $('#uploadPhotoModal').on('show.bs.modal', function () {
+                document.activeElement.blur();
+            });
+            
+            $('#uploadPhotoModal').on('shown.bs.modal', function () {
+                $(this).removeAttr('aria-hidden');
+                $(this).attr('aria-modal', 'true');
+            });
+            
+            $('#uploadPhotoModal').on('hide.bs.modal', function () {
+                $(this).find(':focus').blur();
+            });
+            
+            $('#uploadPhotoModal').on('hidden.bs.modal', function () {
+                // Clear photo input and reset state
+                $('#photoInput').val('');
+                uploadedPhotos = [];
+                updatePhotoDisplay();
+            });
+            
+            // Fix for processTicketModal aria-hidden issue
+            $('#processTicketModal').on('show.bs.modal', function () {
+                document.activeElement.blur();
+            });
+            
+            $('#processTicketModal').on('shown.bs.modal', function () {
+                $(this).removeAttr('aria-hidden');
+                $(this).attr('aria-modal', 'true');
+                $('#confirmProcessTicketBtn').focus();
+            });
+            
+            $('#processTicketModal').on('hide.bs.modal', function () {
+                $(this).find(':focus').blur();
+            });
+            
+            $('#processTicketModal').on('hidden.bs.modal', function () {
+                $('#confirmProcessTicketBtn').removeAttr('data-ticket-id');
+                // Return focus to the process button that opened it
+                $('button[onclick*="showProcessModal"]').first().focus();
+            });
+            
             // Initialize Select2 for customer dropdown
             $('#customerSelect').select2({
                 theme: "bootstrap",
                 dropdownParent: $('#createTicketModal'),
                 placeholder: 'Cari dan pilih pelanggan...',
                 allowClear: true,
+                dropdownAutoWidth: true,
                 ajax: {
                     url: '/api/users',
                     dataType: 'json',
@@ -1399,7 +1586,7 @@
                 const submitBtn = document.getElementById('submitNewTicketBtn');
 
                 if (!customerUserId) {
-                    displayMessage('Silakan pilih pelanggan', 'warning');
+                    displayGlobalMessage('Silakan pilih pelanggan', 'warning');
                     return;
                 }
 
@@ -1410,6 +1597,7 @@
                     const response = await fetch('/api/ticket/create', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
+                        credentials: 'include',
                         body: JSON.stringify({
                             customerUserId,
                             laporanText,
@@ -1420,17 +1608,17 @@
                     const result = await response.json();
 
                     if (response.ok && (result.status === 201 || result.status === 200)) {
-                        displayMessage(result.message || 'Tiket berhasil dibuat dan teknisi telah dinotifikasi', 'success');
+                        displayGlobalMessage(result.message || 'Tiket berhasil dibuat dan teknisi telah dinotifikasi', 'success');
+                        // Blur focus before hiding modal to prevent aria-hidden warning
+                        $('#createTicketModal').find(':focus').blur();
                         $('#createTicketModal').modal('hide');
-                        document.getElementById('createTicketForm').reset();
-                        $('#customerSelect').val(null).trigger('change');
                         loadTickets(); // Refresh ticket list
                     } else {
-                        displayMessage(result.message || 'Gagal membuat tiket', 'danger');
+                        displayGlobalMessage(result.message || 'Gagal membuat tiket', 'danger');
                     }
                 } catch(error) {
                     console.error('Error creating ticket:', error);
-                    displayMessage('Terjadi kesalahan koneksi saat membuat tiket', 'danger');
+                    displayGlobalMessage('Terjadi kesalahan koneksi saat membuat tiket', 'danger');
                 } finally {
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = 'Buat Tiket';
@@ -1571,10 +1759,7 @@
                 });
             }
             
-            // Clean up modal data saat modal ditutup
-            $('#processTicketModal').on('hidden.bs.modal', function () {
-                $(confirmBtn).removeAttr('data-ticket-id');
-            });
+            // Already handled in the DOMContentLoaded event listener above
             
             // Event handler for OTP verification button
             $('#confirmVerifyOtpBtn').off('click').on('click', function() {

@@ -372,7 +372,7 @@
         </div>
     </div>
 
-    <div class="modal fade" id="createTicketModal" tabindex="-1" role="dialog" aria-labelledby="createTicketModalLabel">
+    <div class="modal fade" id="createTicketModal" tabindex="-1" role="dialog" aria-labelledby="createTicketModalLabel" aria-modal="true">
         <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
             <form id="createTicketForm">
                 <div class="modal-content">
@@ -394,9 +394,9 @@
                             <div class="form-group col-md-6">
                                 <label for="prioritySelect">Prioritas:</label>
                                 <select class="form-control" id="prioritySelect" name="priority" required>
-                                    <option value="HIGH">🔴 URGENT (30-60 menit)</option>
-                                    <option value="MEDIUM" selected>🟡 NORMAL (2-4 jam)</option>
-                                    <option value="LOW">🟢 LOW (6-12 jam)</option>
+                                    <option value="HIGH">🔴 URGENT (2-4 jam)</option>
+                                    <option value="MEDIUM" selected>🟡 NORMAL (6-12 jam)</option>
+                                    <option value="LOW">🟢 LOW (1-2 hari)</option>
                                 </select>
                             </div>
                             <div class="form-group col-md-6">
@@ -442,6 +442,8 @@
 
     <script>
         let currentUser = null;
+        let ticketsCache = {}; // Store tickets for safe access
+        
         fetch('/api/me', { credentials: 'include' }).then(response => response.json()).then(data => {
             if (data.status === 200 && data.data) {
                 document.getElementById('username-placeholder').textContent = data.data.username;
@@ -469,6 +471,15 @@
             if (s === 'dibatalkan pelanggan') return '<span class="badge badge-status-cancelled">Dibatalkan Pelanggan</span>';
             if (s === 'dibatalkan admin') return '<span class="badge badge-status-cancelled">Dibatalkan Admin</span>';
             return `<span class="badge badge-secondary">${s || 'N/A'}</span>`;
+        }
+        
+        function showTicketDetailById(ticketId) {
+            const ticket = ticketsCache[ticketId];
+            if (!ticket) {
+                console.error('Ticket not found in cache:', ticketId);
+                return;
+            }
+            showTicketDetail(ticket);
         }
         
         function showTicketDetail(ticket) {
@@ -599,9 +610,10 @@
         }
         async function executeAdminCancelTicket(ticketId, reason) { 
             if (!ticketId || !reason || reason.trim() === '') {
-                displayGlobalAdminMessage('ID Tiket dan Alasan Pembatalan wajib diisi.', 'danger');
+                displayGlobalAdminMessage('Alasan pembatalan wajib diisi!', 'warning');
                 return;
             }
+            console.log('[CANCEL_TICKET] Attempting to cancel ticket:', ticketId, 'with reason:', reason);
             try {
                 const response = await fetch('/api/admin/ticket/cancel', {
                     method: 'POST',
@@ -610,6 +622,8 @@
                     body: JSON.stringify({ ticketId, cancellationReason: reason })
                 });
                 const result = await response.json();
+                // Blur focus before hiding modal to prevent aria-hidden warning
+                $('#cancelTicketModal').find(':focus').blur();
                 $('#cancelTicketModal').modal('hide');
                 if (response.ok && result.status === 200) {
                     displayGlobalAdminMessage(result.message, 'success');
@@ -618,6 +632,7 @@
                     displayGlobalAdminMessage(`Gagal membatalkan tiket: ${result.message || 'Error tidak diketahui.'}`, 'danger');
                 }
             } catch (error) {
+                $('#cancelTicketModal').find(':focus').blur();
                 $('#cancelTicketModal').modal('hide');
                 console.error('Error cancelling ticket by admin:', error);
                 displayGlobalAdminMessage('Terjadi kesalahan koneksi saat membatalkan tiket.', 'danger');
@@ -651,13 +666,30 @@
                 const result = await response.json();
                 const tickets = result.data;
                 
-                if ($.fn.DataTable.isDataTable('#allTicketsTable')) dataTableInstance.destroy();
+                // Properly destroy existing DataTable instance if it exists
+                if (dataTableInstance && $.fn.DataTable.isDataTable('#allTicketsTable')) {
+                    try {
+                        dataTableInstance.clear().destroy();
+                    } catch (e) {
+                        // If error, try alternative destruction method
+                        $('#allTicketsTable').DataTable().destroy();
+                    }
+                    dataTableInstance = null;
+                    // Remove any lingering DataTable attributes
+                    $('#allTicketsTable').removeAttr('aria-describedby');
+                }
                 
                 const ticketsTableBody = document.getElementById('allTicketsTable').getElementsByTagName('tbody')[0];
                 ticketsTableBody.innerHTML = ''; 
 
+                // Clear tickets cache
+                ticketsCache = {};
+                
                 if (tickets && tickets.length > 0) {
                     tickets.forEach(ticket => {
+                        // Store ticket in cache for safe access
+                        const safeTicketId = ticket.ticketId || ticket.id || 'unknown_' + Date.now();
+                        ticketsCache[safeTicketId] = ticket;
                         let row = ticketsTableBody.insertRow();
                         row.insertCell().textContent = ticket.ticketId || '-';
                         // Smart customer name resolution - check ALL possible fields
@@ -671,16 +703,17 @@
                         
                         // Photo column
                         let photoCell = row.insertCell();
+                        const ticketIdForPhoto = ticket.ticketId || ticket.id || 'unknown';
                         if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
                             photoCell.innerHTML = `
-                                <button class="btn btn-sm btn-info" onclick='showTicketDetail(${JSON.stringify(ticket).replace(/'/g, "\\'")})' title="Lihat ${ticket.teknisiPhotos.length} foto">
+                                <button class="btn btn-sm btn-info" onclick="showTicketDetailById('${ticketIdForPhoto}')" title="Lihat ${ticket.teknisiPhotos.length} foto">
                                     <i class="fas fa-camera"></i> ${ticket.teknisiPhotos.length}
                                 </button>
                             `;
                         } else if (ticket.photoCount > 0 || ticket.photos) {
                             const count = ticket.photoCount || (ticket.photos ? ticket.photos.length : 0);
                             photoCell.innerHTML = `
-                                <button class="btn btn-sm btn-info" onclick='showTicketDetail(${JSON.stringify(ticket).replace(/'/g, "\\'")})' title="Lihat ${count} foto">
+                                <button class="btn btn-sm btn-info" onclick="showTicketDetailById('${ticketIdForPhoto}')" title="Lihat ${count} foto">
                                     <i class="fas fa-camera"></i> ${count}
                                 </button>
                             `;
@@ -699,33 +732,93 @@
                         if(ticket.resolvedAt && ticket.resolvedByTeknisiName) resolvedByText += ` <small class="text-muted">(${new Date(ticket.resolvedAt).toLocaleDateString('id-ID', {day:'2-digit',month:'short'})})</small>`;
                         row.insertCell().innerHTML = resolvedByText;
 
-                        let cancelledByText = ticket.cancelledBy ? `${ticket.cancelledBy.name || 'N/A'} (${ticket.cancelledBy.type || 'N/A'})` : '-';
-                        if(ticket.cancellationTimestamp && ticket.cancelledBy) cancelledByText += ` <small class="text-muted">(${new Date(ticket.cancellationTimestamp).toLocaleDateString('id-ID', {day:'2-digit',month:'short'})})</small>`;
+                        // Handle both old format (object) and new format (string)
+                        let cancelledByText = '-';
+                        if (ticket.cancelled_by) {
+                            // New format from our recent update
+                            cancelledByText = ticket.cancelled_by;
+                        } else if (ticket.cancelledBy) {
+                            // Old format - might be object or string
+                            if (typeof ticket.cancelledBy === 'object') {
+                                cancelledByText = `${ticket.cancelledBy.name || 'N/A'} (${ticket.cancelledBy.type || 'N/A'})`;
+                            } else {
+                                cancelledByText = ticket.cancelledBy;
+                            }
+                        }
+                        
+                        // Add timestamp if available
+                        const cancelTime = ticket.cancelled_at || ticket.cancellationTimestamp;
+                        if (cancelTime && cancelledByText !== '-') {
+                            cancelledByText += ` <small class="text-muted">(${new Date(cancelTime).toLocaleDateString('id-ID', {day:'2-digit',month:'short'})})</small>`;
+                        }
                         row.insertCell().innerHTML = cancelledByText;
 
                         let adminActionCell = row.insertCell();
                         adminActionCell.classList.add('action-buttons-admin', 'text-center');
-                        if (ticket.status !== 'selesai' && !ticket.status.startsWith('dibatalkan')) {
+                        
+                        // Check if ticket can be cancelled - handle various status formats
+                        const status = (ticket.status || '').toLowerCase();
+                        const canCancel = status !== 'selesai' && 
+                                         status !== 'resolved' && 
+                                         status !== 'dibatalkan' &&
+                                         !status.startsWith('dibatalkan');
+                        
+                        if (canCancel) {
                             let cancelButton = document.createElement('button');
                             cancelButton.classList.add('btn', 'btn-danger', 'btn-sm');
                             cancelButton.innerHTML = '<i class="fas fa-times-circle"></i> Batalkan';
                             cancelButton.title = 'Batalkan Tiket Ini';
-                            cancelButton.onclick = function() { setupCancelModal(ticket.ticketId); };
+                            const ticketIdForCancel = ticket.ticketId || ticket.id;
+                            cancelButton.onclick = function() { setupCancelModal(ticketIdForCancel); };
                             adminActionCell.appendChild(cancelButton);
                         } else {
                             adminActionCell.textContent = '-';
                         }
                     });
                 } else {
-                    const colCount = $('#allTicketsTable thead th').length;
-                    ticketsTableBody.innerHTML = `<tr><td colspan="${colCount}" class="text-center">Tidak ada tiket yang cocok dengan filter Anda.</td></tr>`;
+                    // Don't add colspan row yet - DataTable will handle empty state
+                    // ticketsTableBody.innerHTML remains empty
                 }
 
-                dataTableInstance = $('#allTicketsTable').DataTable({
-                    "order": [[5, "desc"]], 
-                    "pageLength": 10,
-                    "language": { /* ... bahasa ... */ }
-                });
+                // Only initialize DataTable if there are tickets
+                // Otherwise DataTable will show its own empty message
+                if (tickets && tickets.length > 0) {
+                    try {
+                        dataTableInstance = $('#allTicketsTable').DataTable({
+                        "order": [[6, "desc"]], // Sort by "Tgl Dibuat" column (index 6)
+                        "pageLength": 10,
+                        "processing": true,
+                        "destroy": true,
+                        "responsive": true,
+                        "autoWidth": false,
+                        "language": {
+                            "lengthMenu": "Tampilkan _MENU_ entri",
+                            "zeroRecords": "Tidak ada data yang ditemukan",
+                            "info": "Menampilkan _START_ hingga _END_ dari _TOTAL_ entri",
+                            "infoEmpty": "Menampilkan 0 hingga 0 dari 0 entri",
+                            "infoFiltered": "(difilter dari _MAX_ total entri)",
+                            "search": "Cari:",
+                            "paginate": {
+                                "first": "Pertama",
+                                "last": "Terakhir",
+                                "next": "Selanjutnya",
+                                "previous": "Sebelumnya"
+                            }
+                        },
+                        "columnDefs": [
+                            { "orderable": false, "targets": [4, 10] } // Photo and Action columns not sortable
+                        ]
+                        });
+                    } catch(dtError) {
+                        console.error('DataTable initialization error:', dtError);
+                        // Table will still be visible even if DataTable fails
+                    }
+                } else {
+                    // No tickets - show custom message without DataTable
+                    dataTableInstance = null; // Clear reference since we're not initializing
+                    const colCount = $('#allTicketsTable thead th').length;
+                    ticketsTableBody.innerHTML = `<tr><td colspan="${colCount}" class="text-center text-muted py-4">Tidak ada tiket yang cocok dengan filter Anda.</td></tr>`;
+                }
 
             } catch (error) {
                 console.error('Error loading tickets for admin:', error);
@@ -754,11 +847,83 @@
                 });
             }
 
+            // Fix for createTicketModal aria-hidden issue
+            $('#createTicketModal').on('show.bs.modal', function () {
+                // Remove focus from any active element before showing modal
+                document.activeElement.blur();
+            });
+            
+            $('#createTicketModal').on('shown.bs.modal', function () {
+                $(this).removeAttr('aria-hidden');
+                $(this).attr('aria-modal', 'true');
+                // Focus on first input instead of close button
+                $('#customerSelect').select2('focus');
+            });
+            
+            $('#createTicketModal').on('hide.bs.modal', function () {
+                // Blur any focused element in the modal before hiding
+                $(this).find(':focus').blur();
+            });
+            
+            $('#createTicketModal').on('hidden.bs.modal', function () {
+                // Reset form values after modal is completely hidden
+                $('#customerSelectModal').val('');
+                $('#laporanTextModal').val('');
+                $('#prioritySelectModal').val('MEDIUM');
+                $('#issueTypeSelectModal').val('WIFI_MATI');
+                // Return focus to the trigger button
+                $('[data-target="#createTicketModal"]').focus();
+            });
+
+            // Fix for cancel ticket modal aria-hidden issue
+            $('#cancelTicketModal').on('show.bs.modal', function () {
+                // Remove focus from any active element first
+                document.activeElement.blur();
+            });
+            
+            $('#cancelTicketModal').on('shown.bs.modal', function () {
+                $(this).removeAttr('aria-hidden');
+                $('#cancellationReasonInput').focus(); // Fokus ke textarea untuk alasan pembatalan
+            });
+            
+            $('#cancelTicketModal').on('hide.bs.modal', function () {
+                $(this).find(':focus').blur(); // Remove focus from any focused element
+            });
+            
+            $('#cancelTicketModal').on('hidden.bs.modal', function () {
+                // Return focus to the cancel button that opened it
+                const ticketId = $('#confirmCancelTicketBtn').attr('data-ticket-id');
+                if (ticketId && ticketsCache[ticketId]) {
+                    // Try to find and focus the original button if still exists
+                    $(`button[onclick*="setupCancelModal"]`).first().focus();
+                }
+            });
+
+            // Fix for ticket detail modal aria-hidden issue
+            $('#ticketDetailModal').on('show.bs.modal', function () {
+                document.activeElement.blur();
+            });
+            
+            $('#ticketDetailModal').on('shown.bs.modal', function () {
+                $(this).removeAttr('aria-hidden');
+                $(this).attr('aria-modal', 'true');
+            });
+            
+            $('#ticketDetailModal').on('hide.bs.modal', function () {
+                $(this).find(':focus').blur();
+            });
+            
+            $('#ticketDetailModal').on('hidden.bs.modal', function () {
+                // Return focus to the photo button that opened it
+                $('button[onclick*="showTicketDetailById"]').first().focus();
+            });
+
             $('#customerSelect').select2({
                 theme: "bootstrap", // Menggunakan tema bootstrap umum yang lebih cocok untuk BS4
                 dropdownParent: $('#createTicketModal'), 
                 placeholder: 'Cari dan pilih pelanggan...',
                 allowClear: true,
+                dropdownAutoWidth: true,
                 ajax: {
                     url: '/api/users', 
                     dataType: 'json',
@@ -794,10 +959,20 @@
                 const priority = document.getElementById('prioritySelect').value;
                 const issueType = document.getElementById('issueTypeSelect').value;
                 const submitBtn = document.getElementById('submitNewTicketBtn');
-
-                if (!customerUserId) { // Hanya cek customerUserId karena laporanText sudah 'required'
+                
+                // Prevent form submission if button is disabled
+                if (submitBtn.disabled) {
                     return;
                 }
+
+                if (!customerUserId) { // Hanya cek customerUserId karena laporanText sudah 'required'
+                    displayGlobalAdminMessage('Silakan pilih pelanggan', 'warning');
+                    return;
+                }
+                
+                // Disable submit button to prevent double submit
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat tiket...';
                 
                 try {
                     const response = await fetch('/api/admin/ticket/create', {
@@ -814,6 +989,8 @@
 
                     if (response.ok && (result.status === 201 || result.status === 200) ) {
                         displayGlobalAdminMessage(result.message, 'success');
+                        // Blur focus before hiding modal to prevent aria-hidden warning
+                        $('#createTicketModal').find(':focus').blur();
                         $('#createTicketModal').modal('hide');
                         document.getElementById('createTicketForm').reset();
                         $('#customerSelect').val(null).trigger('change'); 
@@ -824,13 +1001,12 @@
                 } catch(error) {
                     console.error('Error creating ticket:', error);
                     displayGlobalAdminMessage('Terjadi kesalahan koneksi saat membuat tiket', 'danger');
+                } finally {
+                    // Re-enable submit button
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Buat Tiket';
                 }
             });
-
-            const submitBtn = document.getElementById('submitNewTicketBtn');
-
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Buat Tiket';
         });
     </script>
 </body>

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { saveReports, loadJSON, saveJSON } = require('../lib/database');
+const { renderTemplate } = require('../lib/templating');
 
 const router = express.Router();
 const reportsDbPath = path.join(__dirname, '..', 'database', 'reports.json');
@@ -412,25 +413,15 @@ router.post('/ticket/process', ensureAuthenticatedStaff, async (req, res) => {
             return phone;
         })();
         
-        // Prepare customer notification message (same format as WhatsApp bot)
-        const customerMessage = `✅ *TIKET DIPROSES*
-
-━━━━━━━━━━━━━━━━
-📋 ID Tiket: *${ticket.ticketId || ticket.id}*
-🔧 Teknisi: *${teknisi.name || teknisi.username}*
-${teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''}━━━━━━━━━━━━━━━━
-
-🔐 *KODE OTP: ${otp}*
-
-⚠️ *PENTING:*
-• Simpan kode OTP ini
-• Berikan ke teknisi saat tiba
-• Jangan berikan ke orang lain
-• Kode hanya untuk tiket ini
-
-Teknisi akan segera menuju lokasi Anda.
-
-_Estimasi kedatangan akan diinformasikan._`;
+        // Prepare customer notification using template
+        const customerTemplateData = {
+            ticket_id: ticket.ticketId || ticket.id,
+            teknisi_name: teknisi.name || teknisi.username || 'Teknisi',
+            teknisi_phone_section: teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : '',
+            otp: otp
+        };
+        
+        const customerMessage = renderTemplate('ticket_process_customer', customerTemplateData);
         
         // Send to ALL customer phone numbers (following WhatsApp bot pattern)
         await notifyAllCustomerNumbers(ticket, customerMessage);
@@ -553,25 +544,16 @@ router.post('/ticket/otw', ensureAuthenticatedStaff, async (req, res) => {
             return phone;
         })();
         
-        // Prepare customer notification (same format as WhatsApp bot)
-        const customerMessage = `🚗 *TEKNISI BERANGKAT*
-
-━━━━━━━━━━━━━━━━
-📋 ID Tiket: *${ticket.ticketId || ticket.id}*
-🔧 Teknisi: *${teknisi.name || teknisi.username}*
-${teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''}━━━━━━━━━━━━━━━━
-
-Teknisi sedang menuju lokasi Anda.
-
-⏱️ *Estimasi Tiba:* 30-60 menit
-_Waktu dapat berubah tergantung kondisi_
-
-${ticket.otp ? `🔐 *KODE VERIFIKASI:*
-╔════════════════╗
-║  *${ticket.otp}*  ║
-╚════════════════╝
-
-Berikan kode ini saat teknisi tiba.` : ''}`;
+        // Prepare customer notification using template
+        const customerTemplateData = {
+            ticket_id: ticket.ticketId || ticket.id,
+            teknisi_name: teknisi.name || teknisi.username || 'Teknisi',
+            teknisi_phone_section: teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : '',
+            estimasi_waktu: '30-60 menit',
+            lokasi_info: location ? `Update lokasi: ${location}` : 'Lokasi akan diupdate'
+        };
+        
+        const customerMessage = renderTemplate('ticket_otw_customer', customerTemplateData);
         
         // Send to ALL customer phone numbers
         await notifyAllCustomerNumbers(ticket, customerMessage);
@@ -686,27 +668,14 @@ router.post('/ticket/arrived', ensureAuthenticatedStaff, async (req, res) => {
             return phone;
         })();
         
-        // Prepare customer notification (same format as WhatsApp bot)
-        const customerMessage = `🎉 *TEKNISI SUDAH TIBA*
-
-━━━━━━━━━━━━━━━━
-📋 ID Tiket: *${ticket.ticketId || ticket.id}*
-🔧 Teknisi: *${teknisi.name || teknisi.username}*
-${teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''}━━━━━━━━━━━━━━━━
-
-✅ Teknisi sudah di lokasi Anda
-
-🔐 *KODE VERIFIKASI:*
-╔════════════════╗
-║  *${ticket.otp}*  ║
-╚════════════════╝
-
-⚠️ *PENTING:*
-• Berikan kode ini ke teknisi
-• Untuk memverifikasi identitas
-• Jangan berikan ke orang lain
-
-_Perbaikan akan segera dimulai._`;
+        // Prepare customer notification using template
+        const customerTemplateData = {
+            ticket_id: ticket.ticketId || ticket.id,
+            teknisi_name: teknisi.name || teknisi.username || 'Teknisi',
+            teknisi_phone_section: teknisiPhone ? `📱 Kontak: wa.me/${teknisiPhone}\n` : ''
+        };
+        
+        const customerMessage = renderTemplate('ticket_arrived_customer', customerTemplateData);
         
         // Send to ALL customer phone numbers
         await notifyAllCustomerNumbers(ticket, customerMessage);
@@ -814,18 +783,13 @@ router.post('/ticket/verify-otp', ensureAuthenticatedStaff, async (req, res) => 
         saveReports(global.reports);
         console.log(`[TICKET_VERIFY_OTP] Ticket ${ticketId} OTP verified, status updated to working`);
         
-        // Prepare customer notification
-        const customerMessage = `🔧 *PENGERJAAN DIMULAI*
-
-━━━━━━━━━━━━━━━━
-📋 ID Tiket: *${ticket.ticketId || ticket.id}*
-🔧 Teknisi: *${teknisi.name || teknisi.username}*
-━━━━━━━━━━━━━━━━
-
-✅ Verifikasi OTP berhasil
-🔧 Teknisi mulai melakukan perbaikan
-
-_Anda akan diinformasikan saat selesai._`;
+        // Prepare customer notification using template
+        const customerTemplateData = {
+            ticket_id: ticket.ticketId || ticket.id,
+            teknisi_name: teknisi.name || teknisi.username || 'Teknisi'
+        };
+        
+        const customerMessage = renderTemplate('ticket_working_customer', customerTemplateData);
         
         // Send to ALL customer phone numbers
         await notifyAllCustomerNumbers(ticket, customerMessage);
@@ -1084,23 +1048,17 @@ router.post('/ticket/complete', ensureAuthenticatedStaff, async (req, res) => {
         saveReports(global.reports);
         console.log(`[TICKET_COMPLETE] Ticket ${ticketId} completed. Duration: ${durationMinutes} min, Photos: ${ticket.photos.length}`);
         
-        // Prepare customer notification (same format as WhatsApp bot)
-        const customerMessage = `✅ *PERBAIKAN SELESAI*
-
-━━━━━━━━━━━━━━━━
-📋 ID Tiket: *${ticket.ticketId || ticket.id}*
-🔧 Teknisi: *${teknisi.name || teknisi.username}*
-⏱️ Durasi: ${durationMinutes} menit
-━━━━━━━━━━━━━━━━
-
-✅ Masalah telah diselesaikan
-📸 Dokumentasi: ${ticket.photos.length} foto
-${resolutionNotes ? `\n📝 *Catatan:*\n${resolutionNotes}\n` : ''}
-*Terima kasih telah menunggu!*
-
-Jika ada masalah lagi, silakan lapor kembali.
-
-_Tiket telah ditutup._`;
+        // Prepare customer notification using template
+        const customerTemplateData = {
+            ticket_id: ticket.ticketId || ticket.id,
+            teknisi_name: teknisi.name || teknisi.username || 'Teknisi',
+            durasi: durationMinutes,
+            jumlah_foto: ticket.photos.length,
+            catatan_section: resolutionNotes ? `📝 Catatan: ${resolutionNotes}` : '',
+            nama_wifi: global.config.namaWifi || 'WiFi Service'
+        };
+        
+        const customerMessage = renderTemplate('ticket_completed_customer', customerTemplateData);
         
         // Send to ALL customer phone numbers
         await notifyAllCustomerNumbers(ticket, customerMessage);
@@ -1342,30 +1300,21 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
         
         // NOTIFY ALL TEKNISI (like WhatsApp bot does)
         const teknisiAccounts = global.accounts.filter(acc => acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== '');
-        const waktuLaporFormatted = new Date(newTicket.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
+        const prioritasDisplay = newTicket.priority === 'HIGH' ? '🔴 URGENT (30-60 menit)' : 
+                                newTicket.priority === 'MEDIUM' ? '🟡 NORMAL (2-4 jam)' : 
+                                '🟢 LOW (6-12 jam)';
         
-        const urgentIcon = newTicket.priority === 'HIGH' ? '🚨' : newTicket.priority === 'MEDIUM' ? '📢' : '📌';
-        const messageToTeknisi = `${urgentIcon} *TIKET BARU DARI ADMIN*\n\n` +
-            `━━━━━━━━━━━━━━━━\n` +
-            `📋 ID Tiket: *${ticketId}*\n` +
-            `⚡ Prioritas: ${newTicket.priority === 'HIGH' ? '🔴 URGENT' : newTicket.priority === 'MEDIUM' ? '🟡 NORMAL' : '🟢 LOW'}\n` +
-            `🏷️ Tipe: ${issueType || 'GENERAL'}\n` +
-            `━━━━━━━━━━━━━━━━\n\n` +
-            `*Informasi Pelanggan:*\n` +
-            `👤 Nama: ${user.name || 'N/A'}\n` +
-            `📱 No: ${user.phone_number || 'N/A'}\n` +
-            `📍 Alamat: ${user.address || 'N/A'}\n` +
-            `📦 Paket: ${user.subscription || 'N/A'}\n` +
-            `${user.pppoe_username ? `🌐 PPPoE: ${user.pppoe_username}\n` : ''}` +
-            `\n*Isi Laporan:*\n${laporanText}\n\n` +
-            `⏰ Waktu: ${waktuLaporFormatted}\n` +
-            `👤 Dibuat oleh: Admin ${req.user.username}\n\n` +
-            `━━━━━━━━━━━━━━━━\n` +
-            `*LANGKAH SELANJUTNYA:*\n\n` +
-            `1️⃣ Proses tiket: *proses ${ticketId}*\n` +
-            `2️⃣ Mulai perjalanan: *otw ${ticketId}*\n` +
-            `3️⃣ Sampai lokasi: *sampai ${ticketId}*\n\n` +
-            `Mohon segera ditangani. Terima kasih! 🙏`;
+        const teknisiTemplateData = {
+            ticket_id: ticketId,
+            prioritas: prioritasDisplay,
+            nama_pelanggan: user.name || user.username || 'Pelanggan',
+            no_hp: user.phone_number || '-',
+            alamat: user.address || '-',
+            issue_type: (issueType || 'GENERAL').replace(/_/g, ' '),
+            laporan_text: laporanText || '-'
+        };
+        
+        const messageToTeknisi = renderTemplate('ticket_created_teknisi', teknisiTemplateData);
         
         // Send to all teknisi
         for (const teknisi of teknisiAccounts) {
@@ -1511,31 +1460,22 @@ router.post('/ticket/create', ensureAuthenticatedStaff, async (req, res) => {
             acc.username !== req.user.username  // Don't notify creator
         );
         
-        const waktuLaporFormatted = new Date(newTicket.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
-        const urgentIcon = newTicket.priority === 'HIGH' ? '🚨' : newTicket.priority === 'MEDIUM' ? '📢' : '📌';
-        const creatorInfo = req.user.role === 'teknisi' ? `Teknisi ${req.user.username}` : `Admin ${req.user.username}`;
+        // Prepare teknisi notification using template
+        const prioritasDisplay = newTicket.priority === 'HIGH' ? '🔴 URGENT (30-60 menit)' : 
+                                newTicket.priority === 'MEDIUM' ? '🟡 NORMAL (2-4 jam)' : 
+                                '🟢 LOW (6-12 jam)';
         
-        const messageToTeknisi = `${urgentIcon} *TIKET BARU*\n\n` +
-            `━━━━━━━━━━━━━━━━\n` +
-            `📋 ID Tiket: *${ticketId}*\n` +
-            `⚡ Prioritas: ${newTicket.priority === 'HIGH' ? '🔴 URGENT' : newTicket.priority === 'MEDIUM' ? '🟡 NORMAL' : '🟢 LOW'}\n` +
-            `🏷️ Tipe: ${issueType || 'GENERAL'}\n` +
-            `━━━━━━━━━━━━━━━━\n\n` +
-            `*Informasi Pelanggan:*\n` +
-            `👤 Nama: ${user.name || 'N/A'}\n` +
-            `📱 No: ${user.phone_number || 'N/A'}\n` +
-            `📍 Alamat: ${user.address || 'N/A'}\n` +
-            `📦 Paket: ${user.subscription || 'N/A'}\n` +
-            `${user.pppoe_username ? `🌐 PPPoE: ${user.pppoe_username}\n` : ''}` +
-            `\n*Isi Laporan:*\n${laporanText}\n\n` +
-            `⏰ Waktu: ${waktuLaporFormatted}\n` +
-            `👤 Dibuat oleh: ${creatorInfo}\n\n` +
-            `━━━━━━━━━━━━━━━━\n` +
-            `*LANGKAH SELANJUTNYA:*\n\n` +
-            `1️⃣ Proses tiket: *proses ${ticketId}*\n` +
-            `2️⃣ Mulai perjalanan: *otw ${ticketId}*\n` +
-            `3️⃣ Sampai lokasi: *sampai ${ticketId}*\n\n` +
-            `Mohon segera ditangani. Terima kasih! 🙏`;
+        const teknisiTemplateData = {
+            ticket_id: ticketId,
+            prioritas: prioritasDisplay,
+            nama_pelanggan: user.name || user.username || 'Pelanggan',
+            no_hp: user.phone_number || '-',
+            alamat: user.address || '-',
+            issue_type: (issueType || 'GENERAL').replace(/_/g, ' '),
+            laporan_text: laporanText || '-'
+        };
+        
+        const messageToTeknisi = renderTemplate('ticket_created_teknisi', teknisiTemplateData);
         
         // Send to other teknisi
         for (const teknisi of teknisiAccounts) {

@@ -42,5 +42,37 @@
   "redaman_alert": {
     "name": "Notifikasi Gangguan Redaman",
     "template": "⚠️ *Notifikasi Gangguan Redaman* ⚠️\n\nTerdeteksi gangguan redaman pada pelanggan:\n\n- Nama Pelanggan: *${nama_pelanggan}*\n- No Hp: *${no_hp}*\n- Alamat: *${alamat}*\n- User PPPoE: *${pppoe}*\n- Redaman: *${redaman}*\n\nMohon kepada tim teknisi untuk segera melakukan pengecekan lebih lanjut."
+  },
+  "ticket_cancelled_customer": {
+    "name": "Notifikasi Pembatalan Tiket (Pelanggan)",
+    "template": "❌ *TIKET LAPORAN DIBATALKAN* ❌\n\nHalo *${nama_pelanggan}*,\n\nTiket laporan Anda telah dibatalkan oleh Admin.\n\n📋 *Detail Tiket:*\n• ID Tiket: *${ticket_id}*\n• Masalah: ${issue_type}\n• Tanggal: ${tanggal}\n• Dibatalkan oleh: ${cancelled_by}\n\n${alasan_section}\n\nJika Anda masih mengalami kendala, silakan buat laporan baru atau hubungi kami di ${telfon}.\n\nTerima kasih. 🙏\n\n*${nama_wifi}*"
+  },
+  "ticket_cancelled_teknisi": {
+    "name": "Notifikasi Pembatalan Tiket (Teknisi)",
+    "template": "🚫 *TIKET DIBATALKAN OLEH ADMIN* 🚫\n\n📋 *Detail Tiket:*\n• ID Tiket: *${ticket_id}*\n• Pelanggan: ${nama_pelanggan}\n• No. HP: ${no_hp}\n• Alamat: ${alamat}\n• Masalah: ${issue_type}\n• Prioritas: ${prioritas}\n\n⚠️ *Status:* DIBATALKAN\n• Dibatalkan oleh: ${cancelled_by}\n• Waktu pembatalan: ${waktu_pembatalan}\n\n${alasan_section}\n\n_Tiket ini tidak perlu diproses lagi._"
+  },
+  "ticket_process_customer": {
+    "name": "Notifikasi Tiket Diproses (Pelanggan)",
+    "template": "✅ *TIKET DIPROSES*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\n🔐 *KODE OTP: ${otp}*\n\n⚠️ *PENTING:*\n• Simpan kode OTP ini\n• Berikan ke teknisi saat tiba\n• Jangan berikan ke orang lain\n• Kode hanya untuk tiket ini\n\nTeknisi akan segera menuju lokasi Anda.\n\n_Estimasi kedatangan akan diinformasikan._"
+  },
+  "ticket_otw_customer": {
+    "name": "Notifikasi Teknisi OTW (Pelanggan)",
+    "template": "🚗 *TEKNISI SEDANG MENUJU LOKASI*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\nTeknisi sedang menuju lokasi Anda.\nPerkiraan tiba dalam ${estimasi_waktu}.\n\n📍 ${lokasi_info}\n\nMohon menunggu dan siapkan:\n• Kode OTP untuk verifikasi\n• Akses ke perangkat/area yang bermasalah\n\n_Update akan diberikan saat teknisi tiba._"
+  },
+  "ticket_arrived_customer": {
+    "name": "Notifikasi Teknisi Sampai (Pelanggan)",
+    "template": "🏁 *TEKNISI SUDAH TIBA*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\n✅ Teknisi sudah di lokasi Anda\n\n🔐 Mohon berikan *KODE OTP* kepada teknisi untuk memulai pekerjaan.\n\n_Pastikan OTP yang diberikan sesuai dengan yang Anda terima sebelumnya._"
+  },
+  "ticket_working_customer": {
+    "name": "Notifikasi Mulai Perbaikan (Pelanggan)",
+    "template": "🔧 *PERBAIKAN DIMULAI*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n━━━━━━━━━━━━━━━━\n\n✅ Verifikasi OTP berhasil\n✅ Teknisi mulai melakukan perbaikan\n\n⏳ Mohon menunggu hingga perbaikan selesai.\n\n_Teknisi akan memberikan update setelah perbaikan selesai._"
+  },
+  "ticket_completed_customer": {
+    "name": "Notifikasi Tiket Selesai (Pelanggan)",
+    "template": "✅ *PERBAIKAN SELESAI*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n⏱️ Durasi: ${durasi} menit\n━━━━━━━━━━━━━━━━\n\n✅ Masalah Anda telah selesai diperbaiki\n📸 Dokumentasi: ${jumlah_foto} foto\n\n${catatan_section}\n\nTerima kasih telah menunggu. Jika masih ada kendala, silakan hubungi kami kembali.\n\nSalam,\n*${nama_wifi}*"
+  },
+  "ticket_created_teknisi": {
+    "name": "Notifikasi Tiket Baru (Teknisi)",
+    "template": "🆕 *TIKET LAPORAN BARU* 🆕\n\nAda laporan gangguan baru:\n\n📋 *Detail Tiket:*\n• ID Tiket: *${ticket_id}*\n• Prioritas: ${prioritas}\n• Pelanggan: ${nama_pelanggan}\n• No. HP: ${no_hp}\n• Alamat: ${alamat}\n• Masalah: ${issue_type}\n• Laporan: ${laporan_text}\n\n⚡ *Tindakan:*\nKetik *proses ${ticket_id}* untuk mengambil tiket ini\n\n_Harap segera ditindaklanjuti sesuai prioritas._"
   }
 }

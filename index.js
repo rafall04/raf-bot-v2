@@ -553,6 +553,7 @@ async function startApp() {
     // Make connect function global so it can be called from API routes and recovery
     global.connect = connect;
     global.startBot = connect;  // Alias for error recovery system
+    global.rafect = connect;    // Alias for API compatibility
 }
 
 startApp().catch(err => {
