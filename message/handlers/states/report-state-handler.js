@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { renderReport } = require('../../../lib/templating');
 
 /**
  * Helper function to generate ticket ID
@@ -41,7 +42,7 @@ async function handleLaporGangguanDescription(userState, chats, reply) {
     const laporanText = chats.trim();
     
     if (!laporanText || laporanText === "") {
-        return reply("📝 *FORMULIR LAPORAN GANGGUAN INTERNET*\n\n🔹 *Langkah 1 dari 6: Deskripsi Masalah*\n\nHalo Kak! 👋\nSaya akan membantu Anda melaporkan gangguan internet.\n\nMohon jelaskan *detail masalah* yang sedang Anda alami saat ini.\n\n📌 *Contoh Keluhan yang Baik:*\n• \"Internet mati total dari jam 8 pagi\"\n• \"WiFi sangat lambat terutama malam hari\"\n• \"Tidak bisa browsing tapi WhatsApp masih jalan\"\n• \"Koneksi putus-nyambung setiap 5-10 menit\"\n• \"Tidak bisa connect WiFi padahal password benar\"\n\n💡 Ketik *batal* jika ingin membatalkan proses ini.");
+        return reply(renderReport('form_step1', {}));
     }
     
     // Analisis awal keluhan untuk kategorisasi

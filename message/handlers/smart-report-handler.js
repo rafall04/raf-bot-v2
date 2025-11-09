@@ -6,6 +6,7 @@
 const { isDeviceOnline, getDeviceOfflineMessage } = require('../../lib/device-status');
 const { setUserState, getUserState, deleteUserState } = require('./conversation-handler');
 const { getResponseTimeMessage, isWithinWorkingHours } = require('../../lib/working-hours-helper');
+const { renderReport, errorMessage } = require('../../lib/templating');
 const fs = require('fs');
 const path = require('path');
 
@@ -68,7 +69,10 @@ async function handleGangguanMati({ sender, pushname, userPelanggan, reply, find
         if (!user) {
             return { 
                 success: false, 
-                message: '❌ Nomor Anda belum terdaftar sebagai pelanggan.\n\nSilakan hubungi admin untuk mendaftar.' 
+                message: renderReport('permission_denied', {
+                    reason: 'Nomor Anda belum terdaftar sebagai pelanggan',
+                    admin_contact: global.config?.ownerNumber?.[0] || 'admin'
+                }) 
             };
         }
         
@@ -88,23 +92,16 @@ async function handleGangguanMati({ sender, pushname, userPelanggan, reply, find
                 
             return {
                 success: false,
-                message: `⚠️ *ANDA SUDAH MEMILIKI LAPORAN AKTIF*
-
-📋 ID Tiket: *${recentReport.ticketId}*
-📊 Status: ${statusText}
-⏰ Dibuat: ${new Date(recentReport.createdAt).toLocaleString('id-ID', {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                    timeZone: 'Asia/Jakarta'
-                })}
-
-Silakan tunggu penyelesaian laporan ini terlebih dahulu.
-
-Untuk cek status, ketik:
-*ceklaporan*
-
-Jika urgent, hubungi:
-📞 Hotline: 085xxxxxxxxx`
+                message: renderReport('duplicate_active', {
+                    ticket_id: recentReport.ticketId,
+                    status_text: statusText,
+                    created_at: new Date(recentReport.createdAt).toLocaleString('id-ID', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                        timeZone: 'Asia/Jakarta'
+                    }),
+                    additional_info: 'Untuk cek status, ketik: *ceklaporan*'
+                })
             };
         }
         
@@ -385,7 +382,10 @@ async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, fin
         if (!user) {
             return { 
                 success: false, 
-                message: '❌ Nomor Anda belum terdaftar sebagai pelanggan.\n\nSilakan hubungi admin untuk mendaftar.' 
+                message: renderReport('permission_denied', {
+                    reason: 'Nomor Anda belum terdaftar sebagai pelanggan',
+                    admin_contact: global.config?.ownerNumber?.[0] || 'admin'
+                }) 
             };
         }
 
