@@ -1,0 +1,111 @@
+{
+  "timestamp": "2025-11-09T13:12:18.903Z",
+  "statistics": {
+    "totalFiles": 51,
+    "filesNeedingMigration": 25,
+    "filesUsingTemplates": 2,
+    "migrationProgress": "4%"
+  },
+  "filesRequiringWork": [
+    {
+      "file": "access-management-handler.js",
+      "hardcodedCount": 7
+    },
+    {
+      "file": "agent.js",
+      "hardcodedCount": 64
+    },
+    {
+      "file": "balance-management-handler.js",
+      "hardcodedCount": 14
+    },
+    {
+      "file": "billing-management-handler.js",
+      "hardcodedCount": 8
+    },
+    {
+      "file": "conversation-state-handler.js",
+      "hardcodedCount": 4
+    },
+    {
+      "file": "monitoring-handler.js",
+      "hardcodedCount": 13
+    },
+    {
+      "file": "network-management-handler.js",
+      "hardcodedCount": 52
+    },
+    {
+      "file": "package-management-handler.js",
+      "hardcodedCount": 14
+    },
+    {
+      "file": "photo-upload-queue.js",
+      "hardcodedCount": 2
+    },
+    {
+      "file": "photo-workflow-handler.js",
+      "hardcodedCount": 2
+    },
+    {
+      "file": "reboot-modem-handler.js",
+      "hardcodedCount": 5
+    },
+    {
+      "file": "saldo-handler.js",
+      "hardcodedCount": 28
+    },
+    {
+      "file": "states\\other-state-handler.js",
+      "hardcodedCount": 25
+    },
+    {
+      "file": "states\\report-state-handler.js",
+      "hardcodedCount": 24
+    },
+    {
+      "file": "states\\wifi-name-state-handler.js",
+      "hardcodedCount": 42
+    },
+    {
+      "file": "states\\wifi-password-state-handler.js",
+      "hardcodedCount": 43
+    },
+    {
+      "file": "steps\\general-steps.js",
+      "hardcodedCount": 4
+    },
+    {
+      "file": "steps\\wifi-steps-bulk.js",
+      "hardcodedCount": 16
+    },
+    {
+      "file": "steps\\wifi-steps.js",
+      "hardcodedCount": 4
+    },
+    {
+      "file": "utility-handler.js",
+      "hardcodedCount": 7
+    },
+    {
+      "file": "voucher-management-handler.js",
+      "hardcodedCount": 24
+    },
+    {
+      "file": "wifi-check-handler.js",
+      "hardcodedCount": 4
+    },
+    {
+      "file": "wifi-history-handler.js",
+      "hardcodedCount": 5
+    },
+    {
+      "file": "wifi-management-handler.js",
+      "hardcodedCount": 60
+    },
+    {
+      "file": "wifi-power-handler.js",
+      "hardcodedCount": 6
+    }
+  ]
+}

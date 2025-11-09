@@ -1,0 +1,2137 @@
+{
+  "totalFiles": 51,
+  "filesWithHardcoded": 25,
+  "filesWithTemplates": 2,
+  "hardcodedMessages": [
+    {
+      "file": "access-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 47,
+          "content": "reply(`📱 *Daftar Akses Bot*\\n\\n✅ ${primaryPhone} (Nomor Utama)\\n\\n_Anda belum memberikan akses ke n..."
+        },
+        {
+          "line": 52,
+          "content": "reply(`📱 *Daftar Akses Bot*\\n\\n${accessList}\\n\\n📊 Kuota: ${phoneNumbers.length}/${accessLimit}\\n\\n..."
+        },
+        {
+          "line": 90,
+          "content": "reply(\"❌ Maaf, terjadi kesalahan sistem saat memperbarui data.\\n\\nSilakan coba lagi dalam beberapa s..."
+        },
+        {
+          "line": 103,
+          "content": "reply(`✅ *Akses Berhasil Diberikan!*\\n\\nNomor *${phoneToAdd}* sekarang dapat mengakses bot ini.\\n\\n\ud83d..."
+        },
+        {
+          "line": 132,
+          "content": "reply(\"❌ Maaf, terjadi kesalahan sistem saat memperbarui data.\\n\\nSilakan coba lagi dalam beberapa s..."
+        },
+        {
+          "line": 145,
+          "content": "reply(`✅ *Akses Berhasil Dihapus!*\\n\\nNomor *${phoneToDelete}* tidak dapat lagi mengakses bot ini.\\n..."
+        },
+        {
+          "line": 153,
+          "content": "reply(`📱 *Manajemen Akses Bot*\\n\\nFitur ini memungkinkan Anda memberikan akses bot kepada nomor lai..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "agent.js",
+      "hardcoded": [
+        {
+          "line": 43,
+          "content": "return await reply('❌ Maaf, belum ada agent yang terdaftar.');"
+        },
+        {
+          "line": 43,
+          "content": "return await reply('❌ Maaf, belum ada agent yang terdaftar.');"
+        },
+        {
+          "line": 51,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil data agent.');"
+        },
+        {
+          "line": 51,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil data agent.');"
+        },
+        {
+          "line": 82,
+          "content": "return await reply(`❌ Tidak ada agent di area \"${area}\".\\n\\nKetik *agent* untuk melihat semua area.`..."
+        },
+        {
+          "line": 82,
+          "content": "return await reply(`❌ Tidak ada agent di area \"${area}\".\\n\\nKetik *agent* untuk melihat semua area.`..."
+        },
+        {
+          "line": 90,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil data agent.');"
+        },
+        {
+          "line": 90,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil data agent.');"
+        },
+        {
+          "line": 124,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil data layanan.');"
+        },
+        {
+          "line": 124,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil data layanan.');"
+        },
+        {
+          "line": 136,
+          "content": "return await reply('❌ Masukkan kata kunci pencarian.\\n\\nContoh: *cari agent tanjung*');"
+        },
+        {
+          "line": 136,
+          "content": "return await reply('❌ Masukkan kata kunci pencarian.\\n\\nContoh: *cari agent tanjung*');"
+        },
+        {
+          "line": 142,
+          "content": "return await reply(`❌ Tidak ada agent yang cocok dengan \"${query}\".\\n\\nCoba kata kunci lain atau ket..."
+        },
+        {
+          "line": 142,
+          "content": "return await reply(`❌ Tidak ada agent yang cocok dengan \"${query}\".\\n\\nCoba kata kunci lain atau ket..."
+        },
+        {
+          "line": 150,
+          "content": "await reply('❌ Terjadi kesalahan saat mencari agent.');"
+        },
+        {
+          "line": 150,
+          "content": "await reply('❌ Terjadi kesalahan saat mencari agent.');"
+        },
+        {
+          "line": 165,
+          "content": "return await reply('❌ Agent tidak ditemukan.');"
+        },
+        {
+          "line": 165,
+          "content": "return await reply('❌ Agent tidak ditemukan.');"
+        },
+        {
+          "line": 184,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil info agent.');"
+        },
+        {
+          "line": 184,
+          "content": "await reply('❌ Terjadi kesalahan saat mengambil info agent.');"
+        },
+        {
+          "line": 267,
+          "content": "return await reply(`❌ ${result.message}`);"
+        },
+        {
+          "line": 267,
+          "content": "return await reply(`❌ ${result.message}`);"
+        },
+        {
+          "line": 354,
+          "content": "await reply('❌ Terjadi kesalahan. Silakan coba lagi atau hubungi admin.');"
+        },
+        {
+          "line": 354,
+          "content": "await reply('❌ Terjadi kesalahan. Silakan coba lagi atau hubungi admin.');"
+        },
+        {
+          "line": 586,
+          "content": "await reply('❌ Terjadi kesalahan. Silakan coba lagi.');"
+        },
+        {
+          "line": 586,
+          "content": "await reply('❌ Terjadi kesalahan. Silakan coba lagi.');"
+        },
+        {
+          "line": 606,
+          "content": "return reply('❌ Anda bukan agent terdaftar atau belum memiliki credential.\\n\\nHubungi admin untuk re..."
+        },
+        {
+          "line": 606,
+          "content": "return reply('❌ Anda bukan agent terdaftar atau belum memiliki credential.\\n\\nHubungi admin untuk re..."
+        },
+        {
+          "line": 614,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 614,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 623,
+          "content": "return reply('❌ PIN baru minimal 4 digit!');"
+        },
+        {
+          "line": 623,
+          "content": "return reply('❌ PIN baru minimal 4 digit!');"
+        },
+        {
+          "line": 627,
+          "content": "return reply('❌ PIN baru harus berbeda dengan PIN lama!');"
+        },
+        {
+          "line": 627,
+          "content": "return reply('❌ PIN baru harus berbeda dengan PIN lama!');"
+        },
+        {
+          "line": 639,
+          "content": "reply('✅ *PIN BERHASIL DIUBAH!*\\n\\n' +"
+        },
+        {
+          "line": 649,
+          "content": "reply(`❌ *GAGAL UBAH PIN*\\n\\n${result.message}\\n\\n` +"
+        },
+        {
+          "line": 659,
+          "content": "reply('❌ Terjadi kesalahan saat mengubah PIN.\\n\\nSilakan coba lagi atau hubungi admin.');"
+        },
+        {
+          "line": 674,
+          "content": "return reply('❌ Anda bukan agent terdaftar.\\n\\nHubungi admin untuk registrasi.');"
+        },
+        {
+          "line": 674,
+          "content": "return reply('❌ Anda bukan agent terdaftar.\\n\\nHubungi admin untuk registrasi.');"
+        },
+        {
+          "line": 681,
+          "content": "return reply('❌ Data agent tidak ditemukan.\\n\\nHubungi admin.');"
+        },
+        {
+          "line": 681,
+          "content": "return reply('❌ Data agent tidak ditemukan.\\n\\nHubungi admin.');"
+        },
+        {
+          "line": 694,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 694,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 711,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 711,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 730,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 730,
+          "content": "return reply('⚠️ *Format salah!*\\n\\n' +"
+        },
+        {
+          "line": 743,
+          "content": "return reply('❌ Tipe update tidak valid');"
+        },
+        {
+          "line": 743,
+          "content": "return reply('❌ Tipe update tidak valid');"
+        },
+        {
+          "line": 758,
+          "content": "reply(`❌ *GAGAL UPDATE PROFIL*\\n\\n${result.message}`);"
+        },
+        {
+          "line": 768,
+          "content": "reply('❌ Terjadi kesalahan saat update profil.\\n\\nSilakan coba lagi atau hubungi admin.');"
+        },
+        {
+          "line": 783,
+          "content": "return reply('❌ Anda bukan agent terdaftar.\\n\\nHubungi admin untuk registrasi.');"
+        },
+        {
+          "line": 783,
+          "content": "return reply('❌ Anda bukan agent terdaftar.\\n\\nHubungi admin untuk registrasi.');"
+        },
+        {
+          "line": 790,
+          "content": "return reply('❌ Data agent tidak ditemukan.\\n\\nHubungi admin.');"
+        },
+        {
+          "line": 790,
+          "content": "return reply('❌ Data agent tidak ditemukan.\\n\\nHubungi admin.');"
+        },
+        {
+          "line": 802,
+          "content": "reply('✅ *OUTLET DIBUKA*\\n\\n' +"
+        },
+        {
+          "line": 807,
+          "content": "reply('✅ *OUTLET DITUTUP SEMENTARA*\\n\\n' +"
+        },
+        {
+          "line": 819,
+          "content": "reply(`❌ *GAGAL UPDATE STATUS*\\n\\n${result.message}`);"
+        },
+        {
+          "line": 828,
+          "content": "reply('❌ Terjadi kesalahan saat update status.\\n\\nSilakan coba lagi atau hubungi admin.');"
+        },
+        {
+          "line": 844,
+          "content": "return reply('❌ Anda bukan agent terdaftar.\\n\\nHubungi admin untuk registrasi.');"
+        },
+        {
+          "line": 844,
+          "content": "return reply('❌ Anda bukan agent terdaftar.\\n\\nHubungi admin untuk registrasi.');"
+        },
+        {
+          "line": 851,
+          "content": "return reply('❌ Data agent tidak ditemukan.\\n\\nHubungi admin.');"
+        },
+        {
+          "line": 851,
+          "content": "return reply('❌ Data agent tidak ditemukan.\\n\\nHubungi admin.');"
+        },
+        {
+          "line": 909,
+          "content": "reply('❌ Terjadi kesalahan saat mengambil data.\\n\\nSilakan coba lagi atau hubungi admin.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "balance-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 33,
+          "content": "await reply(`*「 SUKSES 」*\\n\\nPengiriman uang telah sukses\\nDari : +${sender.split(\"@\")[0]}\\nKe : +${..."
+        },
+        {
+          "line": 33,
+          "content": "await reply(`*「 SUKSES 」*\\n\\nPengiriman uang telah sukses\\nDari : +${sender.split(\"@\")[0]}\\nKe : +${..."
+        },
+        {
+          "line": 43,
+          "content": "await reply('Terjadi kesalahan saat melakukan topup.');"
+        },
+        {
+          "line": 43,
+          "content": "await reply('Terjadi kesalahan saat melakukan topup.');"
+        },
+        {
+          "line": 61,
+          "content": "await reply('Nomor Yang Akan Dihapus Tidak Ditemukan.');"
+        },
+        {
+          "line": 61,
+          "content": "await reply('Nomor Yang Akan Dihapus Tidak Ditemukan.');"
+        },
+        {
+          "line": 64,
+          "content": "await reply(`*「 SUKSES 」*\\n\\nHapus Saldo User Dengan Nomor :\\n${tujuandel}`);"
+        },
+        {
+          "line": 64,
+          "content": "await reply(`*「 SUKSES 」*\\n\\nHapus Saldo User Dengan Nomor :\\n${tujuandel}`);"
+        },
+        {
+          "line": 71,
+          "content": "await reply('Terjadi kesalahan saat menghapus saldo.');"
+        },
+        {
+          "line": 71,
+          "content": "await reply('Terjadi kesalahan saat menghapus saldo.');"
+        },
+        {
+          "line": 81,
+          "content": "if (!q.includes('|')) return reply(format('mess_wrongFormat'));"
+        },
+        {
+          "line": 107,
+          "content": "await reply(format('transfer_sukses_pengirim', {"
+        },
+        {
+          "line": 126,
+          "content": "await reply('Terjadi kesalahan saat melakukan transfer.');"
+        },
+        {
+          "line": 126,
+          "content": "await reply('Terjadi kesalahan saat melakukan transfer.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "billing-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 54,
+          "content": "await reply('Terjadi kesalahan saat mengecek tagihan. Silakan coba lagi.');"
+        },
+        {
+          "line": 54,
+          "content": "await reply('Terjadi kesalahan saat mengecek tagihan. Silakan coba lagi.');"
+        },
+        {
+          "line": 81,
+          "content": "return reply(`Anda sudah memiliki permintaan perubahan paket ke *${existingRequest.requestedPackageN..."
+        },
+        {
+          "line": 81,
+          "content": "return reply(`Anda sudah memiliki permintaan perubahan paket ke *${existingRequest.requestedPackageN..."
+        },
+        {
+          "line": 90,
+          "content": "return reply(\"Tidak ada paket lain yang tersedia untuk dipilih.\");"
+        },
+        {
+          "line": 90,
+          "content": "return reply(\"Tidak ada paket lain yang tersedia untuk dipilih.\");"
+        },
+        {
+          "line": 109,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan ubah paket. Silakan coba lagi.');"
+        },
+        {
+          "line": 109,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan ubah paket. Silakan coba lagi.');"
+        }
+      ],
+      "templates": [
+        {
+          "line": 45,
+          "content": "responseMessage = renderTemplate('tagihan_lunas', templateData);"
+        },
+        {
+          "line": 47,
+          "content": "responseMessage = renderTemplate('tagihan_belum_lunas', templateData);"
+        }
+      ]
+    },
+    {
+      "file": "conversation-state-handler.js",
+      "hardcoded": [
+        {
+          "line": 84,
+          "content": "return reply(\"Baik, permintaan sebelumnya telah dibatalkan. Ada lagi yang bisa saya bantu?\");..."
+        },
+        {
+          "line": 84,
+          "content": "return reply(\"Baik, permintaan sebelumnya telah dibatalkan. Ada lagi yang bisa saya bantu?\");..."
+        },
+        {
+          "line": 207,
+          "content": "return reply(\"Maaf, terjadi kesalahan dalam proses. Silakan coba lagi dari awal.\");"
+        },
+        {
+          "line": 207,
+          "content": "return reply(\"Maaf, terjadi kesalahan dalam proses. Silakan coba lagi dari awal.\");"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "monitoring-handler.js",
+      "hardcoded": [
+        {
+          "line": 14,
+          "content": "reply(\"⏳ Sedang mengambil statistik PPPoE, mohon tunggu...\");"
+        },
+        {
+          "line": 45,
+          "content": "reply(`🚫 Gagal mengambil statistik PPPoE: ${err.message}. Silakan coba lagi nanti atau hubungi Admi..."
+        },
+        {
+          "line": 55,
+          "content": "reply(\"⏳ Sedang mengambil statistik Hotspot, mohon tunggu...\");"
+        },
+        {
+          "line": 65,
+          "content": "reply(`🚫 Gagal mengambil statistik Hotspot: ${err.message}. Silakan coba lagi nanti atau hubungi Ad..."
+        },
+        {
+          "line": 80,
+          "content": "await reply(`STATUS AP :\\n\\n${splitnya}\\n\\nBy Bot`);"
+        },
+        {
+          "line": 80,
+          "content": "await reply(`STATUS AP :\\n\\n${splitnya}\\n\\nBy Bot`);"
+        },
+        {
+          "line": 83,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 83,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 97,
+          "content": "reply(`${txtx}`);"
+        },
+        {
+          "line": 104,
+          "content": "reply(`ALL USERS\\n\\n${users.map(user => 'Nama: ' + user.name + '\\nNo Telepon: ' + user.phone_number...."
+        },
+        {
+          "line": 119,
+          "content": "reply(`${txtx}`);"
+        },
+        {
+          "line": 135,
+          "content": "reply(`${txtx}`);"
+        },
+        {
+          "line": 144,
+          "content": "reply(`📊 *MONITOR WIFI*\\n\\nFitur monitoring WiFi sedang dalam pengembangan.\\n\\nGunakan perintah ber..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "network-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 21,
+          "content": "return reply(`Profil Tidak Ditemukan !!!`);"
+        },
+        {
+          "line": 21,
+          "content": "return reply(`Profil Tidak Ditemukan !!!`);"
+        },
+        {
+          "line": 32,
+          "content": "await reply(`Mohon Maaf Kak Mac Atau Ip Sudah Terdaftar Di IP Binding. Silahkan Cek Lagi Dalam Penul..."
+        },
+        {
+          "line": 32,
+          "content": "await reply(`Mohon Maaf Kak Mac Atau Ip Sudah Terdaftar Di IP Binding. Silahkan Cek Lagi Dalam Penul..."
+        },
+        {
+          "line": 34,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis Saat Penambahan Ip Binding. Silahkan Hubungi Pembua..."
+        },
+        {
+          "line": 34,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis Saat Penambahan Ip Binding. Silahkan Hubungi Pembua..."
+        },
+        {
+          "line": 36,
+          "content": "await reply(`Mohon Maaf Kak Error Pada Mac Address. Silahkan Cek Kembali Pada Penulisan Mac Address...."
+        },
+        {
+          "line": 36,
+          "content": "await reply(`Mohon Maaf Kak Error Pada Mac Address. Silahkan Cek Kembali Pada Penulisan Mac Address...."
+        },
+        {
+          "line": 38,
+          "content": "await reply(`Mohon Maaf Kak Ip Address Melebihi Range Yang Telah Ditentukan. Silahkan Cek Kembali Pa..."
+        },
+        {
+          "line": 38,
+          "content": "await reply(`Mohon Maaf Kak Ip Address Melebihi Range Yang Telah Ditentukan. Silahkan Cek Kembali Pa..."
+        },
+        {
+          "line": 40,
+          "content": "await reply(`Pembuatan Ip Binding Telah Selesai. Dengan Data Berikut :\\n\\nKomen : ${komen}\\nIP : ${i..."
+        },
+        {
+          "line": 40,
+          "content": "await reply(`Pembuatan Ip Binding Telah Selesai. Dengan Data Berikut :\\n\\nKomen : ${komen}\\nIP : ${i..."
+        },
+        {
+          "line": 44,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 44,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 54,
+          "content": "await reply(`Mohon Maaf Kak Mac Atau Ip Sudah Terdaftar Di IP Binding. Silahkan Cek Lagi Dalam Penul..."
+        },
+        {
+          "line": 54,
+          "content": "await reply(`Mohon Maaf Kak Mac Atau Ip Sudah Terdaftar Di IP Binding. Silahkan Cek Lagi Dalam Penul..."
+        },
+        {
+          "line": 56,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis Saat Penambahan Ip Binding. Silahkan Hubungi Pembua..."
+        },
+        {
+          "line": 56,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis Saat Penambahan Ip Binding. Silahkan Hubungi Pembua..."
+        },
+        {
+          "line": 58,
+          "content": "await reply(`Mohon Maaf Kak Error Pada Mac Address. Silahkan Cek Kembali Pada Penulisan Mac Address...."
+        },
+        {
+          "line": 58,
+          "content": "await reply(`Mohon Maaf Kak Error Pada Mac Address. Silahkan Cek Kembali Pada Penulisan Mac Address...."
+        },
+        {
+          "line": 60,
+          "content": "await reply(`Mohon Maaf Kak Ip Address Melebihi Range Yang Telah Ditentukan. Silahkan Cek Kembali Pa..."
+        },
+        {
+          "line": 60,
+          "content": "await reply(`Mohon Maaf Kak Ip Address Melebihi Range Yang Telah Ditentukan. Silahkan Cek Kembali Pa..."
+        },
+        {
+          "line": 62,
+          "content": "await reply(`Pembuatan Ip Binding Telah Selesai. Dengan Data Berikut :\\n\\nKomen : ${komen}\\nIP : ${i..."
+        },
+        {
+          "line": 62,
+          "content": "await reply(`Pembuatan Ip Binding Telah Selesai. Dengan Data Berikut :\\n\\nKomen : ${komen}\\nIP : ${i..."
+        },
+        {
+          "line": 66,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 66,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 76,
+          "content": "await reply(`Mohon Maaf Kak Gagal Menambahkan Ke Simple Queue Dikarenakan Parent Tidak Ditemukan. Si..."
+        },
+        {
+          "line": 76,
+          "content": "await reply(`Mohon Maaf Kak Gagal Menambahkan Ke Simple Queue Dikarenakan Parent Tidak Ditemukan. Si..."
+        },
+        {
+          "line": 78,
+          "content": "await reply(`Mohon Maaf Kak Gagal Menambahkan Ke Simple Queue Dikarenakan Nama Itu Sudah Terdaftar D..."
+        },
+        {
+          "line": 78,
+          "content": "await reply(`Mohon Maaf Kak Gagal Menambahkan Ke Simple Queue Dikarenakan Nama Itu Sudah Terdaftar D..."
+        },
+        {
+          "line": 80,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis Saat Penambahan Simple Queue. Silahkan Hubungi Pemb..."
+        },
+        {
+          "line": 80,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis Saat Penambahan Simple Queue. Silahkan Hubungi Pemb..."
+        },
+        {
+          "line": 82,
+          "content": "await reply(`Mohon Maaf Kak Limit At Download Lebih Besar Dari Max Limit. Silahkan Cek Konfigurasi D..."
+        },
+        {
+          "line": 82,
+          "content": "await reply(`Mohon Maaf Kak Limit At Download Lebih Besar Dari Max Limit. Silahkan Cek Konfigurasi D..."
+        },
+        {
+          "line": 84,
+          "content": "await reply(`Mohon Maaf Kak Limit At Upload Lebih Besar Dari Max Limit. Silahkan Cek Konfigurasi Dat..."
+        },
+        {
+          "line": 84,
+          "content": "await reply(`Mohon Maaf Kak Limit At Upload Lebih Besar Dari Max Limit. Silahkan Cek Konfigurasi Dat..."
+        },
+        {
+          "line": 86,
+          "content": "await reply(`Pembuatan Simple Queue Telah Selesai. Dengan Data Berikut :\\n\\nNama : ${komen}\\nIP : ${..."
+        },
+        {
+          "line": 86,
+          "content": "await reply(`Pembuatan Simple Queue Telah Selesai. Dengan Data Berikut :\\n\\nNama : ${komen}\\nIP : ${..."
+        },
+        {
+          "line": 90,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 90,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 98,
+          "content": "await reply('Terjadi kesalahan saat menambahkan binding.');"
+        },
+        {
+          "line": 98,
+          "content": "await reply('Terjadi kesalahan saat menambahkan binding.');"
+        },
+        {
+          "line": 117,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Dalam Penulisan Profil. Silahkan Cek Lagi Dalam Penulisan ..."
+        },
+        {
+          "line": 117,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Dalam Penulisan Profil. Silahkan Cek Lagi Dalam Penulisan ..."
+        },
+        {
+          "line": 119,
+          "content": "await reply(`Mohon Maaf Kak User PPPOE Tersebut Telah Terdaftar. Silahkan Buat User Baru Lagi Kak.\\n..."
+        },
+        {
+          "line": 119,
+          "content": "await reply(`Mohon Maaf Kak User PPPOE Tersebut Telah Terdaftar. Silahkan Buat User Baru Lagi Kak.\\n..."
+        },
+        {
+          "line": 121,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis. Silahkan Lapor Ke Pembuat Bot\\n\\nTerima Kasih`);..."
+        },
+        {
+          "line": 121,
+          "content": "await reply(`Mohon Maaf Kak Ada Kesalahan Teknis. Silahkan Lapor Ke Pembuat Bot\\n\\nTerima Kasih`);..."
+        },
+        {
+          "line": 123,
+          "content": "await reply(`Pembuatan Akun PPPOE Berhasil\\n\\nUsername : ${user}\\nPassword : ${pw} \\nProfile : ${pro..."
+        },
+        {
+          "line": 123,
+          "content": "await reply(`Pembuatan Akun PPPOE Berhasil\\n\\nUsername : ${user}\\nPassword : ${pw} \\nProfile : ${pro..."
+        },
+        {
+          "line": 130,
+          "content": "await reply('Error!');"
+        },
+        {
+          "line": 130,
+          "content": "await reply('Error!');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "package-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 31,
+          "content": "return reply(`Anda sudah memiliki permintaan perubahan paket ke *${existingRequest.requestedPackageN..."
+        },
+        {
+          "line": 31,
+          "content": "return reply(`Anda sudah memiliki permintaan perubahan paket ke *${existingRequest.requestedPackageN..."
+        },
+        {
+          "line": 66,
+          "content": "return reply(\"Maaf, saat ini tidak ada pilihan paket lain yang tersedia untuk Anda.\");"
+        },
+        {
+          "line": 66,
+          "content": "return reply(\"Maaf, saat ini tidak ada pilihan paket lain yang tersedia untuk Anda.\");"
+        },
+        {
+          "line": 81,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan ubah paket. Silakan coba lagi.');"
+        },
+        {
+          "line": 81,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan ubah paket. Silakan coba lagi.');"
+        },
+        {
+          "line": 108,
+          "content": "return reply(`Anda sudah memiliki Speed on Demand yang aktif untuk paket *${activeBoost.requestedPac..."
+        },
+        {
+          "line": 108,
+          "content": "return reply(`Anda sudah memiliki Speed on Demand yang aktif untuk paket *${activeBoost.requestedPac..."
+        },
+        {
+          "line": 116,
+          "content": "return reply(`Anda sudah memiliki permintaan Speed on Demand untuk paket *${pendingBoost.requestedPa..."
+        },
+        {
+          "line": 116,
+          "content": "return reply(`Anda sudah memiliki permintaan Speed on Demand untuk paket *${pendingBoost.requestedPa..."
+        },
+        {
+          "line": 127,
+          "content": "return reply(\"Maaf, tidak ada paket speed boost yang tersedia untuk langganan Anda saat ini.\");..."
+        },
+        {
+          "line": 127,
+          "content": "return reply(\"Maaf, tidak ada paket speed boost yang tersedia untuk langganan Anda saat ini.\");..."
+        },
+        {
+          "line": 163,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan speed boost. Silakan coba lagi.');"
+        },
+        {
+          "line": 163,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan speed boost. Silakan coba lagi.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "photo-upload-queue.js",
+      "hardcoded": [
+        {
+          "line": 335,
+          "content": "await reply('❌ Error memproses foto. Silakan coba lagi.');"
+        },
+        {
+          "line": 335,
+          "content": "await reply('❌ Error memproses foto. Silakan coba lagi.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "photo-workflow-handler.js",
+      "hardcoded": [
+        {
+          "line": 173,
+          "content": "await reply(`💡 *REMINDER*"
+        },
+        {
+          "line": 173,
+          "content": "await reply(`💡 *REMINDER*"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "reboot-modem-handler.js",
+      "hardcoded": [
+        {
+          "line": 28,
+          "content": "return reply(`Maaf Kak ${pushname}, fitur reboot modem saat ini hanya tersedia untuk pelanggan bulan..."
+        },
+        {
+          "line": 28,
+          "content": "return reply(`Maaf Kak ${pushname}, fitur reboot modem saat ini hanya tersedia untuk pelanggan bulan..."
+        },
+        {
+          "line": 32,
+          "content": "return reply(`Maaf Kak ${pushname}, data device ID untuk pelanggan \"${user.name || 'ini'}\" tidak dit..."
+        },
+        {
+          "line": 32,
+          "content": "return reply(`Maaf Kak ${pushname}, data device ID untuk pelanggan \"${user.name || 'ini'}\" tidak dit..."
+        },
+        {
+          "line": 37,
+          "content": "reply(`Tentu, saya bisa me-reboot modem Anda. Perlu diingat, proses ini akan membuat koneksi interne..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "saldo-handler.js",
+      "hardcoded": [
+        {
+          "line": 50,
+          "content": "await reply('❌ Maaf, terjadi kesalahan saat mengecek saldo. Silakan coba lagi.');"
+        },
+        {
+          "line": 50,
+          "content": "await reply('❌ Maaf, terjadi kesalahan saat mengecek saldo. Silakan coba lagi.');"
+        },
+        {
+          "line": 113,
+          "content": "await reply('❌ Maaf, terjadi kesalahan. Silakan coba lagi.');"
+        },
+        {
+          "line": 113,
+          "content": "await reply('❌ Maaf, terjadi kesalahan. Silakan coba lagi.');"
+        },
+        {
+          "line": 126,
+          "content": "return await reply('ℹ️ Anda tidak memiliki request topup yang aktif untuk dibatalkan.');"
+        },
+        {
+          "line": 126,
+          "content": "return await reply('ℹ️ Anda tidak memiliki request topup yang aktif untuk dibatalkan.');"
+        },
+        {
+          "line": 137,
+          "content": "return await reply('❌ Gagal membatalkan request topup. Silakan coba lagi.');"
+        },
+        {
+          "line": 137,
+          "content": "return await reply('❌ Gagal membatalkan request topup. Silakan coba lagi.');"
+        },
+        {
+          "line": 152,
+          "content": "await reply('❌ Terjadi kesalahan saat membatalkan topup');"
+        },
+        {
+          "line": 152,
+          "content": "await reply('❌ Terjadi kesalahan saat membatalkan topup');"
+        },
+        {
+          "line": 169,
+          "content": "return await reply('❌ Saldo Anda tidak mencukupi. Silakan topup terlebih dahulu.');"
+        },
+        {
+          "line": 169,
+          "content": "return await reply('❌ Saldo Anda tidak mencukupi. Silakan topup terlebih dahulu.');"
+        },
+        {
+          "line": 176,
+          "content": "return await reply('❌ Maaf, tidak ada voucher yang tersedia saat ini.');"
+        },
+        {
+          "line": 176,
+          "content": "return await reply('❌ Maaf, tidak ada voucher yang tersedia saat ini.');"
+        },
+        {
+          "line": 205,
+          "content": "await reply('❌ Terjadi kesalahan. Silakan coba lagi.');"
+        },
+        {
+          "line": 205,
+          "content": "await reply('❌ Terjadi kesalahan. Silakan coba lagi.');"
+        },
+        {
+          "line": 215,
+          "content": "return await reply('❌ Format: transfer [nomor] [jumlah]\\nContoh: transfer 6281234567890 50000');..."
+        },
+        {
+          "line": 215,
+          "content": "return await reply('❌ Format: transfer [nomor] [jumlah]\\nContoh: transfer 6281234567890 50000');..."
+        },
+        {
+          "line": 222,
+          "content": "return await reply('❌ Jumlah transfer tidak valid');"
+        },
+        {
+          "line": 222,
+          "content": "return await reply('❌ Jumlah transfer tidak valid');"
+        },
+        {
+          "line": 233,
+          "content": "return await reply(`❌ Saldo tidak mencukupi\\nSaldo Anda: ${convertRupiah.convert(senderSaldo)}`);..."
+        },
+        {
+          "line": 233,
+          "content": "return await reply(`❌ Saldo tidak mencukupi\\nSaldo Anda: ${convertRupiah.convert(senderSaldo)}`);..."
+        },
+        {
+          "line": 241,
+          "content": "await reply(`✅ Transfer berhasil!\\n\\nKe: ${targetNumber}\\nJumlah: ${convertRupiah.convert(amount)}\\n..."
+        },
+        {
+          "line": 241,
+          "content": "await reply(`✅ Transfer berhasil!\\n\\nKe: ${targetNumber}\\nJumlah: ${convertRupiah.convert(amount)}\\n..."
+        },
+        {
+          "line": 250,
+          "content": "await reply('❌ Transfer gagal. Silakan coba lagi.');"
+        },
+        {
+          "line": 250,
+          "content": "await reply('❌ Transfer gagal. Silakan coba lagi.');"
+        },
+        {
+          "line": 255,
+          "content": "await reply('❌ Terjadi kesalahan saat transfer. Silakan coba lagi.');"
+        },
+        {
+          "line": 255,
+          "content": "await reply('❌ Terjadi kesalahan saat transfer. Silakan coba lagi.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "states\\other-state-handler.js",
+      "hardcoded": [
+        {
+          "line": 36,
+          "content": "return reply(\"Maaf, tiket tersebut sepertinya sudah tidak ada. Mungkin sudah diproses atau dibatalka..."
+        },
+        {
+          "line": 36,
+          "content": "return reply(\"Maaf, tiket tersebut sepertinya sudah tidak ada. Mungkin sudah diproses atau dibatalka..."
+        },
+        {
+          "line": 47,
+          "content": "reply(`✅ *Tiket Berhasil Dibatalkan!*\\n\\nTiket laporan Anda dengan ID *${ticketIdToCancel}* telah be..."
+        },
+        {
+          "line": 53,
+          "content": "reply(\"Mohon balas *'ya'* untuk melanjutkan pembatalan, atau *'batal'* untuk membatalkan aksi ini.\")..."
+        },
+        {
+          "line": 63,
+          "content": "reply(`Baik, permintaan reboot untuk modem *${targetUser.name}* sedang diproses. Mohon tunggu sekita..."
+        },
+        {
+          "line": 76,
+          "content": "reply(`⚠️ Maaf, terjadi kendala saat mencoba reboot modem. Silakan coba lagi nanti atau hubungi admi..."
+        },
+        {
+          "line": 81,
+          "content": "reply(\"Silakan balas *'ya'* untuk melanjutkan reboot modem, atau *'batal'* untuk membatalkan.\");..."
+        },
+        {
+          "line": 92,
+          "content": "return reply(`⚠️ Maaf, Kak. Level daya tidak valid. Mohon pilih salah satu dari: *100, 80, 60, 40, 2..."
+        },
+        {
+          "line": 92,
+          "content": "return reply(`⚠️ Maaf, Kak. Level daya tidak valid. Mohon pilih salah satu dari: *100, 80, 60, 40, 2..."
+        },
+        {
+          "line": 97,
+          "content": "return reply(`Siap. Saya konfirmasi ya, kekuatan sinyal WiFi akan diubah ke level *${newPowerLevel}%..."
+        },
+        {
+          "line": 97,
+          "content": "return reply(`Siap. Saya konfirmasi ya, kekuatan sinyal WiFi akan diubah ke level *${newPowerLevel}%..."
+        },
+        {
+          "line": 106,
+          "content": "reply(`Oke, ditunggu sebentar ya. Saya sedang mengatur kekuatan sinyal WiFi untuk *${targetUser.name..."
+        },
+        {
+          "line": 116,
+          "content": "reply(`✅ Berhasil! Kekuatan sinyal WiFi Anda sudah diubah ke *${level_daya}%*.\\n\\n📝 *Penjelasan Lev..."
+        },
+        {
+          "line": 119,
+          "content": "reply(`⚠️ Maaf, ada kendala saat mengubah kekuatan sinyal WiFi. Mohon coba lagi nanti atau hubungi a..."
+        },
+        {
+          "line": 124,
+          "content": "reply(\"Mohon balas *'ya'* untuk melanjutkan perubahan power WiFi, atau *'batal'* untuk membatalkan.\"..."
+        },
+        {
+          "line": 136,
+          "content": "return reply(`⚠️ Pilihan tidak valid. Silakan pilih nomor 1-${userState.options.length} sesuai paket..."
+        },
+        {
+          "line": 136,
+          "content": "return reply(`⚠️ Pilihan tidak valid. Silakan pilih nomor 1-${userState.options.length} sesuai paket..."
+        },
+        {
+          "line": 144,
+          "content": "return reply(`Anda memilih Speed on Demand:\\n*Paket:* ${selectedOption.package.name}\\n*Durasi:* ${du..."
+        },
+        {
+          "line": 144,
+          "content": "return reply(`Anda memilih Speed on Demand:\\n*Paket:* ${selectedOption.package.name}\\n*Durasi:* ${du..."
+        },
+        {
+          "line": 163,
+          "content": "reply(\"Pemesanan Speed on Demand dibatalkan. Ada yang bisa saya bantu lagi?\");"
+        },
+        {
+          "line": 177,
+          "content": "return reply(`⚠️ Pilihan tidak valid. Silakan pilih nomor 1-${userState.options.length} sesuai paket..."
+        },
+        {
+          "line": 177,
+          "content": "return reply(`⚠️ Pilihan tidak valid. Silakan pilih nomor 1-${userState.options.length} sesuai paket..."
+        },
+        {
+          "line": 187,
+          "content": "return reply(`Anda telah memilih *${selectedPackage.name}* dengan harga *${newPriceFormatted}* per b..."
+        },
+        {
+          "line": 187,
+          "content": "return reply(`Anda telah memilih *${selectedPackage.name}* dengan harga *${newPriceFormatted}* per b..."
+        },
+        {
+          "line": 206,
+          "content": "reply(\"Perubahan paket dibatalkan. Anda tetap menggunakan paket saat ini. Ada yang bisa saya bantu l..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "states\\report-state-handler.js",
+      "hardcoded": [
+        {
+          "line": 44,
+          "content": "return reply(\"📝 *FORMULIR LAPORAN GANGGUAN INTERNET*\\n\\n🔹 *Langkah 1 dari 6: Deskripsi Masalah*\\n\\..."
+        },
+        {
+          "line": 44,
+          "content": "return reply(\"📝 *FORMULIR LAPORAN GANGGUAN INTERNET*\\n\\n🔹 *Langkah 1 dari 6: Deskripsi Masalah*\\n\\..."
+        },
+        {
+          "line": 72,
+          "content": "return reply(`✅ *KELUHAN BERHASIL DICATAT*\\n\\n📊 *Analisis Awal:*\\n├ 📁 Kategori: ${kategoriMasalah}..."
+        },
+        {
+          "line": 72,
+          "content": "return reply(`✅ *KELUHAN BERHASIL DICATAT*\\n\\n📊 *Analisis Awal:*\\n├ 📁 Kategori: ${kategoriMasalah}..."
+        },
+        {
+          "line": 84,
+          "content": "return reply(`✅ *Terima kasih sudah mencoba restart modem*\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n🔍 *Langk..."
+        },
+        {
+          "line": 84,
+          "content": "return reply(`✅ *Terima kasih sudah mencoba restart modem*\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n🔍 *Langk..."
+        },
+        {
+          "line": 89,
+          "content": "return reply(`📌 *Catatan: Belum mencoba restart*\\n\\n💡 *REKOMENDASI PENTING:*\\nRestart modem dapat ..."
+        },
+        {
+          "line": 89,
+          "content": "return reply(`📌 *Catatan: Belum mencoba restart*\\n\\n💡 *REKOMENDASI PENTING:*\\nRestart modem dapat ..."
+        },
+        {
+          "line": 92,
+          "content": "return reply(`⚠️ *Maaf, saya tidak mengerti jawaban Anda*\\n\\nMohon jawab dengan salah satu pilihan b..."
+        },
+        {
+          "line": 92,
+          "content": "return reply(`⚠️ *Maaf, saya tidak mengerti jawaban Anda*\\n\\nMohon jawab dengan salah satu pilihan b..."
+        },
+        {
+          "line": 106,
+          "content": "return reply(`🚨 *ALERT: GANGGUAN FIBER OPTIK TERDETEKSI!*\\n\\n🔴 *Status: URGENT - Prioritas Tinggi*..."
+        },
+        {
+          "line": 106,
+          "content": "return reply(`🚨 *ALERT: GANGGUAN FIBER OPTIK TERDETEKSI!*\\n\\n🔴 *Status: URGENT - Prioritas Tinggi*..."
+        },
+        {
+          "line": 112,
+          "content": "return reply(`✅ *Kabar Baik: Tidak Ada LOS Merah*\\n└ Koneksi fiber optik kemungkinan normal\\n\\n━━━━━..."
+        },
+        {
+          "line": 112,
+          "content": "return reply(`✅ *Kabar Baik: Tidak Ada LOS Merah*\\n└ Koneksi fiber optik kemungkinan normal\\n\\n━━━━━..."
+        },
+        {
+          "line": 115,
+          "content": "return reply(`⚠️ *Maaf, saya tidak mengerti jawaban Anda*\\n\\nPertanyaan: Apakah ada lampu *LOS MERAH..."
+        },
+        {
+          "line": 115,
+          "content": "return reply(`⚠️ *Maaf, saya tidak mengerti jawaban Anda*\\n\\nPertanyaan: Apakah ada lampu *LOS MERAH..."
+        },
+        {
+          "line": 126,
+          "content": "return reply(\"⚠️ *Jawaban tidak boleh kosong*\\n\\nMohon sebutkan kondisi lampu-lampu pada modem Anda...."
+        },
+        {
+          "line": 126,
+          "content": "return reply(\"⚠️ *Jawaban tidak boleh kosong*\\n\\nMohon sebutkan kondisi lampu-lampu pada modem Anda...."
+        },
+        {
+          "line": 151,
+          "content": "return reply(`${pesanIndikasi}📝 *Langkah 5 dari 6: Informasi Tambahan*\\n\\nApakah ada *informasi tam..."
+        },
+        {
+          "line": 151,
+          "content": "return reply(`${pesanIndikasi}📝 *Langkah 5 dari 6: Informasi Tambahan*\\n\\nApakah ada *informasi tam..."
+        },
+        {
+          "line": 254,
+          "content": "return reply(\"❌ *Laporan dibatalkan*\\n\\nJika Anda ingin membuat laporan baru, silakan ketik *'lapor'..."
+        },
+        {
+          "line": 254,
+          "content": "return reply(\"❌ *Laporan dibatalkan*\\n\\nJika Anda ingin membuat laporan baru, silakan ketik *'lapor'..."
+        },
+        {
+          "line": 256,
+          "content": "return reply(\"⚠️ *Pilihan tidak valid*\\n\\n✅ Ketik *'ya'* → Kirim laporan ke teknisi\\n❌ Ketik *'tidak..."
+        },
+        {
+          "line": 256,
+          "content": "return reply(\"⚠️ *Pilihan tidak valid*\\n\\n✅ Ketik *'ya'* → Kirim laporan ke teknisi\\n❌ Ketik *'tidak..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "states\\wifi-name-state-handler.js",
+      "hardcoded": [
+        {
+          "line": 20,
+          "content": "return reply(`Baik, Anda memilih untuk mengubah satu SSID.\\n\\nBerikut daftar SSID Anda:\\n${ssidList}..."
+        },
+        {
+          "line": 20,
+          "content": "return reply(`Baik, Anda memilih untuk mengubah satu SSID.\\n\\nBerikut daftar SSID Anda:\\n${ssidList}..."
+        },
+        {
+          "line": 25,
+          "content": "return reply(`Siap! Nama untuk *semua SSID* akan diubah menjadi *\"${userState.nama_wifi_baru}\"*.\\n\\n..."
+        },
+        {
+          "line": 25,
+          "content": "return reply(`Siap! Nama untuk *semua SSID* akan diubah menjadi *\"${userState.nama_wifi_baru}\"*.\\n\\n..."
+        },
+        {
+          "line": 28,
+          "content": "return reply(\"Oke, Anda memilih untuk mengubah semua SSID sekaligus. Silakan ketik nama WiFi baru ya..."
+        },
+        {
+          "line": 28,
+          "content": "return reply(\"Oke, Anda memilih untuk mengubah semua SSID sekaligus. Silakan ketik nama WiFi baru ya..."
+        },
+        {
+          "line": 31,
+          "content": "return reply(\"Pilihan tidak valid. Mohon balas dengan angka *1* atau *2*.\");"
+        },
+        {
+          "line": 31,
+          "content": "return reply(\"Pilihan tidak valid. Mohon balas dengan angka *1* atau *2*.\");"
+        },
+        {
+          "line": 42,
+          "content": "return reply(\"Nomor SSID tidak valid. Mohon balas dengan nomor yang sesuai dari daftar.\");"
+        },
+        {
+          "line": 42,
+          "content": "return reply(\"Nomor SSID tidak valid. Mohon balas dengan nomor yang sesuai dari daftar.\");"
+        },
+        {
+          "line": 50,
+          "content": "return reply(`Baik. Nama untuk *SSID ${selectedSsidId}* akan diubah menjadi *\"${userState.nama_wifi_..."
+        },
+        {
+          "line": 50,
+          "content": "return reply(`Baik. Nama untuk *SSID ${selectedSsidId}* akan diubah menjadi *\"${userState.nama_wifi_..."
+        },
+        {
+          "line": 53,
+          "content": "return reply(\"Oke. Sekarang, silakan ketik nama WiFi baru yang Anda inginkan untuk SSID tersebut.\\n\\..."
+        },
+        {
+          "line": 53,
+          "content": "return reply(\"Oke. Sekarang, silakan ketik nama WiFi baru yang Anda inginkan untuk SSID tersebut.\\n\\..."
+        },
+        {
+          "line": 64,
+          "content": "return reply(`Nama WiFi tidak boleh kosong ya, Kak. Silakan ketik nama yang baru atau ketik *batal*...."
+        },
+        {
+          "line": 64,
+          "content": "return reply(`Nama WiFi tidak boleh kosong ya, Kak. Silakan ketik nama yang baru atau ketik *batal*...."
+        },
+        {
+          "line": 67,
+          "content": "return reply(`Wah, nama WiFi-nya terlalu panjang (maksimal 32 karakter). Coba yang lebih pendek ya, ..."
+        },
+        {
+          "line": 67,
+          "content": "return reply(`Wah, nama WiFi-nya terlalu panjang (maksimal 32 karakter). Coba yang lebih pendek ya, ..."
+        },
+        {
+          "line": 70,
+          "content": "return reply(`⚠️ Nama WiFi mengandung karakter yang tidak diperbolehkan. Gunakan hanya huruf, angka,..."
+        },
+        {
+          "line": 70,
+          "content": "return reply(`⚠️ Nama WiFi mengandung karakter yang tidak diperbolehkan. Gunakan hanya huruf, angka,..."
+        },
+        {
+          "line": 82,
+          "content": "return reply(`Baik. Nama WiFi akan diubah menjadi *\"${newName}\"*. Sudah benar?\\n\\nBalas *'ya'* untuk..."
+        },
+        {
+          "line": 82,
+          "content": "return reply(`Baik. Nama WiFi akan diubah menjadi *\"${newName}\"*. Sudah benar?\\n\\nBalas *'ya'* untuk..."
+        },
+        {
+          "line": 89,
+          "content": "return reply(`Siap. Saya konfirmasi ya, nama untuk *SSID ${selectedSsidId}* akan diubah menjadi *\"${..."
+        },
+        {
+          "line": 89,
+          "content": "return reply(`Siap. Saya konfirmasi ya, nama untuk *SSID ${selectedSsidId}* akan diubah menjadi *\"${..."
+        },
+        {
+          "line": 92,
+          "content": "return reply(`Siap. Saya konfirmasi ya, nama untuk *semua SSID* akan diubah menjadi *\"${newName}\"*. ..."
+        },
+        {
+          "line": 92,
+          "content": "return reply(`Siap. Saya konfirmasi ya, nama untuk *semua SSID* akan diubah menjadi *\"${newName}\"*. ..."
+        },
+        {
+          "line": 163,
+          "content": "return reply(`✅ *Berhasil!*\\n\\nNama WiFi ${ssidInfo} telah diubah menjadi: *\"${newName}\"*\\n\\n📝 *Inf..."
+        },
+        {
+          "line": 163,
+          "content": "return reply(`✅ *Berhasil!*\\n\\nNama WiFi ${ssidInfo} telah diubah menjadi: *\"${newName}\"*\\n\\n📝 *Inf..."
+        },
+        {
+          "line": 168,
+          "content": "return reply(`❌ Maaf, gagal mengubah nama WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError: ${er..."
+        },
+        {
+          "line": 168,
+          "content": "return reply(`❌ Maaf, gagal mengubah nama WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError: ${er..."
+        },
+        {
+          "line": 179,
+          "content": "if (newName.length === 0) return reply(`Nama WiFi tidak boleh kosong ya, Kak. Silakan ketik nama yan..."
+        },
+        {
+          "line": 179,
+          "content": "if (newName.length === 0) return reply(`Nama WiFi tidak boleh kosong ya, Kak. Silakan ketik nama yan..."
+        },
+        {
+          "line": 181,
+          "content": "if (/[^\\w\\s\\-.]/.test(newName)) return reply(`⚠️ Nama WiFi mengandung karakter yang tidak diperboleh..."
+        },
+        {
+          "line": 181,
+          "content": "if (/[^\\w\\s\\-.]/.test(newName)) return reply(`⚠️ Nama WiFi mengandung karakter yang tidak diperboleh..."
+        },
+        {
+          "line": 187,
+          "content": "reply(`📋 *Daftar SSID yang akan diubah:*\\n${ssid_info}\\n\\n⏳ Sedang mengubah semua nama WiFi menjadi..."
+        },
+        {
+          "line": 189,
+          "content": "reply(`⏳ Sedang mengubah semua nama WiFi menjadi *\"${newName}\"*...`);"
+        },
+        {
+          "line": 235,
+          "content": "reply(`✨ Berhasil! Nama WiFi untuk *semua SSID* Anda sudah diubah menjadi *\"${newName}\"*.\\n\\nSilakan..."
+        },
+        {
+          "line": 238,
+          "content": "reply(`⚠️ Aduh, maaf Kak. Sepertinya ada kendala teknis saat saya mencoba mengubah nama WiFi Anda. M..."
+        },
+        {
+          "line": 266,
+          "content": "reply(`Oke, ditunggu sebentar ya. Saya sedang proses perubahan nama WiFi untuk *${targetUser.name}*...."
+        },
+        {
+          "line": 323,
+          "content": "reply(`✨ Berhasil! Nama WiFi Anda sudah saya ubah menjadi *\"${nama_wifi_baru}\"*.\\n\\nSilakan cari nam..."
+        },
+        {
+          "line": 326,
+          "content": "reply(`⚠️ Aduh, maaf Kak. Sepertinya ada kendala teknis saat saya mencoba mengubah nama WiFi Anda. M..."
+        },
+        {
+          "line": 331,
+          "content": "reply(\"Mohon balas *'ya'* untuk melanjutkan atau ketik *'batal'* untuk membatalkan.\");"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "states\\wifi-password-state-handler.js",
+      "hardcoded": [
+        {
+          "line": 34,
+          "content": "reply(`Pilih nomor SSID yang ingin diubah kata sandinya:\\n\\n${ssidOptions}\\n\\nBalas dengan angka pil..."
+        },
+        {
+          "line": 48,
+          "content": "reply(`Pilih nomor SSID yang ingin diubah kata sandinya:\\n\\n${ssidOptions}\\n\\nBalas dengan angka pil..."
+        },
+        {
+          "line": 61,
+          "content": "reply(`Anda yakin ingin mengubah kata sandi SEMUA SSID menjadi: \\`${userData.sandi_wifi_baru}\\` ?\\n\\..."
+        },
+        {
+          "line": 70,
+          "content": "reply(\"Silakan ketik kata sandi WiFi baru yang Anda inginkan untuk SEMUA SSID.\\n\\n🔐 *Ketentuan kata..."
+        },
+        {
+          "line": 73,
+          "content": "reply(\"Pilihan tidak valid. Silakan pilih 1 untuk mengubah satu SSID atau 2 untuk mengubah semua SSI..."
+        },
+        {
+          "line": 85,
+          "content": "return reply(`Pilihan tidak valid. Silakan pilih nomor antara 1 dan ${userData.bulk_ssids.length}.`)..."
+        },
+        {
+          "line": 85,
+          "content": "return reply(`Pilihan tidak valid. Silakan pilih nomor antara 1 dan ${userData.bulk_ssids.length}.`)..."
+        },
+        {
+          "line": 99,
+          "content": "reply(`Anda yakin ingin mengubah kata sandi WiFi SSID ${selectedSsidId} menjadi: \\`${userData.sandi_..."
+        },
+        {
+          "line": 108,
+          "content": "reply(`Silakan ketik kata sandi WiFi baru yang Anda inginkan untuk SSID ${selectedSsidId}.\\n\\n🔐 *Ke..."
+        },
+        {
+          "line": 121,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 121,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 124,
+          "content": "return reply(`⚠️ Kata sandi terlalu panjang, maksimal 64 karakter.`);"
+        },
+        {
+          "line": 124,
+          "content": "return reply(`⚠️ Kata sandi terlalu panjang, maksimal 64 karakter.`);"
+        },
+        {
+          "line": 139,
+          "content": "return reply(`${ssidInfo}Anda yakin ingin mengubah kata sandi WiFi${userData.ssid_id ? ` SSID ${user..."
+        },
+        {
+          "line": 139,
+          "content": "return reply(`${ssidInfo}Anda yakin ingin mengubah kata sandi WiFi${userData.ssid_id ? ` SSID ${user..."
+        },
+        {
+          "line": 176,
+          "content": "return reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi telah diubah menjadi: \\`${newPassword}\\`\\n\\n📝 *Info ..."
+        },
+        {
+          "line": 176,
+          "content": "return reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi telah diubah menjadi: \\`${newPassword}\\`\\n\\n📝 *Info ..."
+        },
+        {
+          "line": 181,
+          "content": "return reply(`❌ Maaf, gagal mengubah kata sandi WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError..."
+        },
+        {
+          "line": 181,
+          "content": "return reply(`❌ Maaf, gagal mengubah kata sandi WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError..."
+        },
+        {
+          "line": 193,
+          "content": "return reply(`⚠️ Password terlalu pendek! Minimal 8 karakter ya, Kak. Coba lagi atau ketik *batal*.`..."
+        },
+        {
+          "line": 193,
+          "content": "return reply(`⚠️ Password terlalu pendek! Minimal 8 karakter ya, Kak. Coba lagi atau ketik *batal*.`..."
+        },
+        {
+          "line": 196,
+          "content": "return reply(`⚠️ Password terlalu panjang! Maksimal 64 karakter. Coba yang lebih pendek atau ketik *..."
+        },
+        {
+          "line": 196,
+          "content": "return reply(`⚠️ Password terlalu panjang! Maksimal 64 karakter. Coba yang lebih pendek atau ketik *..."
+        },
+        {
+          "line": 210,
+          "content": "return reply(`Anda yakin ingin mengubah kata sandi WiFi ${ssidInfo} menjadi: \\`${newPassword}\\`?\\n\\n..."
+        },
+        {
+          "line": 210,
+          "content": "return reply(`Anda yakin ingin mengubah kata sandi WiFi ${ssidInfo} menjadi: \\`${newPassword}\\`?\\n\\n..."
+        },
+        {
+          "line": 256,
+          "content": "return reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi ${ssidInfo} telah diubah menjadi: \\`${newPassword}\\`\\..."
+        },
+        {
+          "line": 256,
+          "content": "return reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi ${ssidInfo} telah diubah menjadi: \\`${newPassword}\\`\\..."
+        },
+        {
+          "line": 261,
+          "content": "return reply(`❌ Maaf, gagal mengubah kata sandi WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError..."
+        },
+        {
+          "line": 261,
+          "content": "return reply(`❌ Maaf, gagal mengubah kata sandi WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError..."
+        },
+        {
+          "line": 275,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 275,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 282,
+          "content": "reply(`📋 *Daftar SSID yang akan diubah:*\\n${ssid_info}\\n\\n⏳ Sedang mengubah kata sandi untuk *semua..."
+        },
+        {
+          "line": 284,
+          "content": "reply(`⏳ Sedang mengubah kata sandi untuk *semua SSID*...`);"
+        },
+        {
+          "line": 325,
+          "content": "reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi untuk *semua SSID* telah diubah menjadi: \\`${newPassword}\\`\\..."
+        },
+        {
+          "line": 328,
+          "content": "reply(`⚠️ Aduh, maaf. Sepertinya ada kendala teknis saat saya mencoba mengubah kata sandi WiFi Anda...."
+        },
+        {
+          "line": 344,
+          "content": "reply(`⏳ Sedang mengubah kata sandi WiFi SSID ${ssid_id}...`);"
+        },
+        {
+          "line": 383,
+          "content": "reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi untuk SSID ${ssid_id} telah diubah menjadi: \\`${sandi_wifi_b..."
+        },
+        {
+          "line": 386,
+          "content": "reply(`⚠️ Maaf, ada kendala teknis saat mengubah kata sandi WiFi. Mohon pastikan modem menyala dan c..."
+        },
+        {
+          "line": 391,
+          "content": "reply(\"Mohon balas *'ya'* untuk melanjutkan atau ketik *'batal'* untuk membatalkan.\");"
+        },
+        {
+          "line": 405,
+          "content": "reply(`⏳ Sedang mengubah kata sandi untuk ${bulk_ssids.length} SSID...`);"
+        },
+        {
+          "line": 444,
+          "content": "reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi untuk *${bulk_ssids.length} SSID* telah diubah menjadi: \\`${..."
+        },
+        {
+          "line": 447,
+          "content": "reply(`⚠️ Maaf, ada kendala teknis saat mengubah kata sandi WiFi. Mohon pastikan modem menyala dan c..."
+        },
+        {
+          "line": 452,
+          "content": "reply(\"Mohon balas *'ya'* untuk melanjutkan atau ketik *'batal'* untuk membatalkan.\");"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "steps\\general-steps.js",
+      "hardcoded": [
+        {
+          "line": 22,
+          "content": "await reply(`⏳ Sedang mengirim perintah reboot ke modem *${targetUser.name}*...`);"
+        },
+        {
+          "line": 22,
+          "content": "await reply(`⏳ Sedang mengirim perintah reboot ke modem *${targetUser.name}*...`);"
+        },
+        {
+          "line": 101,
+          "content": "await reply(`⏳ Sedang mengatur kekuatan sinyal WiFi untuk *${targetUser.name}* ke level ${level_daya..."
+        },
+        {
+          "line": 101,
+          "content": "await reply(`⏳ Sedang mengatur kekuatan sinyal WiFi untuk *${targetUser.name}* ke level ${level_daya..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "steps\\wifi-steps-bulk.js",
+      "hardcoded": [
+        {
+          "line": 63,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 76,
+          "content": "reply(`⏳ Sedang mengubah sandi WiFi untuk *semua SSID*...`);"
+        },
+        {
+          "line": 168,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 181,
+          "content": "reply(`⏳ Sedang mengubah sandi WiFi untuk SSID ${selectedSsidId}...`);"
+        },
+        {
+          "line": 260,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 273,
+          "content": "reply(`⏳ Sedang mengubah sandi WiFi untuk SSID ${selected_ssid}...`);"
+        },
+        {
+          "line": 325,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 338,
+          "content": "reply(`⏳ Sedang mengubah sandi WiFi untuk *semua SSID*...`);"
+        },
+        {
+          "line": 398,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 411,
+          "content": "reply(`⏳ Sedang mengubah sandi WiFi...`);"
+        },
+        {
+          "line": 478,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 491,
+          "content": "reply(`⏳ Sedang mengubah nama WiFi untuk *semua SSID*...`);"
+        },
+        {
+          "line": 582,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 595,
+          "content": "reply(`⏳ Sedang mengubah nama WiFi untuk SSID ${selectedSsidId}...`);"
+        },
+        {
+          "line": 656,
+          "content": "reply(`⏳ Memeriksa status perangkat...`);"
+        },
+        {
+          "line": 669,
+          "content": "reply(`⏳ Sedang mengubah nama WiFi...`);"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "steps\\wifi-steps.js",
+      "hardcoded": [
+        {
+          "line": 143,
+          "content": "await reply(`⏳ Sedang mengubah nama WiFi untuk *${targetUser.name}*...`);"
+        },
+        {
+          "line": 143,
+          "content": "await reply(`⏳ Sedang mengubah nama WiFi untuk *${targetUser.name}*...`);"
+        },
+        {
+          "line": 358,
+          "content": "await reply(`⏳ Sedang mengubah sandi WiFi untuk *${targetUser.name}*...`);"
+        },
+        {
+          "line": 358,
+          "content": "await reply(`⏳ Sedang mengubah sandi WiFi untuk *${targetUser.name}*...`);"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "utility-handler.js",
+      "hardcoded": [
+        {
+          "line": 87,
+          "content": "reply(`${greeting} ${pushname} 👋\\n\\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar per..."
+        },
+        {
+          "line": 96,
+          "content": "return reply(`⚠️ Mohon sertakan ID Tiket yang ingin Anda periksa.\\n\\n*Contoh Penggunaan:*\\ncektiket ..."
+        },
+        {
+          "line": 96,
+          "content": "return reply(`⚠️ Mohon sertakan ID Tiket yang ingin Anda periksa.\\n\\n*Contoh Penggunaan:*\\ncektiket ..."
+        },
+        {
+          "line": 106,
+          "content": "return reply(`🚫 Maaf Kak ${pushname}, tiket dengan ID \"*${ticketIdToCheck}*\" tidak ditemukan di sis..."
+        },
+        {
+          "line": 106,
+          "content": "return reply(`🚫 Maaf Kak ${pushname}, tiket dengan ID \"*${ticketIdToCheck}*\" tidak ditemukan di sis..."
+        },
+        {
+          "line": 110,
+          "content": "return reply(`🚫 Maaf Kak ${pushname}, Anda hanya dapat memeriksa tiket laporan milik Anda sendiri. ..."
+        },
+        {
+          "line": 110,
+          "content": "return reply(`🚫 Maaf Kak ${pushname}, Anda hanya dapat memeriksa tiket laporan milik Anda sendiri. ..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "voucher-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 19,
+          "content": "await reply(`Mohon Maaf Profil Yang Akan Ditambahkan Sudah Ada Di Dalam Database. Silahkan Cek Kemba..."
+        },
+        {
+          "line": 19,
+          "content": "await reply(`Mohon Maaf Profil Yang Akan Ditambahkan Sudah Ada Di Dalam Database. Silahkan Cek Kemba..."
+        },
+        {
+          "line": 22,
+          "content": "await reply(`Berhasil Membuat Profil Voucher\\n\\nProfil : ${profvc123}\\nNama Voucher : ${namavc123}\\n..."
+        },
+        {
+          "line": 22,
+          "content": "await reply(`Berhasil Membuat Profil Voucher\\n\\nProfil : ${profvc123}\\nNama Voucher : ${namavc123}\\n..."
+        },
+        {
+          "line": 29,
+          "content": "await reply('Terjadi kesalahan saat menambahkan profil voucher.');"
+        },
+        {
+          "line": 29,
+          "content": "await reply('Terjadi kesalahan saat menambahkan profil voucher.');"
+        },
+        {
+          "line": 45,
+          "content": "await reply(`Profil Tidak Ditemukan !!!`);"
+        },
+        {
+          "line": 45,
+          "content": "await reply(`Profil Tidak Ditemukan !!!`);"
+        },
+        {
+          "line": 49,
+          "content": "await reply(`Berhasil Menghapus Profil Voucher`);"
+        },
+        {
+          "line": 49,
+          "content": "await reply(`Berhasil Menghapus Profil Voucher`);"
+        },
+        {
+          "line": 56,
+          "content": "await reply('Terjadi kesalahan saat menghapus profil voucher.');"
+        },
+        {
+          "line": 56,
+          "content": "await reply('Terjadi kesalahan saat menghapus profil voucher.');"
+        },
+        {
+          "line": 72,
+          "content": "await reply(`Mohon Maaf Profil Yang Akan Ditambahkan Sudah Ada Di Dalam Database. Silahkan Cek Kemba..."
+        },
+        {
+          "line": 72,
+          "content": "await reply(`Mohon Maaf Profil Yang Akan Ditambahkan Sudah Ada Di Dalam Database. Silahkan Cek Kemba..."
+        },
+        {
+          "line": 75,
+          "content": "await reply(`Berhasil Membuat Profil Statik\\n\\nNama Profil : ${profstatik}\\nLimit At : ${limitat}\\nM..."
+        },
+        {
+          "line": 75,
+          "content": "await reply(`Berhasil Membuat Profil Statik\\n\\nNama Profil : ${profstatik}\\nLimit At : ${limitat}\\nM..."
+        },
+        {
+          "line": 82,
+          "content": "await reply('Terjadi kesalahan saat menambahkan profil statik.');"
+        },
+        {
+          "line": 82,
+          "content": "await reply('Terjadi kesalahan saat menambahkan profil statik.');"
+        },
+        {
+          "line": 98,
+          "content": "await reply(`Profil Tidak Ditemukan !!!`);"
+        },
+        {
+          "line": 98,
+          "content": "await reply(`Profil Tidak Ditemukan !!!`);"
+        },
+        {
+          "line": 102,
+          "content": "await reply(`Berhasil Menghapus Profil Statik`);"
+        },
+        {
+          "line": 102,
+          "content": "await reply(`Berhasil Menghapus Profil Statik`);"
+        },
+        {
+          "line": 109,
+          "content": "await reply('Terjadi kesalahan saat menghapus profil statik.');"
+        },
+        {
+          "line": 109,
+          "content": "await reply('Terjadi kesalahan saat menghapus profil statik.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "wifi-check-handler.js",
+      "hardcoded": [
+        {
+          "line": 88,
+          "content": "return reply(`Maaf, Kak. Data device ID untuk pelanggan \"${user.name || 'ini'}\" tidak ditemukan di s..."
+        },
+        {
+          "line": 88,
+          "content": "return reply(`Maaf, Kak. Data device ID untuk pelanggan \"${user.name || 'ini'}\" tidak ditemukan di s..."
+        },
+        {
+          "line": 91,
+          "content": "await reply(\"⏳ Sedang mengambil informasi WiFi dan modem Anda, mohon tunggu sebentar...\");"
+        },
+        {
+          "line": 91,
+          "content": "await reply(\"⏳ Sedang mengambil informasi WiFi dan modem Anda, mohon tunggu sebentar...\");"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "wifi-history-handler.js",
+      "hardcoded": [
+        {
+          "line": 23,
+          "content": "return reply('❌ Maaf, nomor Anda tidak terdaftar sebagai pelanggan.');"
+        },
+        {
+          "line": 23,
+          "content": "return reply('❌ Maaf, nomor Anda tidak terdaftar sebagai pelanggan.');"
+        },
+        {
+          "line": 36,
+          "content": "return reply('📋 Tidak ada history perubahan WiFi untuk akun Anda.');"
+        },
+        {
+          "line": 36,
+          "content": "return reply('📋 Tidak ada history perubahan WiFi untuk akun Anda.');"
+        },
+        {
+          "line": 82,
+          "content": "reply('❌ Maaf, terjadi kesalahan saat mengambil history WiFi.');"
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "wifi-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 37,
+          "content": "return reply(`Maaf Kak ${pushname}, pelanggan dengan ID \"${providedId}\" tidak ditemukan.`);..."
+        },
+        {
+          "line": 37,
+          "content": "return reply(`Maaf Kak ${pushname}, pelanggan dengan ID \"${providedId}\" tidak ditemukan.`);..."
+        },
+        {
+          "line": 54,
+          "content": "return reply(`Maaf Kak ${pushname}, fitur ganti nama WiFi saat ini hanya tersedia untuk pelanggan bu..."
+        },
+        {
+          "line": 54,
+          "content": "return reply(`Maaf Kak ${pushname}, fitur ganti nama WiFi saat ini hanya tersedia untuk pelanggan bu..."
+        },
+        {
+          "line": 58,
+          "content": "return reply(`Maaf Kak ${pushname}, data device ID ${(isOwner || isTeknisi) ? `untuk pelanggan \"${us..."
+        },
+        {
+          "line": 58,
+          "content": "return reply(`Maaf Kak ${pushname}, data device ID ${(isOwner || isTeknisi) ? `untuk pelanggan \"${us..."
+        },
+        {
+          "line": 61,
+          "content": "await reply(\"⏳ Sedang memeriksa informasi WiFi...\");"
+        },
+        {
+          "line": 61,
+          "content": "await reply(\"⏳ Sedang memeriksa informasi WiFi...\");"
+        },
+        {
+          "line": 76,
+          "content": "return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);"
+        },
+        {
+          "line": 76,
+          "content": "return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);"
+        },
+        {
+          "line": 87,
+          "content": "reply(`SSID WiFi yang tersedia:\\n${currentSSIDs}\\n\\nAnda ingin mengubah nama WiFi menjadi: \"${newNam..."
+        },
+        {
+          "line": 96,
+          "content": "reply(`SSID WiFi yang tersedia:\\n${currentSSIDs}\\n\\nPilih mode perubahan nama:\\n1️⃣ Ubah satu SSID s..."
+        },
+        {
+          "line": 109,
+          "content": "reply(`Maaf, terjadi kesalahan saat memeriksa informasi WiFi. Silakan coba lagi nanti atau hubungi a..."
+        },
+        {
+          "line": 141,
+          "content": "return reply(`Maaf Kak ${pushname}, pelanggan dengan ID \"${providedId}\" tidak ditemukan.`);..."
+        },
+        {
+          "line": 141,
+          "content": "return reply(`Maaf Kak ${pushname}, pelanggan dengan ID \"${providedId}\" tidak ditemukan.`);..."
+        },
+        {
+          "line": 160,
+          "content": "return reply(`Maaf Kak ${pushname}, fitur ganti kata sandi WiFi saat ini hanya tersedia untuk pelang..."
+        },
+        {
+          "line": 160,
+          "content": "return reply(`Maaf Kak ${pushname}, fitur ganti kata sandi WiFi saat ini hanya tersedia untuk pelang..."
+        },
+        {
+          "line": 164,
+          "content": "return reply(`Maaf Kak ${pushname}, data device ID ${(isOwner || isTeknisi) ? `untuk pelanggan \"${us..."
+        },
+        {
+          "line": 164,
+          "content": "return reply(`Maaf Kak ${pushname}, data device ID ${(isOwner || isTeknisi) ? `untuk pelanggan \"${us..."
+        },
+        {
+          "line": 167,
+          "content": "await reply(\"⏳ Sedang memeriksa informasi WiFi...\");"
+        },
+        {
+          "line": 167,
+          "content": "await reply(\"⏳ Sedang memeriksa informasi WiFi...\");"
+        },
+        {
+          "line": 181,
+          "content": "reply(`Maaf, terjadi kesalahan saat memeriksa informasi WiFi. Silakan coba lagi nanti atau hubungi a..."
+        },
+        {
+          "line": 189,
+          "content": "return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);"
+        },
+        {
+          "line": 189,
+          "content": "return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);"
+        },
+        {
+          "line": 199,
+          "content": "reply(`Anda ingin mengubah nama WiFi menjadi: \"${newName}\"\\n\\nPilih mode perubahan:\\n1️⃣ Ubah satu S..."
+        },
+        {
+          "line": 207,
+          "content": "reply(`Pilih mode perubahan nama WiFi:\\n1️⃣ Ubah satu SSID saja\\n2️⃣ Ubah semua SSID sekaligus\\n\\nBa..."
+        },
+        {
+          "line": 219,
+          "content": "reply(\"Tentu, mau diganti jadi apa nama WiFi nya? Silakan ketik nama yang baru.\\n\\n📝 *Ketentuan nam..."
+        },
+        {
+          "line": 222,
+          "content": "return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);"
+        },
+        {
+          "line": 222,
+          "content": "return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);"
+        },
+        {
+          "line": 235,
+          "content": "reply(`Baik, saya konfirmasi ya. Nama WiFi akan diubah menjadi: \"${newName}\". Sudah benar?\\n\\nBalas ..."
+        },
+        {
+          "line": 243,
+          "content": "reply(`✅ *Berhasil!*\\n\\nNama WiFi telah diubah menjadi: *\"${newName}\"*\\n\\n📝 *Info Penting:*\\n• Peru..."
+        },
+        {
+          "line": 246,
+          "content": "reply(`❌ Maaf, gagal mengubah nama WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError: ${error.mes..."
+        },
+        {
+          "line": 259,
+          "content": "return reply(`Silakan ketik nama WiFi baru yang Anda inginkan.\\n\\n📝 *Ketentuan nama WiFi:*\\n• Maksi..."
+        },
+        {
+          "line": 259,
+          "content": "return reply(`Silakan ketik nama WiFi baru yang Anda inginkan.\\n\\n📝 *Ketentuan nama WiFi:*\\n• Maksi..."
+        },
+        {
+          "line": 263,
+          "content": "return reply(`⚠️ *Nama WiFi terlalu panjang!*\\n\\nNama WiFi maksimal *32 karakter*.\\n\\nSilakan coba l..."
+        },
+        {
+          "line": 263,
+          "content": "return reply(`⚠️ *Nama WiFi terlalu panjang!*\\n\\nNama WiFi maksimal *32 karakter*.\\n\\nSilakan coba l..."
+        },
+        {
+          "line": 273,
+          "content": "reply(`📋 *Daftar SSID yang akan diubah:*\\n${currentSSIDs}\\n\\n⏳ Sedang mengubah nama untuk *semua SS..."
+        },
+        {
+          "line": 286,
+          "content": "reply(`✅ *Berhasil!*\\n\\nNama WiFi untuk *semua SSID* telah diubah menjadi: *\"${newName}\"*\\n\\n📝 *Cat..."
+        },
+        {
+          "line": 289,
+          "content": "reply(`❌ Maaf, gagal mengubah nama WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError: ${error.mes..."
+        },
+        {
+          "line": 304,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 304,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 315,
+          "content": "reply(`SSID WiFi yang tersedia:\\n${currentSSIDs}\\n\\nAnda ingin mengubah kata sandi WiFi menjadi: \\`$..."
+        },
+        {
+          "line": 324,
+          "content": "reply(`SSID WiFi yang tersedia:\\n${currentSSIDs}\\n\\nPilih mode perubahan kata sandi:\\n1️⃣ Ubah satu ..."
+        },
+        {
+          "line": 339,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 339,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 349,
+          "content": "reply(`Anda ingin mengubah kata sandi WiFi menjadi: \\`${newPassword}\\`\\n\\nPilih mode perubahan:\\n1️⃣..."
+        },
+        {
+          "line": 357,
+          "content": "reply(`Pilih mode perubahan kata sandi WiFi:\\n1️⃣ Ubah satu SSID saja\\n2️⃣ Ubah semua SSID sekaligus..."
+        },
+        {
+          "line": 368,
+          "content": "return reply(`Silakan ketik kata sandi WiFi baru yang Anda inginkan.\\n\\n🔐 *Ketentuan kata sandi WiF..."
+        },
+        {
+          "line": 368,
+          "content": "return reply(`Silakan ketik kata sandi WiFi baru yang Anda inginkan.\\n\\n🔐 *Ketentuan kata sandi WiF..."
+        },
+        {
+          "line": 372,
+          "content": "return reply(`⚠️ *Kata sandi terlalu pendek!*\\n\\nKata sandi WiFi minimal harus *8 karakter*.\\n\\nSila..."
+        },
+        {
+          "line": 372,
+          "content": "return reply(`⚠️ *Kata sandi terlalu pendek!*\\n\\nKata sandi WiFi minimal harus *8 karakter*.\\n\\nSila..."
+        },
+        {
+          "line": 382,
+          "content": "reply(`📋 *Daftar SSID yang akan diubah:*\\n${currentSSIDs}\\n\\n⏳ Sedang mengubah kata sandi untuk *se..."
+        },
+        {
+          "line": 395,
+          "content": "reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi untuk *semua SSID* telah diubah menjadi: \\`${newPassword}\\`\\..."
+        },
+        {
+          "line": 398,
+          "content": "reply(`❌ Maaf, gagal mengubah kata sandi WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError: ${err..."
+        },
+        {
+          "line": 410,
+          "content": "reply(\"Silakan ketik kata sandi WiFi baru yang Anda inginkan.\\n\\n🔐 *Ketentuan kata sandi WiFi:*\\n• ..."
+        },
+        {
+          "line": 413,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 413,
+          "content": "return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);"
+        },
+        {
+          "line": 426,
+          "content": "reply(`Anda yakin ingin mengubah kata sandi WiFi menjadi: \\`${newPassword}\\` ?\\n\\nBalas *'ya'* untuk..."
+        },
+        {
+          "line": 434,
+          "content": "reply(`✅ *Berhasil!*\\n\\nKata sandi WiFi telah diubah menjadi: \\`${newPassword}\\`\\n\\n📝 *Info Penting..."
+        },
+        {
+          "line": 437,
+          "content": "reply(`❌ Maaf, gagal mengubah kata sandi WiFi. Silakan coba lagi atau hubungi admin.\\n\\nError: ${err..."
+        }
+      ],
+      "templates": []
+    },
+    {
+      "file": "wifi-power-handler.js",
+      "hardcoded": [
+        {
+          "line": 49,
+          "content": "await reply(`Power Wifi Berhasil Dirubah Ke :\\n\\n==================================\\n${q}%\\n========..."
+        },
+        {
+          "line": 49,
+          "content": "await reply(`Power Wifi Berhasil Dirubah Ke :\\n\\n==================================\\n${q}%\\n========..."
+        },
+        {
+          "line": 53,
+          "content": "await reply(`Gagal Mengubah Power Wifi\\n\\nSilahkan Cek Format Power Wifi Atau Hubungi Admin\\n\\nTerim..."
+        },
+        {
+          "line": 53,
+          "content": "await reply(`Gagal Mengubah Power Wifi\\n\\nSilahkan Cek Format Power Wifi Atau Hubungi Admin\\n\\nTerim..."
+        },
+        {
+          "line": 61,
+          "content": "await reply('Terjadi kesalahan. Silakan coba lagi atau hubungi admin.');"
+        },
+        {
+          "line": 61,
+          "content": "await reply('Terjadi kesalahan. Silakan coba lagi atau hubungi admin.');"
+        }
+      ],
+      "templates": []
+    }
+  ],
+  "templateUsage": [
+    {
+      "file": "billing-management-handler.js",
+      "hardcoded": [
+        {
+          "line": 54,
+          "content": "await reply('Terjadi kesalahan saat mengecek tagihan. Silakan coba lagi.');"
+        },
+        {
+          "line": 54,
+          "content": "await reply('Terjadi kesalahan saat mengecek tagihan. Silakan coba lagi.');"
+        },
+        {
+          "line": 81,
+          "content": "return reply(`Anda sudah memiliki permintaan perubahan paket ke *${existingRequest.requestedPackageN..."
+        },
+        {
+          "line": 81,
+          "content": "return reply(`Anda sudah memiliki permintaan perubahan paket ke *${existingRequest.requestedPackageN..."
+        },
+        {
+          "line": 90,
+          "content": "return reply(\"Tidak ada paket lain yang tersedia untuk dipilih.\");"
+        },
+        {
+          "line": 90,
+          "content": "return reply(\"Tidak ada paket lain yang tersedia untuk dipilih.\");"
+        },
+        {
+          "line": 109,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan ubah paket. Silakan coba lagi.');"
+        },
+        {
+          "line": 109,
+          "content": "await reply('Terjadi kesalahan saat memproses permintaan ubah paket. Silakan coba lagi.');"
+        }
+      ],
+      "templates": [
+        {
+          "line": 45,
+          "content": "responseMessage = renderTemplate('tagihan_lunas', templateData);"
+        },
+        {
+          "line": 47,
+          "content": "responseMessage = renderTemplate('tagihan_belum_lunas', templateData);"
+        }
+      ]
+    },
+    {
+      "file": "conversation-handler.js",
+      "hardcoded": [],
+      "templates": [
+        {
+          "line": 10,
+          "content": "const { templatesCache } = require(\"../../lib/templating\");"
+        },
+        {
+          "line": 14,
+          "content": "let template = templatesCache.responseTemplates[key]?.template || '';"
+        }
+      ]
+    }
+  ]
+}
