@@ -4,6 +4,7 @@
  */
 
 const templateManager = require('../../lib/template-manager');
+const { greetingMessage, errorMessage, validationMessage } = require('../../lib/templating');
 
 /**
  * Handle admin contact
@@ -62,30 +63,9 @@ _${namaBot} - Siap membantu Anda 24/7_`;
  * Handle sapaan umum
  */
 function handleSapaanUmum(pushname, reply) {
-    const hour = new Date().getHours();
-    let templateKey = "";
-    
-    if (hour >= 0 && hour < 12) {
-        templateKey = "sapaan_pagi";
-    } else if (hour >= 12 && hour < 15) {
-        templateKey = "sapaan_siang";
-    } else if (hour >= 15 && hour < 18) {
-        templateKey = "sapaan_sore";
-    } else {
-        templateKey = "sapaan_malam";
-    }
-    
-    // Use template if available
-    if (templateManager.hasTemplate(templateKey)) {
-        const message = templateManager.getTemplate(templateKey, {
-            pushname: pushname
-        });
-        reply(message);
-    } else {
-        // Fallback to simple greeting
-        const greeting = templateKey.replace('sapaan_', 'Selamat ');
-        reply(`${greeting} ${pushname} 👋\n\nAda yang bisa saya bantu? Ketik *menu* untuk melihat daftar perintah yang tersedia.`);
-    }
+    // Use new system greeting message
+    const message = greetingMessage(pushname);
+    reply(message);
 }
 
 /**
@@ -93,7 +73,10 @@ function handleSapaanUmum(pushname, reply) {
  */
 function handleCekTiket(q, pushname, sender, isOwner, isTeknisi, config, global, reply) {
     if (!q) {
-        return reply(`⚠️ Mohon sertakan ID Tiket yang ingin Anda periksa.\n\n*Contoh Penggunaan:*\ncektiket ABC123\n\nAnda bisa menemukan ID Tiket pada pesan konfirmasi saat Anda pertama kali membuat laporan.`);
+        return reply(validationMessage('required_field', {
+            field_name: 'ID Tiket',
+            format_example: 'cektiket ABC123'
+        }));
     }
 
     const ticketIdToCheck = q.trim();
@@ -103,7 +86,11 @@ function handleCekTiket(q, pushname, sender, isOwner, isTeknisi, config, global,
     const namaBotKami = config.namabot || "Bot Kami";
 
     if (!report) {
-        return reply(`🚫 Maaf Kak ${pushname}, tiket dengan ID "*${ticketIdToCheck}*" tidak ditemukan di sistem kami.\n\nPastikan ID Tiket yang Anda masukkan sudah benar, atau hubungi Admin jika Anda yakin tiket tersebut ada.`);
+        return reply(errorMessage('not_found', {
+            nama: pushname,
+            item: `tiket dengan ID "${ticketIdToCheck}"`,
+            suggestion: 'Pastikan ID Tiket yang Anda masukkan sudah benar, atau hubungi Admin jika Anda yakin tiket tersebut ada.'
+        }));
     }
 
     if (!isOwner && !isTeknisi && report.pelangganId !== sender) {

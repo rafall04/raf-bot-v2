@@ -166,6 +166,7 @@ const responseTemplatesDbPath = path.join(__dirname, '..', 'database', 'response
 const commandTemplatesDbPath = path.join(__dirname, '..', 'database', 'command_templates.json');
 const errorTemplatesDbPath = path.join(__dirname, '..', 'database', 'error_templates.json');
 const successTemplatesDbPath = path.join(__dirname, '..', 'database', 'success_templates.json');
+const systemTemplatesDbPath = path.join(__dirname, '..', 'database', 'system_messages.json');
 
 router.get('/api/templates', ensureAuthenticatedStaff, (req, res) => {
     try {
@@ -175,7 +176,8 @@ router.get('/api/templates', ensureAuthenticatedStaff, (req, res) => {
             responseTemplates,
             commandTemplates,
             errorTemplates,
-            successTemplates 
+            successTemplates,
+            systemTemplates 
         } = templatesCache;
 
         // For wifiMenuTemplates, the value is the template string directly.
@@ -195,7 +197,8 @@ router.get('/api/templates', ensureAuthenticatedStaff, (req, res) => {
             responseTemplates: responseTemplates,
             commandTemplates: commandTemplates,
             errorTemplates: errorTemplates,
-            successTemplates: successTemplates
+            successTemplates: successTemplates,
+            systemTemplates: systemTemplates
         };
 
         res.status(200).json({ status: 200, message: "Templates loaded successfully from cache.", data: responseData });
@@ -213,7 +216,8 @@ router.post('/api/templates', ensureAuthenticatedStaff, (req, res) => {
             responseTemplates,
             commandTemplates,
             errorTemplates,
-            successTemplates
+            successTemplates,
+            systemTemplates
         } = req.body;
 
         // Validate required templates (original ones must exist)
@@ -243,6 +247,10 @@ router.post('/api/templates', ensureAuthenticatedStaff, (req, res) => {
 
         if (successTemplates && typeof successTemplates === 'object') {
             fs.writeFileSync(successTemplatesDbPath, JSON.stringify(successTemplates, null, 2), 'utf8');
+        }
+
+        if (systemTemplates && typeof systemTemplates === 'object') {
+            fs.writeFileSync(systemTemplatesDbPath, JSON.stringify(systemTemplates, null, 2), 'utf8');
         }
 
         // The fs.watchFile in templating.js will handle reloading the cache automatically.
