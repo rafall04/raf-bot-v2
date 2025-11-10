@@ -450,9 +450,9 @@ router.post('/approve-paid-change', rateLimit('approve-request', 20, 60000), asy
                         // handlePaidStatusChange now handles invoice PDF sending based on send_invoice flag
                         await handlePaidStatusChange(userToUpdate, {
                             paidDate: new Date().toISOString(),
-                            method: 'CASH',
+                            method: 'TRANSFER_BANK', // Admin approval = bank transfer
                             approvedBy: req.user ? req.user.username : 'Admin',
-                            notes: 'Pembayaran telah disetujui dan diverifikasi oleh admin.'
+                            notes: 'Pembayaran disetujui melalui sistem approval'
                         });
                     }
                 } catch (e) {
@@ -604,9 +604,9 @@ router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000),
                 if (newPaidStatus === true) {
                     await handlePaidStatusChange(user, {
                         paidDate: new Date().toISOString(),
-                        method: 'CASH',
+                        method: 'TRANSFER_BANK', // Admin update = bank transfer
                         approvedBy: req.user.username,
-                        notes: 'Pembayaran disetujui melalui bulk approval'
+                        notes: 'Status pembayaran diperbarui'
                     });
                 }
                 

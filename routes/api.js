@@ -143,9 +143,9 @@ router.post('/users/update', ensureAdmin, async (req, res) => {
         if (paid === true) {
             await handlePaidStatusChange(user, {
                 paidDate: new Date().toISOString(),
-                method: 'CASH',
+                method: 'TRANSFER_BANK', // Admin creating paid user = bank transfer
                 approvedBy: req.user.username,
-                notes: 'Status pembayaran diperbarui oleh admin'
+                notes: 'User baru dengan status lunas'
             });
         }
         
@@ -170,32 +170,47 @@ router.post('/users/update', ensureAdmin, async (req, res) => {
 // Helper function to find the next available ID (fills gaps or gets next sequential)
 async function getNextAvailableUserId() {
     return new Promise((resolve, reject) => {
-        // Get all existing IDs ordered
-        global.db.all('SELECT id FROM users ORDER BY id ASC', [], (err, rows) => {
+        // Get all existing IDs from database
+        global.db.all('SELECT id FROM users ORDER BY id ASC', [], (err, dbRows) => {
             if (err) {
+                console.error('[GET_NEXT_ID_ERROR] Database query failed:', err);
                 reject(err);
                 return;
             }
             
-            // If no users, start with ID 1
-            if (!rows || rows.length === 0) {
+            // Get all IDs from both database AND memory
+            const dbIds = (dbRows || []).map(row => parseInt(row.id));
+            const memoryIds = (global.users || []).map(user => parseInt(user.id));
+            
+            // Combine and deduplicate all IDs
+            const allIds = [...new Set([...dbIds, ...memoryIds])].sort((a, b) => a - b);
+            
+            console.log(`[GET_NEXT_ID] Found ${dbIds.length} IDs in database, ${memoryIds.length} in memory`);
+            console.log(`[GET_NEXT_ID] All existing IDs:`, allIds.slice(0, 10), allIds.length > 10 ? '...' : '');
+            
+            // If no users at all, start with ID 1
+            if (allIds.length === 0) {
+                console.log('[GET_NEXT_ID] No existing users, starting with ID 1');
                 resolve(1);
                 return;
             }
             
             // Find the first gap in the sequence
             let expectedId = 1;
-            for (const row of rows) {
-                if (row.id > expectedId) {
+            for (const id of allIds) {
+                if (id > expectedId) {
                     // Found a gap, use this ID
+                    console.log(`[GET_NEXT_ID] Found gap at ID ${expectedId} (before ${id})`);
                     resolve(expectedId);
                     return;
                 }
-                expectedId = row.id + 1;
+                expectedId = id + 1;
             }
             
             // No gaps found, use the next ID after the last one
-            resolve(expectedId);
+            const nextId = Math.max(...allIds) + 1;
+            console.log(`[GET_NEXT_ID] No gaps found, using next sequential ID: ${nextId}`);
+            resolve(nextId);
         });
     });
 }
@@ -226,9 +241,9 @@ router.post('/users', ensureAdmin, async (req, res) => {
             if (existingUser.paid !== updatedUser.paid && updatedUser.paid === true) {
                 await handlePaidStatusChange(updatedUser, {
                     paidDate: new Date().toISOString(),
-                    method: userData.payment_method || 'CASH',
+                    method: userData.payment_method || 'TRANSFER_BANK', // Default to bank transfer for admin updates
                     approvedBy: req.user.username,
-                    notes: 'Status pembayaran diperbarui oleh admin'
+                    notes: 'Status pembayaran diperbarui'
                 });
             }
             
@@ -310,6 +325,17 @@ router.post('/users', ensureAdmin, async (req, res) => {
                     status: 400,
                     message: validationResult.message,
                     conflictUser: validationResult.conflictUser || null
+                });
+            }
+            
+            // Final safety check: ensure ID is not already in use
+            const idExists = global.users.some(u => parseInt(u.id) === parseInt(newUserId));
+            if (idExists) {
+                console.error(`[CREATE_USER_ERROR] ID ${newUserId} already exists!`);
+                return res.status(500).json({
+                    status: 500,
+                    message: 'Terjadi kesalahan dalam pembuatan ID. Silakan coba lagi.',
+                    error: 'ID conflict detected'
                 });
             }
             
@@ -532,9 +558,9 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
         if (oldPaidStatus !== userToUpdate.paid && userToUpdate.paid === true) {
             await handlePaidStatusChange(userToUpdate, {
                 paidDate: new Date().toISOString(),
-                method: userData.payment_method || 'CASH',
+                method: userData.payment_method || 'TRANSFER_BANK', // Default to bank transfer for admin updates
                 approvedBy: req.user.username,
-                notes: 'Status pembayaran diperbarui oleh admin'
+                notes: 'Status pembayaran diperbarui'
             });
         }
         

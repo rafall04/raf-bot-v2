@@ -611,7 +611,14 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
             // DB update successful, now update cache and handle side effects
             userToUpdate.paid = (newPaidStatus === 1);
             if (userToUpdate.paid === true) {
-                await handlePaidStatusChange(userToUpdate);
+                // When admin approves payment request, use TRANSFER_BANK
+                const paymentDetails = {
+                    paidDate: new Date().toISOString(),
+                    method: 'TRANSFER_BANK', // Admin approval = bank transfer
+                    approvedBy: req.user.username || 'Admin',
+                    notes: 'Pembayaran disetujui melalui sistem approval'
+                };
+                await handlePaidStatusChange(userToUpdate, paymentDetails);
             }
 
             allRequests[requestIndex] = requestToUpdate;
@@ -2909,7 +2916,7 @@ router.post('/api/payment-status/bulk-update', ensureAuthenticatedStaff, async (
                     // Call handlePaidStatusChange with payment details
                     const paymentDetails = {
                         paidDate: new Date().toISOString(),
-                        method: 'CASH', // Default method, could be passed from frontend
+                        method: 'TRANSFER_BANK', // Admin marking as paid = bank transfer
                         approvedBy: req.user ? req.user.username : 'Admin',
                         notes: 'Status pembayaran diubah melalui halaman Payment Status'
                     };
@@ -3247,14 +3254,20 @@ router.post('/api/database/check-schema', ensureAuthenticatedStaff, async (req, 
 // Run database migration
 router.post('/api/database/migrate-schema', ensureAuthenticatedStaff, async (req, res) => {
     try {
-        const scriptPath = path.join(__dirname, '..', 'tools', 'smart-migrate-database.js');
+        // Try to use the new comprehensive migration script first
+        let scriptPath = path.join(__dirname, '..', 'scripts', 'migrate-database.js');
         
+        // Fallback to old script if new one doesn't exist
         if (!fs.existsSync(scriptPath)) {
-            return res.status(404).json({
-                status: 404,
-                message: "Migration script not found",
-                data: null
-            });
+            scriptPath = path.join(__dirname, '..', 'tools', 'smart-migrate-database.js');
+            
+            if (!fs.existsSync(scriptPath)) {
+                return res.status(404).json({
+                    status: 404,
+                    message: "Migration script not found",
+                    data: null
+                });
+            }
         }
         
         // Run migration script
@@ -3275,24 +3288,44 @@ router.post('/api/database/migrate-schema', ensureAuthenticatedStaff, async (req
             let backupFile = null;
             let addedColumns = [];
             
-            // Extract backup filename
-            const backupMatch = output.match(/Creating backup: ([^\n]+)/);
+            // Handle both old and new migration script output formats
+            
+            // New script format: "[SUCCESS] Backup created: path"
+            let backupMatch = output.match(/\[SUCCESS\].*Backup created: ([^\n]+)/);
+            if (!backupMatch) {
+                // Old script format: "Creating backup: path"
+                backupMatch = output.match(/Creating backup: ([^\n]+)/);
+            }
+            
             if (backupMatch) {
                 // Get just the filename without path
                 const fullPath = backupMatch[1].trim();
                 backupFile = path.basename(fullPath);
             }
             
-            // Extract added columns
-            const columnMatches = output.match(/✅ Added column: (\w+)/g);
-            if (columnMatches) {
-                addedColumns = columnMatches.map(match => 
-                    match.replace('✅ Added column: ', '').split(' ')[0]
-                );
+            // New script format: "[SUCCESS] Added field: fieldname"
+            let columnMatches = output.match(/\[SUCCESS\].*Added field:.*?(\w+)/g);
+            if (!columnMatches) {
+                // Old script format: "✅ Added column: fieldname"
+                columnMatches = output.match(/✅ Added column: (\w+)/g);
             }
             
-            // Check if already up to date
-            const upToDate = output.includes('Database schema is already up to date!');
+            if (columnMatches) {
+                addedColumns = columnMatches.map(match => {
+                    // Handle both formats
+                    if (match.includes('[SUCCESS]')) {
+                        // Extract field name from colored output
+                        const fieldMatch = match.match(/Added field:.*?(\w+)/);
+                        return fieldMatch ? fieldMatch[1] : match;
+                    } else {
+                        return match.replace('✅ Added column: ', '').split(' ')[0];
+                    }
+                });
+            }
+            
+            // Check if already up to date (both script formats)
+            const upToDate = output.includes('All required fields already exist!') || 
+                            output.includes('Database schema is already up to date!');
             
             console.log('[DB_MIGRATE] Migration completed successfully');
             

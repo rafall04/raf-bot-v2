@@ -30,7 +30,7 @@
                 <i class="fab fa-whatsapp"></i>
             </div>
             <div class="card-content">
-                <h2 id="wa-status">Online</h2>
+                <h2 id="wa-status">Checking...</h2>
                 <p>WhatsApp Bot</p>
             </div>
         </div>

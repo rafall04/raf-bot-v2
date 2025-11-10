@@ -16,32 +16,67 @@ module.exports = {
       console.log('Current columns:', existingColumns.join(', '));
       
       // List of fields to add with their definitions
+      // Based on expectedColumns in admin.js and usage in api.js
       const fieldsToAdd = [
+        // Basic user info
+        { name: 'username', type: 'TEXT', default: "NULL" },
+        { name: 'password', type: 'TEXT', default: "NULL" },
         { name: 'status', type: 'TEXT', default: "'active'" },
-        { name: 'pppoe_username', type: 'TEXT', default: "NULL" },
-        { name: 'pppoe_password', type: 'TEXT', default: "NULL" },
+        
+        // Location data
+        { name: 'latitude', type: 'TEXT', default: "NULL" },
+        { name: 'longitude', type: 'TEXT', default: "NULL" },
+        
+        // Subscription & billing
         { name: 'subscription', type: 'TEXT', default: "NULL" },
         { name: 'subscription_price', type: 'INTEGER', default: "0" },
         { name: 'payment_due_date', type: 'INTEGER', default: "1" },
+        { name: 'paid', type: 'BOOLEAN', default: "0" },
+        { name: 'send_invoice', type: 'BOOLEAN', default: "0" }, // CRITICAL - was missing!
+        { name: 'is_paid', type: 'BOOLEAN', default: "0" }, // Legacy field
+        { name: 'auto_isolir', type: 'BOOLEAN', default: "1" },
+        
+        // Corporate fields
+        { name: 'is_corporate', type: 'BOOLEAN', default: "0" },
+        { name: 'corporate_name', type: 'TEXT', default: "NULL" },
+        { name: 'corporate_address', type: 'TEXT', default: "NULL" },
+        { name: 'corporate_npwp', type: 'TEXT', default: "NULL" },
+        { name: 'corporate_pic_name', type: 'TEXT', default: "NULL" },
+        { name: 'corporate_pic_phone', type: 'TEXT', default: "NULL" },
+        { name: 'corporate_pic_email', type: 'TEXT', default: "NULL" },
+        
+        // PPPoE & network
+        { name: 'pppoe_username', type: 'TEXT', default: "NULL" },
+        { name: 'pppoe_password', type: 'TEXT', default: "NULL" },
+        { name: 'connected_odp_id', type: 'TEXT', default: "NULL" },
+        { name: 'bulk', type: 'TEXT', default: "NULL" }, // JSON string for bulk SSIDs
+        
+        // Infrastructure
+        { name: 'odc', type: 'TEXT', default: "NULL" },
+        { name: 'odp', type: 'TEXT', default: "NULL" },
+        { name: 'olt', type: 'TEXT', default: "NULL" },
+        { name: 'maps_url', type: 'TEXT', default: "NULL" },
+        
+        // OTP fields
+        { name: 'otp', type: 'TEXT', default: "NULL" },
+        { name: 'otpTimestamp', type: 'INTEGER', default: "NULL" },
+        
+        // Timestamps
         { name: 'registration_date', type: 'DATETIME', default: "NULL" },
         { name: 'created_at', type: 'DATETIME', default: "NULL" },
         { name: 'updated_at', type: 'DATETIME', default: "NULL" },
         { name: 'last_login', type: 'DATETIME', default: "NULL" },
         { name: 'last_payment_date', type: 'DATETIME', default: "NULL" },
-        { name: 'notes', type: 'TEXT', default: "NULL" },
-        { name: 'is_paid', type: 'BOOLEAN', default: "0" },
-        { name: 'auto_isolir', type: 'BOOLEAN', default: "1" },
-        { name: 'latitude', type: 'TEXT', default: "NULL" },
-        { name: 'longitude', type: 'TEXT', default: "NULL" },
-        { name: 'odc', type: 'TEXT', default: "NULL" },
-        { name: 'odp', type: 'TEXT', default: "NULL" },
-        { name: 'olt', type: 'TEXT', default: "NULL" },
-        { name: 'maps_url', type: 'TEXT', default: "NULL" },
+        
+        // Notifications & flags
         { name: 'reminder_sent', type: 'BOOLEAN', default: "0" },
         { name: 'isolir_sent', type: 'BOOLEAN', default: "0" },
+        
+        // Additional fields
         { name: 'compensation_minutes', type: 'INTEGER', default: "0" },
         { name: 'email', type: 'TEXT', default: "NULL" },
-        { name: 'alternative_phone', type: 'TEXT', default: "NULL" }
+        { name: 'alternative_phone', type: 'TEXT', default: "NULL" },
+        { name: 'notes', type: 'TEXT', default: "NULL" }
       ];
       
       // Add missing columns

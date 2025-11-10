@@ -47,6 +47,7 @@ $pppoeSessions = [];
 $resources = $API->comm('/system/resource/print');
 if ($resources && isset($resources[0])) {
     $mikrotikData = [
+        'connected' => true,  // Add connection status
         'cpu' => intval($resources[0]['cpu-load'] ?? 0),
         'memory' => isset($resources[0]['total-memory']) && isset($resources[0]['free-memory']) 
             ? round(100 - ($resources[0]['free-memory'] / $resources[0]['total-memory'] * 100), 1)
@@ -55,6 +56,15 @@ if ($resources && isset($resources[0])) {
             ? round(100 - ($resources[0]['free-hdd-space'] / $resources[0]['total-hdd-space'] * 100), 1)
             : 0,
         'uptime' => $resources[0]['uptime'] ?? '0s'
+    ];
+} else {
+    // If resources call failed, still mark as connected but with default values
+    $mikrotikData = [
+        'connected' => true,
+        'cpu' => 0,
+        'memory' => 0,
+        'disk' => 0,
+        'uptime' => '0s'
     ];
 }
 
@@ -228,14 +238,14 @@ $responseData['data'] = [
         'score' => 95,
         'status' => 'healthy',
         'checks' => [
-            'whatsapp' => true,
+            'whatsapp' => false, // Will be updated by JavaScript from /api/stats
             'mikrotik' => true,
             'database' => true,
             'api' => true
         ]
     ],
     'whatsapp' => [
-        'connected' => true,
+        'connected' => false, // Will be updated by JavaScript from /api/stats
         'uptime' => 'N/A',
         'messagesProcessed' => 0,
         'queueSize' => 0

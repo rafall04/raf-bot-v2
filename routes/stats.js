@@ -39,8 +39,8 @@ router.get('/:type/:id?', async (req, res) => {
     try {
         switch(type){
             case "start":
-                if(!global.raf && global.rafect) {
-                    global.rafect();
+                if (!global.raf) {
+                    if (global.rafect) global.rafect();
                 }
                 return res.json({ message: !!global.raf ? 'bot is online' : 'starting bot'});
             
@@ -51,12 +51,92 @@ router.get('/:type/:id?', async (req, res) => {
                 }
                 return res.json({ message: 'Bot is offline' });
             
+            case "sync-status":
+                // Manual sync of WhatsApp connection state
+                try {
+                    // Check actual connection status
+                    let actualState = 'close';
+                    
+                    if (global.raf && global.raf.user) {
+                        actualState = 'open';
+                    } else if (global.conn && global.conn.user) {
+                        actualState = 'open';
+                    }
+                    
+                    // Update global state if different
+                    if (global.whatsappConnectionState !== actualState) {
+                        const oldState = global.whatsappConnectionState;
+                        global.whatsappConnectionState = actualState;
+                        console.log(`[SYNC] State updated: ${oldState} → ${actualState}`);
+                    }
+                    
+                    return res.json({
+                        success: true,
+                        message: 'WhatsApp state synchronized',
+                        status: {
+                            connectionState: global.whatsappConnectionState,
+                            hasRaf: !!global.raf,
+                            hasConn: !!global.conn,
+                            hasUser: !!(global.raf?.user || global.conn?.user)
+                        }
+                    });
+                } catch (error) {
+                    return res.json({
+                        success: false,
+                        error: error.message
+                    });
+                }
+            
+            case "bot-status":
+                // Debug endpoint for checking bot status
+                try {
+                    const wsState = global.raf?.ws?.readyState || global.raf?.ws?._ws?.readyState;
+                    const userInfo = global.conn?.user || global.raf?.user;
+                    
+                    const statusInfo = {
+                        botStatus: false,
+                        connectionState: global.whatsappConnectionState,
+                        hasRafObject: !!global.raf,
+                        hasConnObject: !!global.conn,
+                        hasWebSocket: !!(global.raf?.ws),
+                        webSocketState: wsState,
+                        webSocketStateText: wsState === 0 ? 'CONNECTING' : wsState === 1 ? 'OPEN' : wsState === 2 ? 'CLOSING' : wsState === 3 ? 'CLOSED' : 'UNKNOWN',
+                        userInfo: userInfo ? {
+                            id: userInfo.id,
+                            name: userInfo.name || userInfo.notify || 'Unknown'
+                        } : null,
+                        timestamp: new Date().toISOString()
+                    };
+                    
+                    // Determine final bot status
+                    if (global.whatsappConnectionState === 'open' || wsState === 1 || userInfo) {
+                        statusInfo.botStatus = true;
+                        
+                        // Fix out-of-sync state
+                        if (global.whatsappConnectionState !== 'open' && (wsState === 1 || userInfo)) {
+                            global.whatsappConnectionState = 'open';
+                            console.log('[BOT-STATUS] Fixed out-of-sync connection state');
+                        }
+                    }
+                    
+                    return res.json(statusInfo);
+                } catch (error) {
+                    return res.json({
+                        error: error.message,
+                        botStatus: false,
+                        connectionState: global.whatsappConnectionState
+                    });
+                }
+            
             case "stats":
                 try {
                     const totalUsers = global.users.length;
                     const paidUsersCount = global.users.filter(user => user.paid === true || user.paid === 1).length;
                     const unpaidUsers = totalUsers - paidUsersCount;
+                    
+                    // ORIGINAL LOGIC - JANGAN DIUBAH! INI SUDAH BEKERJA UNTUK WIDGET BAWAH!
                     const botStatus = !!global.raf && global.whatsappConnectionState === 'open';
+                    
                     let totalRevenue = 0;
                     if (global.users && global.packages) {
                         const paidUsersList = global.users.filter(user => user.paid === true || user.paid === 1);

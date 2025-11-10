@@ -13,13 +13,21 @@ class MonitoringController {
         this.currentInterface = 'ether1'; // Store current interface selection
         this.isConnected = false; // Track connection status
         this.mikrotikConnected = false; // Track MikroTik connection status
+        this.useSocketIO = false; // Disable Socket.IO by default to avoid errors
+        this.socketErrorLogged = false; // Track if error was logged
         
         this.init();
     }
     
     init() {
-        // Initialize Socket.IO
-        this.connectSocket();
+        // Only initialize Socket.IO if enabled
+        if (this.useSocketIO) {
+            this.connectSocket();
+        } else {
+            console.log('[Monitoring] Socket.IO disabled, using REST API polling only');
+            // Set as connected for REST API mode
+            this.isConnected = true;
+        }
         
         // Initialize charts
         this.initCharts();
@@ -32,15 +40,24 @@ class MonitoringController {
     }
     
     connectSocket() {
-        this.socket = io('http://localhost:3100', {
+        // Use relative URL so it works on any host
+        const socketUrl = window.location.protocol + '//' + window.location.hostname + 
+                         (window.location.port ? ':' + window.location.port : '');
+        
+        this.socket = io(socketUrl, {
             auth: {
                 token: localStorage.getItem('token')
-            }
+            },
+            transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5
         });
         
         // Socket event handlers
         this.socket.on('connect', () => {
-            console.log('Connected to monitoring server');
+            console.log('Connected to monitoring server via Socket.IO');
             this.isConnected = true;
             this.updateConnectionStatus('connected');
         });
@@ -50,6 +67,14 @@ class MonitoringController {
             this.isConnected = false;
             this.mikrotikConnected = false; // Also reset MikroTik status
             this.updateConnectionStatus('disconnected');
+        });
+        
+        this.socket.on('connect_error', (error) => {
+            // Don't spam console with connection errors
+            if (!this.socketErrorLogged) {
+                console.warn('Socket.IO connection failed. Falling back to polling mode.');
+                this.socketErrorLogged = true;
+            }
         });
         
         this.socket.on('monitoring:update', (data) => {
@@ -132,11 +157,11 @@ class MonitoringController {
                 const result = await response.json();
                 const history = result.data;
                 
-                // Check if MikroTik is connected before updating chart
-                if (!this.mikrotikConnected) {
-                    this.handleDisconnection();
-                    return;
-                }
+                // Don't show disconnection on initial load - wait for actual status
+                // if (!this.mikrotikConnected) {
+                //     this.handleDisconnection();
+                //     return;
+                // }
                 
                 // Update chart with history data
                 if (this.trafficChart && history) {
@@ -223,12 +248,14 @@ class MonitoringController {
             
             const result = await response.json();
             
-            // Check if we have an error response
+            // Check if we have an error response  
             if (result.status === 503 || result.error) {
                 console.error('[Monitoring] MikroTik Error:', result.message || result.error);
-                this.mikrotikConnected = false; // Set MikroTik as disconnected
-                this.showErrorMessage(result.message || 'MikroTik not connected');
-                this.handleDisconnection(); // Handle disconnection state
+                // Only set as disconnected if explicitly told so
+                if (result.message && result.message.includes('not connected')) {
+                    this.mikrotikConnected = false;
+                    this.handleDisconnection(); 
+                }
                 return;
             }
             
@@ -251,7 +278,10 @@ class MonitoringController {
                 
                 // Update all dashboard elements with real data
                 this.updateSystemHealth(data.systemHealth);
-                this.updateWhatsAppStatus(data.whatsapp);
+                
+                // Fetch WhatsApp status from /api/stats instead
+                this.fetchWhatsAppStatus();
+                
                 this.updateMikroTikStatus(data.mikrotik);
                 this.updateTrafficData(data.traffic);
                 this.updateResourceBars(data.resources);
@@ -273,12 +303,26 @@ class MonitoringController {
     
     updateSystemHealth(health) {
         const scoreEl = document.getElementById('health-score');
+        const statusEl = document.getElementById('health-status');
         const boxEl = document.getElementById('health-status-box');
         
-        if (scoreEl) scoreEl.textContent = health.score + '%';
+        // Don't trust the hardcoded 95% - calculate based on actual checks
+        let actualScore = 95; // Default
+        if (health.checks) {
+            const totalChecks = Object.keys(health.checks).length;
+            const passedChecks = Object.values(health.checks).filter(v => v === true).length;
+            if (totalChecks > 0) {
+                actualScore = Math.round((passedChecks / totalChecks) * 100);
+            }
+        }
+        
+        if (scoreEl) scoreEl.textContent = `${actualScore}%`;
+        if (statusEl) statusEl.textContent = actualScore >= 75 ? 'Healthy' : 'Degraded';
+        
+        // Update box color based on score
         if (boxEl) {
             // Keep gradient style, just update if there's an error
-            if (health.score < 50) {
+            if (actualScore < 50) {
                 boxEl.className = 'modern-card gradient-green error';
             } else {
                 boxEl.className = 'modern-card gradient-green';
@@ -286,9 +330,46 @@ class MonitoringController {
         }
     }
     
+    async fetchWhatsAppStatus() {
+        try {
+            const response = await fetch('/api/stats', {
+                credentials: 'same-origin'
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Use the botStatus from /api/stats which is working correctly
+                const isConnected = data.botStatus || false;
+                this.updateWhatsAppStatus({ connected: isConnected });
+                
+                // Also update health check if element exists
+                const healthChecks = document.querySelector('.health-checks');
+                if (healthChecks) {
+                    const waCheck = healthChecks.querySelector('[data-check="whatsapp"]');
+                    if (waCheck) {
+                        waCheck.classList.toggle('check-ok', isConnected);
+                        waCheck.classList.toggle('check-error', !isConnected);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Monitoring] Failed to fetch WhatsApp status:', error);
+            this.updateWhatsAppStatus({ connected: false });
+        }
+    }
+    
     updateWhatsAppStatus(wa) {
         const statusEl = document.getElementById('wa-status');
-        if (statusEl) statusEl.textContent = wa.connected ? 'Online' : 'Offline';
+        // JANGAN SENTUH bot_status_value! Itu untuk widget bawah!
+        // const botStatusEl = document.getElementById('bot_status_value');
+        
+        // HANYA update widget atas (wa-status)
+        if (statusEl) {
+            statusEl.textContent = wa.connected ? 'Online' : 'Offline';
+        }
+        // JANGAN UPDATE bot_status_value dari sini!
+        // if (botStatusEl) {
+        //     botStatusEl.textContent = wa.connected ? 'Online' : 'Offline';
+        // }
     }
     
     updateMikroTikStatus(mikrotik) {
@@ -297,6 +378,11 @@ class MonitoringController {
         
         if (cpuEl) cpuEl.textContent = `${mikrotik.cpu || 0}%`;
         if (tempEl) tempEl.textContent = `${mikrotik.temperature || 0}°C`;
+        
+        // Update MikroTik connection status
+        if (mikrotik && mikrotik.connected !== undefined) {
+            this.mikrotikConnected = mikrotik.connected;
+        }
     }
     
     updateTrafficData(traffic) {
@@ -325,6 +411,14 @@ class MonitoringController {
         
         // Also update the traffic chart with current data (only when connected)
         if (this.trafficChart && this.mikrotikConnected) {
+            // Clear any disconnection message
+            if (this.trafficChart.options.plugins.title && this.trafficChart.options.plugins.title.display) {
+                this.trafficChart.options.plugins.title.display = false;
+                this.trafficChart.options.animation = {
+                    duration: 750
+                };
+            }
+            
             const now = new Date().toLocaleTimeString();
             
             // Keep only last 20 data points
@@ -909,11 +1003,11 @@ class MonitoringController {
             // Add disconnected indicator
             this.trafficChart.options.plugins.title = {
                 display: true,
-                text: 'Network Traffic Monitor (Disconnected - No Connection)',
-                color: '#ef4444',
+                text: 'Network Traffic Monitor (Connecting to MikroTik...)',
+                color: '#fbbf24',
                 font: {
                     size: 14,
-                    weight: 'bold'
+                    weight: 'normal'
                 }
             };
             
@@ -1089,6 +1183,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const monitoringSection = document.getElementById('monitoring-section');
     if (monitoringSection) {
         console.log('[Monitoring] Initializing monitoring controller...');
+        
+        // Create controller instance
+        // Note: useSocketIO is already set to false in constructor
+        // This prevents Socket.IO connection attempts
         window.monitoringController = new MonitoringController();
     } else {
         console.log('[Monitoring] Monitoring section not found, skipping initialization');

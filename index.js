@@ -360,7 +360,12 @@ function cleanupOldPendingRequests() {
 function startHttpServer() {
     server.listen(PORT, async () => {
         console.log(`[SERVER_START] HTTP server listening on port ${PORT}`);
-        if(fs.existsSync(path.join(`sessions/${config.sessionName}`))) {
+        
+        // Use absolute path for better cross-platform compatibility
+        const sessionPath = path.resolve(process.cwd(), 'sessions', config.sessionName);
+        console.log(`[WA_CONNECT] Checking session at: ${sessionPath}`);
+        
+        if(fs.existsSync(sessionPath)) {
             console.log("[WA_CONNECT] Session file found, attempting to connect to WhatsApp...");
             connect();
         } else {
@@ -481,6 +486,9 @@ async function startApp() {
                     global.wasDisconnected = false;
                 }
                 
+            } else if (connection === 'connecting') {
+                global.whatsappConnectionState = 'connecting';
+                console.log("🔄 WhatsApp is connecting...");
             } else if (connection === 'close') {
                 global.whatsappConnectionState = 'close';
                 global.wasDisconnected = true;

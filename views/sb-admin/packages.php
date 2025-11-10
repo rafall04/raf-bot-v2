@@ -153,7 +153,7 @@
 
   <div class="modal fade modal-raf" id="createModal" data-backdrop="static" tabindex="-1">
     <div class="modal-dialog">
-      <form class="modal-content" method="post" action="/api/packages">
+      <form class="modal-content" id="createForm">
         <div class="modal-header">
           <h5 class="modal-title" id="createModalTitle">
             <i class="fas fa-box mr-2"></i>
@@ -165,35 +165,35 @@
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label for="name" class="form-label">Nama Paket</label>
-            <input type="text" class="form-control" id="name" name="name" />
+            <label for="create-name" class="form-label">Nama Paket</label>
+            <input type="text" class="form-control" id="create-name" name="name" required />
           </div>
           <div class="mb-3">
-            <label for="price" class="form-label">Harga</label>
-            <input type="number" class="form-control" id="price" name="price" />
+            <label for="create-price" class="form-label">Harga</label>
+            <input type="number" class="form-control" id="create-price" name="price" required />
           </div>
           <div class="mb-3">
-            <label for="profile" class="form-label">Profil MikroTik</label>
-            <input type="text" class="form-control" id="profile" name="profile" placeholder="Contoh: 10Mbps, 20Mbps" />
+            <label for="create-profile" class="form-label">Profil MikroTik</label>
+            <input type="text" class="form-control" id="create-profile" name="profile" placeholder="Contoh: 10Mbps, 20Mbps" />
             <small class="text-muted">Profil teknis untuk MikroTik (nama profile di router)</small>
           </div>
           <div class="mb-3">
-            <label for="displayProfile" class="form-label">Profil Display</label>
-            <input type="text" class="form-control" id="displayProfile" name="displayProfile" placeholder="Contoh: Up to 10 Mbps" />
+            <label for="create-displayProfile" class="form-label">Profil Display</label>
+            <input type="text" class="form-control" id="create-displayProfile" name="displayProfile" placeholder="Contoh: Up to 10 Mbps" />
             <small class="text-muted">Kecepatan yang ditampilkan ke pelanggan</small>
           </div>
           <div class="mb-3">
-            <label for="description" class="form-label">Deskripsi Paket</label>
-            <textarea class="form-control" id="description" name="description" rows="3" placeholder="Contoh: Up to 20Mbps, Unlimited, Cocok untuk streaming HD"></textarea>
+            <label for="create-description" class="form-label">Deskripsi Paket</label>
+            <textarea class="form-control" id="create-description" name="description" rows="3" placeholder="Contoh: Up to 20Mbps, Unlimited, Cocok untuk streaming HD"></textarea>
             <small class="text-muted">Deskripsi ini akan ditampilkan di command bulanan WhatsApp</small>
           </div>
           <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" name="showInMonthly" id="showInMonthly" checked>
-            <label class="form-check-label" for="showInMonthly">Tampilkan di Command Bulanan WhatsApp</label>
+            <input type="checkbox" class="form-check-input" name="showInMonthly" id="create-showInMonthly" checked>
+            <label class="form-check-label" for="create-showInMonthly">Tampilkan di Command Bulanan WhatsApp</label>
           </div>
           <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" name="whitelist" id="whitelist">
-            <label class="form-check-label" for="whitelist">Whitelist</label>
+            <input type="checkbox" class="form-check-input" name="whitelist" id="create-whitelist">
+            <label class="form-check-label" for="create-whitelist">Whitelist</label>
           </div>
         </div>
         <div class="modal-footer">
@@ -282,6 +282,69 @@
   <!-- Page level custom scripts -->
   <!-- <script src="/js/demo/datatables-demo.js"></script> -->
   <script>
+    // Handle create form submission
+    $('#createForm').on('submit', function(e) {
+      e.preventDefault();
+      const submitBtn = $(this).find('.btn-primary');
+      const originalText = submitBtn.html();
+      
+      // Add loading state
+      submitBtn.addClass('btn-loading').prop('disabled', true);
+      
+      const formData = {
+        name: $('#create-name').val(),
+        price: $('#create-price').val(),
+        profile: $('#create-profile').val(),
+        displayProfile: $('#create-displayProfile').val(),
+        description: $('#create-description').val(),
+        showInMonthly: $('#create-showInMonthly').is(':checked'),
+        whitelist: $('#create-whitelist').is(':checked')
+      };
+      
+      $.ajax({
+        url: '/api/packages',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+          $('#createModal').addClass('success');
+          setTimeout(() => {
+            $('#createModal').modal('hide').removeClass('success');
+            $('#dataTable').DataTable().ajax.reload();
+            // Reset form
+            $('#createForm')[0].reset();
+            $('#create-showInMonthly').prop('checked', true); // Default checked
+          }, 500);
+          
+          // Modern toast notification
+          Swal.fire({
+            icon: 'success',
+            title: 'Berhasil!',
+            text: 'Paket berhasil ditambahkan',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+          });
+        },
+        error: function(xhr) {
+          $('#createModal').addClass('error');
+          setTimeout(() => $('#createModal').removeClass('error'), 500);
+          
+          Swal.fire({
+            icon: 'error',
+            title: 'Gagal!',
+            text: xhr.responseJSON?.message || 'Gagal menambahkan paket',
+            confirmButtonColor: '#667eea'
+          });
+        },
+        complete: function() {
+          submitBtn.removeClass('btn-loading').prop('disabled', false).html(originalText);
+        }
+      });
+    });
+    
     $(document).on('click', '.btn-edit', function() {
       const id = $(this).data('id');
 

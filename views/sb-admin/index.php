@@ -1088,6 +1088,11 @@ if ($monitoringEnabled) {
 
         // Panggil fetchDashboardData saat halaman pertama kali dimuat
         fetchDashboardData();
+        
+        // Refresh dashboard data every 30 seconds
+        setInterval(() => {
+            fetchDashboardData();
+        }, 30000);
 
     </script>
     

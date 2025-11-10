@@ -226,7 +226,7 @@ router.post('/send-invoice-manual', ensureAdmin, async (req, res) => {
         
         const invoiceData = createInvoice(user, {
             paidDate: new Date().toISOString(),
-            method: method || 'Manual Send',
+            method: method || 'TRANSFER_BANK', // Default to TRANSFER_BANK for manual sends by admin
             approvedBy: req.user ? req.user.username : 'Admin',
             notes: 'Invoice dikirim ulang secara manual'
         });

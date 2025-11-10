@@ -683,8 +683,8 @@
                     <div class="form-group">
                         <label for="paymentMethodSelect">Metode Pembayaran:</label>
                         <select class="form-control" id="paymentMethodSelect">
+                            <option value="TRANSFER_BANK" selected>Transfer Bank</option>
                             <option value="CASH">Cash</option>
-                            <option value="TRANSFER">Transfer Bank</option>
                             <option value="QRIS">QRIS</option>
                             <option value="E-WALLET">E-Wallet</option>
                         </select>

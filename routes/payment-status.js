@@ -61,11 +61,15 @@ router.post('/bulk-update', ensureAdmin, async (req, res) => {
             
             // Handle paid status change (send invoice if needed)
             if (paid) {
+                // When admin marks as paid, use TRANSFER_BANK as default payment method
+                // Since admin is marking it, it's likely a bank transfer confirmation
+                const paymentMethod = req.body.paymentMethod || 'TRANSFER_BANK';
+                
                 await handlePaidStatusChange(user, {
                     paidDate: new Date().toISOString(),
-                    method: 'Bulk Update',
+                    method: paymentMethod,
                     approvedBy: req.user.username,
-                    notes: 'Status pembayaran diperbarui melalui bulk update'
+                    notes: 'Status pembayaran diperbarui oleh admin'
                 });
             }
             

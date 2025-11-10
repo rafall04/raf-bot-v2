@@ -17,7 +17,15 @@ echo.
 echo Starting migration...
 echo.
 
-node tools\smart-migrate-database.js
+REM Try the new comprehensive migration script first
+if exist scripts\migrate-database.js (
+    echo Running comprehensive migration...
+    node scripts\migrate-database.js
+) else (
+    REM Fall back to the old migration if new one doesn't exist
+    echo Running standard migration...
+    node tools\smart-migrate-database.js
+)
 
 echo.
 pause

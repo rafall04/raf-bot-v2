@@ -304,6 +304,7 @@ async function togglePaymentStatus(userId, newStatus) {
                 body: JSON.stringify({
                     userIds: [userId],
                     paid: newStatus,
+                    paymentMethod: 'TRANSFER_BANK', // Admin marking as paid = bank transfer
                     triggerNotification: true // Trigger handlePaidStatusChange
                 })
             });
@@ -342,7 +343,7 @@ async function togglePaymentStatus(userId, newStatus) {
 }
 
 // Send invoice with payment method
-async function sendInvoice(userId, method = 'CASH') {
+async function sendInvoice(userId, method = 'TRANSFER_BANK') {
     const user = allUsers.find(u => u.id === userId);
     if (!user) return;
     
@@ -393,7 +394,7 @@ function showPaymentMethodModal(userId, userName, phoneNumber, actionType) {
 }
 
 // Print invoice with payment method
-async function printInvoice(userId, method = 'CASH') {
+async function printInvoice(userId, method = 'TRANSFER_BANK') {
     const user = allUsers.find(u => u.id === userId);
     if (!user) return;
     
@@ -457,6 +458,7 @@ async function bulkUpdatePaymentStatus(newStatus) {
                 body: JSON.stringify({
                     userIds: Array.from(selectedUsers),
                     paid: newStatus,
+                    paymentMethod: 'TRANSFER_BANK', // Admin marking as paid = bank transfer
                     triggerNotification: true // Trigger handlePaidStatusChange for all
                 })
             });
