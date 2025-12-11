@@ -3,11 +3,21 @@
  * Menangani pengelolaan akses nomor telepon untuk bot
  */
 
+const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
+
 /**
  * Handle access management
  */
-function handleAccessManagement({ sender, args, users, reply, global, db }) {
-    const user = users.find(v => v.phone_number.split("|").find(vv => vv == (/^([^:@]+)[:@]?.*$/.exec(sender)[1])));
+async function handleAccessManagement({ sender, args, users, reply, global, db, msg, raf }) {
+    // Use LID-aware user finder
+    const plainSenderNumber = sender.split('@')[0];
+    const user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
+    
+    // Handle @lid users who need verification
+    if (!user && sender.includes('@lid')) {
+        const verification = createLidVerification(plainSenderNumber, users);
+        throw verification.message;
+    }
     
     if (!user) {
         throw "❌ Maaf! Nomor Anda tidak terdaftar sebagai pelanggan.\n\nSilakan hubungi admin untuk informasi lebih lanjut.";

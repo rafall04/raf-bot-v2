@@ -258,16 +258,27 @@ Ketik: *prosestiket ${ticketId}* untuk ambil tiket ini.`;
                     let successCount = 0;
                     let failCount = 0;
                     
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
                     for (const teknisi of teknisiNumbers) {
-                        try {
-                            console.log(`[TICKET_NOTIF] Attempting to send to: ${teknisi}`);
-                            await global.raf.sendMessage(teknisi, { text: notifMessage });
-                            successCount++;
-                            console.log(`[TICKET_NOTIF] ✅ SUCCESS - Sent to teknisi: ${teknisi}`);
-                        } catch (err) {
+                        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                            try {
+                                console.log(`[TICKET_NOTIF] Attempting to send to: ${teknisi}`);
+                                await global.raf.sendMessage(teknisi, { text: notifMessage });
+                                successCount++;
+                                console.log(`[TICKET_NOTIF] ✅ SUCCESS - Sent to teknisi: ${teknisi}`);
+                            } catch (err) {
+                                failCount++;
+                                console.error('[SEND_MESSAGE_ERROR]', {
+                                    teknisi,
+                                    error: err.message
+                                });
+                                console.error(`[TICKET_NOTIF_ERROR] ❌ FAILED - Could not notify ${teknisi}`);
+                                console.error(`[TICKET_NOTIF_ERROR] Error:`, err);
+                                // Continue to next teknisi
+                            }
+                        } else {
+                            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi);
                             failCount++;
-                            console.error(`[TICKET_NOTIF_ERROR] ❌ FAILED - Could not notify ${teknisi}`);
-                            console.error(`[TICKET_NOTIF_ERROR] Error:`, err);
                         }
                     }
                     

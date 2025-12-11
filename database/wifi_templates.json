@@ -162,7 +162,8 @@
       "lapor tidak ada internet",
       "lapor internet terputus",
       "lapor gangguan mati",
-      "lapor mati"
+      "lapor mati",
+      "lapor"
     ],
     "intent": "LAPOR_GANGGUAN_MATI",
     "category": "support",
@@ -212,7 +213,8 @@
       "paket internet",
       "paket wifi",
       "harga langganan",
-      "info paket"
+      "info paket",
+      "bulanan"
     ],
     "intent": "TANYA_PAKET_BULANAN",
     "category": "customer",
@@ -238,9 +240,9 @@
   },
   {
     "keywords": [
+      "voucher",
       "harga voucher",
       "daftar voucher",
-      "jual voucher",
       "ada voucher apa saja",
       "info voucher"
     ],
@@ -299,8 +301,6 @@
       "hallo",
       "hello",
       "min",
-      "kak",
-      "mas",
       "mbak",
       "pak",
       "bu",
@@ -340,7 +340,8 @@
       "top up",
       "isi saldo",
       "tambah saldo",
-      "topup saldo"
+      "topup saldo",
+      "buynow"
     ],
     "intent": "TOPUP_SALDO",
     "category": "saldo",
@@ -360,10 +361,10 @@
   },
   {
     "keywords": [
-      "beli voucher",
-      "belivoucher",
-      "buy voucher",
-      "voucher"
+      "beli voucher dengan saldo",
+      "belivoucherdengansaldo",
+      "buy voucher with saldo",
+      "belivoucher"
     ],
     "intent": "BELI_VOUCHER",
     "category": "voucher",
@@ -432,7 +433,7 @@
   {
     "keywords": [
       "info layanan",
-      "layanan",
+      "informasi layanan",
       "service info"
     ],
     "intent": "INFO_LAYANAN",
@@ -446,9 +447,10 @@
       "agen",
       "outlet",
       "daftar agent",
-      "list agent"
+      "list agent",
+      "listagent"
     ],
-    "intent": "LIST_AGENT",
+    "intent": "LIST_AGENTS",
     "category": "agent",
     "description": "Lihat daftar agent/outlet",
     "icon": "🏪"
@@ -457,10 +459,12 @@
     "keywords": [
       "layanan agent",
       "agent service",
-      "layanan",
-      "service agent"
+      "layanan outlet",
+      "service agent",
+      "layananagent",
+      "agentservice"
     ],
-    "intent": "LAYANAN_AGENT",
+    "intent": "AGENT_SERVICES",
     "category": "agent",
     "description": "Lihat layanan yang tersedia di agent",
     "icon": "🛎️"
@@ -469,32 +473,25 @@
     "keywords": [
       "cari agent",
       "search agent",
-      "cari agen"
+      "cari agen",
+      "searchagent"
     ],
-    "intent": "CARI_AGENT",
+    "intent": "SEARCH_AGENT",
     "category": "agent",
     "description": "Cari agent berdasarkan lokasi",
     "icon": "🔍"
   },
   {
     "keywords": [
-      "konfirmasi",
-      "confirm",
-      "konfirmasi topup"
-    ],
-    "intent": "KONFIRMASI_AGENT",
-    "category": "agent",
-    "description": "Konfirmasi transaksi agent (with PIN)",
-    "icon": "✅"
-  },
-  {
-    "keywords": [
       "transaksi hari ini",
       "transaksi hariini",
       "today transactions",
-      "transaksi"
+      "transaksi agent",
+      "transaksiagent",
+      "transaksihariini",
+      "mytransactions"
     ],
-    "intent": "TRANSAKSI_HARI_INI",
+    "intent": "AGENT_TRANSACTIONS",
     "category": "agent",
     "description": "Lihat transaksi agent hari ini",
     "icon": "📊"
@@ -503,16 +500,82 @@
     "keywords": [
       "ganti pin"
     ],
-    "intent": "GANTI_PIN_AGENT",
+    "intent": "AGENT_CHANGE_PIN",
     "category": "agent",
     "description": "Ganti PIN agent",
     "icon": "🔑"
   },
   {
     "keywords": [
+      "beli voucher reseller",
+      "beli voucher",
+      "purchase voucher",
+      "belivoucherreseller",
+      "belivoucher",
+      "purchasevoucher"
+    ],
+    "intent": "AGENT_PURCHASE_VOUCHER",
+    "category": "agent",
+    "description": "Beli voucher dengan harga reseller",
+    "icon": "🎫"
+  },
+  {
+    "keywords": [
+      "jual voucher",
+      "sell voucher",
+      "kasih voucher",
+      "jualvoucher",
+      "sellvoucher",
+      "kasihvoucher"
+    ],
+    "intent": "AGENT_SELL_VOUCHER",
+    "category": "agent",
+    "description": "Jual voucher ke customer",
+    "icon": "💰"
+  },
+  {
+    "keywords": [
+      "stok voucher",
+      "inventory voucher",
+      "cek stok voucher",
+      "stokvoucher",
+      "inventoryvoucher",
+      "cekstokvoucher"
+    ],
+    "intent": "AGENT_CHECK_INVENTORY",
+    "category": "agent",
+    "description": "Cek stok voucher agent",
+    "icon": "📦"
+  },
+  {
+    "keywords": [
+      "riwayat beli voucher",
+      "history purchase",
+      "riwayatbelivoucher",
+      "historypurchase"
+    ],
+    "intent": "AGENT_PURCHASE_HISTORY",
+    "category": "agent",
+    "description": "Lihat riwayat pembelian voucher",
+    "icon": "📥"
+  },
+  {
+    "keywords": [
+      "riwayat jual voucher",
+      "history sales",
+      "riwayatjualvoucher",
+      "historysales"
+    ],
+    "intent": "AGENT_SALES_HISTORY",
+    "category": "agent",
+    "description": "Lihat riwayat penjualan voucher",
+    "icon": "📤"
+  },
+  {
+    "keywords": [
       "update alamat"
     ],
-    "intent": "UPDATE_ALAMAT_AGENT",
+    "intent": "AGENT_UPDATE_ADDRESS",
     "category": "agent",
     "description": "Update alamat outlet agent",
     "icon": "📍"
@@ -521,7 +584,7 @@
     "keywords": [
       "update jam"
     ],
-    "intent": "UPDATE_JAM_AGENT",
+    "intent": "AGENT_UPDATE_HOURS",
     "category": "agent",
     "description": "Update jam operasional agent",
     "icon": "🕐"
@@ -531,7 +594,7 @@
       "update phone",
       "update telepon"
     ],
-    "intent": "UPDATE_PHONE_AGENT",
+    "intent": "AGENT_UPDATE_PHONE",
     "category": "agent",
     "description": "Update nomor telepon agent",
     "icon": "📞"
@@ -541,7 +604,7 @@
       "tutup sementara",
       "close temporarily"
     ],
-    "intent": "TUTUP_SEMENTARA_AGENT",
+    "intent": "AGENT_CLOSE_TEMPORARY",
     "category": "agent",
     "description": "Tutup outlet sementara",
     "icon": "🔒"
@@ -551,7 +614,7 @@
       "buka kembali",
       "open again"
     ],
-    "intent": "BUKA_KEMBALI_AGENT",
+    "intent": "AGENT_OPEN_AGAIN",
     "category": "agent",
     "description": "Buka kembali outlet",
     "icon": "🔓"
@@ -562,7 +625,7 @@
       "info agent",
       "agent info"
     ],
-    "intent": "PROFIL_AGENT",
+    "intent": "AGENT_SELF_PROFILE",
     "category": "agent",
     "description": "Lihat profil & statistik agent",
     "icon": "👤"
@@ -666,7 +729,9 @@
     "keywords": [
       "speedboost",
       "requestspeed",
-      "requestboost"
+      "requestboost",
+      "sod",
+      "speedondemand"
     ],
     "intent": "REQUEST_SPEED_BOOST",
     "category": "speedboost",
@@ -732,7 +797,8 @@
   },
   {
     "keywords": [
-      "proses"
+      "proses",
+      "prosestiket"
     ],
     "intent": "PROSES_TIKET",
     "category": "teknisi",
@@ -805,5 +871,232 @@
     "description": "Selesaikan tiket perbaikan (final)",
     "icon": "✅",
     "customizable": true
+  },
+  {
+    "keywords": [
+      "pasang",
+      "cara pasang",
+      "tutorial pasang",
+      "panduan pasang"
+    ],
+    "intent": "TANYA_CARA_PASANG",
+    "category": "customer",
+    "description": "Tanya cara pasang WiFi",
+    "icon": "📖"
+  },
+  {
+    "keywords": [
+      "tutorial",
+      "tutorial topup",
+      "cara topup",
+      "panduan topup"
+    ],
+    "intent": "TUTORIAL_TOPUP",
+    "category": "saldo",
+    "description": "Tutorial cara topup saldo",
+    "icon": "📚"
+  },
+  {
+    "keywords": [
+      "admin",
+      "kontak admin",
+      "hubungi admin"
+    ],
+    "intent": "admin",
+    "category": "help",
+    "description": "Kontak admin",
+    "icon": "👤"
+  },
+  {
+    "keywords": [
+      "monitorwifi",
+      "monitor wifi",
+      "monitoring wifi"
+    ],
+    "intent": "monitorwifi",
+    "category": "admin",
+    "description": "Monitoring WiFi (Admin)",
+    "icon": "📊"
+  },
+  {
+    "keywords": [
+      "allsaldo",
+      "all saldo",
+      "semua saldo"
+    ],
+    "intent": "allsaldo",
+    "category": "admin",
+    "description": "Lihat semua saldo (Admin)",
+    "icon": "💰"
+  },
+  {
+    "keywords": [
+      "listprofstatik",
+      "list prof statik",
+      "daftar prof statik"
+    ],
+    "intent": "listprofstatik",
+    "category": "admin",
+    "description": "List profile statik (Admin)",
+    "icon": "📋"
+  },
+  {
+    "keywords": [
+      "listprofvoucher",
+      "list prof voucher",
+      "daftar prof voucher"
+    ],
+    "intent": "listprofvoucher",
+    "category": "admin",
+    "description": "List profile voucher (Admin)",
+    "icon": "🎫"
+  },
+  {
+    "keywords": [
+      "access",
+      "akses",
+      "hp",
+      "access management",
+      "kelola akses"
+    ],
+    "intent": "ACCESS_MANAGEMENT",
+    "category": "admin",
+    "description": "Kelola akses (Admin)",
+    "icon": "🔐"
+  },
+  {
+    "keywords": [
+      "remote",
+      "remote verification",
+      "verifikasi remote"
+    ],
+    "intent": "REMOTE_VERIFICATION",
+    "category": "teknisi",
+    "description": "Verifikasi remote",
+    "icon": "📡"
+  },
+  {
+    "keywords": [
+      "konfirmasi",
+      "konfirmasi selesai",
+      "confirm"
+    ],
+    "intent": "KONFIRMASI_SELESAI",
+    "category": "teknisi",
+    "description": "Konfirmasi selesai",
+    "icon": "✅"
+  },
+  {
+    "keywords": [
+      "selesai customer",
+      "customer confirm done",
+      "pelanggan konfirmasi selesai"
+    ],
+    "intent": "CUSTOMER_CONFIRM_DONE",
+    "category": "customer",
+    "description": "Konfirmasi selesai dari customer",
+    "icon": "✅"
+  },
+  {
+    "keywords": [
+      "addprofvoucher",
+      "add prof voucher",
+      "tambah prof voucher"
+    ],
+    "intent": "addprofvoucher",
+    "category": "admin",
+    "description": "Tambah profile voucher (Admin)",
+    "icon": "➕"
+  },
+  {
+    "keywords": [
+      "delprofvoucher",
+      "del prof voucher",
+      "hapus prof voucher"
+    ],
+    "intent": "delprofvoucher",
+    "category": "admin",
+    "description": "Hapus profile voucher (Admin)",
+    "icon": "➖"
+  },
+  {
+    "keywords": [
+      "addprofstatik",
+      "add prof statik",
+      "tambah prof statik"
+    ],
+    "intent": "addprofstatik",
+    "category": "admin",
+    "description": "Tambah profile statik (Admin)",
+    "icon": "➕"
+  },
+  {
+    "keywords": [
+      "delprofstatik",
+      "del prof statik",
+      "hapus prof statik"
+    ],
+    "intent": "delprofstatik",
+    "category": "admin",
+    "description": "Hapus profile statik (Admin)",
+    "icon": "➖"
+  },
+  {
+    "keywords": [
+      "addbinding",
+      "add binding",
+      "tambah binding"
+    ],
+    "intent": "addbinding",
+    "category": "admin",
+    "description": "Tambah binding (Admin)",
+    "icon": "🔗"
+  },
+  {
+    "keywords": [
+      "addppp",
+      "add ppp",
+      "tambah ppp"
+    ],
+    "intent": "addppp",
+    "category": "admin",
+    "description": "Tambah PPP (Admin)",
+    "icon": "🌐"
+  },
+  {
+    "keywords": [
+      "<topup",
+      "topup manual",
+      "topup admin"
+    ],
+    "intent": "<topup",
+    "category": "admin",
+    "description": "Topup manual (Admin)",
+    "icon": "💰"
+  },
+  {
+    "keywords": [
+      "<delsaldo",
+      "del saldo",
+      "hapus saldo"
+    ],
+    "intent": "<delsaldo",
+    "category": "admin",
+    "description": "Hapus saldo (Admin)",
+    "icon": "❌"
+  },
+  {
+    "keywords": [
+      "cek topup",
+      "cektopup",
+      "check topup",
+      "checktopup",
+      "status topup",
+      "statustopup"
+    ],
+    "intent": "CHECK_TOPUP_STATUS",
+    "category": "agent",
+    "description": "Cek status topup agent",
+    "icon": "🔍"
   }
 ]

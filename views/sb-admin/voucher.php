@@ -40,38 +40,7 @@
       <div id="content">
 
         <!-- Topbar -->
-        <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-
-          <!-- Sidebar Toggle (Topbar) -->
-          <form class="form-inline">
-            <button type="button" id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
-              <i class="fa fa-bars"></i>
-            </button>
-          </form>
-
-
-          <!-- Topbar Navbar -->
-          <ul class="navbar-nav ml-auto">
-
-
-            <!-- Nav Item - User Information -->
-            <li class="nav-item dropdown no-arrow">
-              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span>
-                <img class="img-profile rounded-circle" src="/img/undraw_profile.svg">
-              </a>
-              <!-- Dropdown - User Information -->
-              <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
-                <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
-                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
-                  Logout
-                </a>
-              </div>
-            </li>
-
-          </ul>
-
-        </nav>
+        <?php include 'topbar.php'; ?>
         <!-- End of Topbar -->
 
         <!-- Begin Page Content -->
@@ -99,7 +68,9 @@
                       <th>Profil</th>
                       <th>Nama Voucher</th>
                       <th>Durasi</th>
-                      <th>Harga</th>
+                      <th>Harga Jual</th>
+                      <th>Harga Reseller</th>
+                      <th>Margin</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -108,7 +79,9 @@
                       <th>Profil</th>
                       <th>Nama Voucher</th>
                       <th>Durasi</th>
-                      <th>Harga</th>
+                      <th>Harga Jual</th>
+                      <th>Harga Reseller</th>
+                      <th>Margin</th>
                       <th>Action</th>
                     </tr>
                   </tfoot>
@@ -217,20 +190,25 @@
         </div>
         <div class="modal-body">
           <div class="mb-3">
-            <label for="prof" class="form-label">Profil</label>
-            <input type="text" class="form-control" id="prof" name="prof" />
+            <label for="edit_prof" class="form-label">Profil</label>
+            <input type="text" class="form-control" id="edit_prof" name="prof" />
           </div>
           <div class="mb-3">
-            <label for="namavc" class="form-label">Nama Voucher</label>
-            <input type="text" class="form-control" id="namavc" name="namavc" />
+            <label for="edit_namavc" class="form-label">Nama Voucher</label>
+            <input type="text" class="form-control" id="edit_namavc" name="namavc" />
           </div>
           <div class="mb-3">
-            <label for="durasivc" class="form-label">Durasi</label>
-            <input type="text" class="form-control" id="durasivc" name="durasivc" />
+            <label for="edit_durasivc" class="form-label">Durasi</label>
+            <input type="text" class="form-control" id="edit_durasivc" name="durasivc" />
           </div>
           <div class="mb-3">
-            <label for="hargavc" class="form-label">Harga</label>
-            <input type="number" class="form-control" id="hargavc" name="hargavc" />
+            <label for="edit_hargavc" class="form-label">Harga Jual</label>
+            <input type="number" class="form-control" id="edit_hargavc" name="hargavc" />
+          </div>
+          <div class="mb-3">
+            <label for="edit_hargaReseller" class="form-label">Harga Reseller</label>
+            <input type="number" class="form-control" id="edit_hargaReseller" name="hargaReseller" />
+            <small class="form-text text-muted">Harga yang dijual ke agent (biasanya 20% lebih murah dari harga jual)</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -263,18 +241,62 @@
     $(document).on('click', '.btn-edit', function() {
       const id = $(this).data('id');
       $('#editModal form').attr('action', '/api/voucher/' + id);
-      $('#editModal input#prof').val($(this).data('prof'));
-      $('#editModal input#namavc').val($(this).data('namavc'));
-      $('#editModal input#durasivc').val($(this).data('durasivc'));
-      $('#editModal input#hargavc').val($(this).data('hargavc'));
+      $('#editModal input#edit_prof').val($(this).data('prof'));
+      $('#editModal input#edit_namavc').val($(this).data('namavc'));
+      $('#editModal input#edit_durasivc').val($(this).data('durasivc'));
+      $('#editModal input#edit_hargavc').val($(this).data('hargavc'));
+      $('#editModal input#edit_hargaReseller').val($(this).data('hargareseller') || '');
     });
   </script>
 
   <script>
     $(document).ready(function() {
+      // Format currency
+      function formatCurrency(amount) {
+        return new Intl.NumberFormat('id-ID', {
+          style: 'currency',
+          currency: 'IDR',
+          minimumFractionDigits: 0
+        }).format(amount);
+      }
+      
       // Inisialisasi DataTable
       const dataTable = $('#dataTable').DataTable({
-        ajax: '/api/voucher',
+        ajax: {
+          url: '/api/voucher',
+          type: 'GET',
+          dataSrc: function(json) {
+            console.log('[VOUCHER_DATATABLE] Response received:', json);
+            console.log('[VOUCHER_DATATABLE] Response type:', typeof json);
+            console.log('[VOUCHER_DATATABLE] Is array:', Array.isArray(json));
+            console.log('[VOUCHER_DATATABLE] Length:', json ? json.length : 0);
+            
+            // DataTable expects array directly
+            if (Array.isArray(json)) {
+              return json;
+            }
+            
+            // If response is wrapped in data property
+            if (json && json.data && Array.isArray(json.data)) {
+              return json.data;
+            }
+            
+            // If response is error
+            if (json && json.error) {
+              console.error('[VOUCHER_DATATABLE] API Error:', json.error);
+              return [];
+            }
+            
+            console.warn('[VOUCHER_DATATABLE] Unexpected response format:', json);
+            return [];
+          },
+          error: function(xhr, error, thrown) {
+            console.error('[VOUCHER_DATATABLE] AJAX Error:', error);
+            console.error('[VOUCHER_DATATABLE] Status:', xhr.status);
+            console.error('[VOUCHER_DATATABLE] Response:', xhr.responseText);
+            alert('Gagal memuat data voucher. Silakan refresh halaman atau cek console untuk detail error.');
+          }
+        },
         columns: [{
             data: 'prof'
           },
@@ -285,13 +307,28 @@
             data: 'durasivc'
           },
           {
-            data: 'hargavc'
+            data: 'hargavc',
+            render: function(data) {
+              return formatCurrency(parseInt(data || 0));
+            }
+          },
+          {
+            data: 'hargaReseller',
+            render: function(data) {
+              return data ? formatCurrency(parseInt(data)) : '-';
+            }
+          },
+          {
+            data: 'margin',
+            render: function(data) {
+              return data ? formatCurrency(parseInt(data)) : '-';
+            }
           },
           {
             data: null,
             render: function(data, type, row) {
               return `
-                  <button class="btn btn-info btn-edit" data-id="${row.prof}" data-prof="${row.prof}" data-namavc="${row.namavc}" data-durasivc="${row.durasivc}" data-hargavc="${row.hargavc}" data-toggle="modal" data-target="#editModal">Edit</button>
+                  <button class="btn btn-info btn-edit" data-id="${row.prof}" data-prof="${row.prof}" data-namavc="${row.namavc}" data-durasivc="${row.durasivc}" data-hargavc="${row.hargavc}" data-hargareseller="${row.hargaReseller || ''}" data-toggle="modal" data-target="#editModal">Edit</button>
                   <button onclick="deleteData('${row.prof}')" class="btn btn-danger">Hapus</button>
                   `;
             }

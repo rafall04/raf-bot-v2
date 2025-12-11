@@ -106,9 +106,17 @@ Foto tersisa: ${3 - (state.uploadedPhotos?.length || 0)} dari 3`
 async function saveReportAndNotify(state, reply, withPhotos = false) {
     const report = state.ticketData;
     
-    // Add photo information if available
+    // Add photo information if available (but NO BUFFERS!)
     if (withPhotos && state.uploadedPhotos && state.uploadedPhotos.length > 0) {
-        report.customerPhotos = state.uploadedPhotos;
+        // Clean photos - remove buffers before saving
+        report.customerPhotos = state.uploadedPhotos.map(photo => ({
+            fileName: photo.fileName,
+            path: photo.path,
+            uploadedAt: photo.uploadedAt,
+            size: photo.size,
+            uploadedBy: photo.uploadedBy
+            // NO buffer field!
+        }));
         report.hasCustomerPhotos = true;
         report.photoCount = state.uploadedPhotos.length;
     }
@@ -188,37 +196,86 @@ Untuk ambil tiket, ketik:
         acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== ""
     ) || [];
     
+    // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
     for (const teknisi of teknisiAccounts) {
-        try {
-            let teknisiJid = teknisi.phone_number.trim();
-            if (!teknisiJid.endsWith('@s.whatsapp.net')) {
-                if (teknisiJid.startsWith('0')) {
-                    teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
-                } else if (teknisiJid.startsWith('62')) {
-                    teknisiJid = `${teknisiJid}@s.whatsapp.net`;
-                } else {
-                    teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
-                }
-            }
-            
-            // Send text notification
-            await global.raf.sendMessage(teknisiJid, { text: notifMessage });
-            
-            // Send photos if available
-            if (withPhotos && state.uploadedPhotos) {
-                for (const photo of state.uploadedPhotos) {
-                    if (photo.buffer) {
-                        await global.raf.sendMessage(teknisiJid, {
-                            image: photo.buffer,
-                            caption: `📸 Foto dari pelanggan - ${report.pelangganName}\nTiket: ${report.ticketId}\nFoto ${state.uploadedPhotos.indexOf(photo) + 1} dari ${state.uploadedPhotos.length}`
-                        });
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                let teknisiJid = teknisi.phone_number.trim();
+                if (!teknisiJid.endsWith('@s.whatsapp.net')) {
+                    if (teknisiJid.startsWith('0')) {
+                        teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
+                    } else if (teknisiJid.startsWith('62')) {
+                        teknisiJid = `${teknisiJid}@s.whatsapp.net`;
+                    } else {
+                        teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
                     }
                 }
+                
+                // Send text notification
+                await global.raf.sendMessage(teknisiJid, { text: notifMessage });
+                
+                // Send photos if available
+                if (withPhotos && state.uploadedPhotos) {
+                    // Use photoBuffers array if available, or read from disk
+                    if (state.photoBuffers && state.photoBuffers.length > 0) {
+                        // Use buffers from memory
+                        for (let i = 0; i < state.uploadedPhotos.length; i++) {
+                            const photo = state.uploadedPhotos[i];
+                            const buffer = state.photoBuffers[i];
+                            if (buffer && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                                try {
+                                    await global.raf.sendMessage(teknisiJid, {
+                                        image: buffer,
+                                        caption: `📸 Foto dari pelanggan - ${report.pelangganName}\nTiket: ${report.ticketId}\nFoto ${i + 1} dari ${state.uploadedPhotos.length}`
+                                    });
+                                } catch (photoErr) {
+                                    console.error('[SEND_MESSAGE_ERROR]', {
+                                        teknisiJid,
+                                        type: 'image',
+                                        photoIndex: i + 1,
+                                        error: photoErr.message
+                                    });
+                                    // Continue to next photo
+                                }
+                            }
+                        }
+                    } else {
+                        // Read from disk as fallback
+                        const fs = require('fs');
+                        for (let i = 0; i < state.uploadedPhotos.length; i++) {
+                            const photo = state.uploadedPhotos[i];
+                            if (photo.path && fs.existsSync(photo.path) && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                                try {
+                                    const buffer = fs.readFileSync(photo.path);
+                                    await global.raf.sendMessage(teknisiJid, {
+                                        image: buffer,
+                                        caption: `📸 Foto dari pelanggan - ${report.pelangganName}\nTiket: ${report.ticketId}\nFoto ${i + 1} dari ${state.uploadedPhotos.length}`
+                                    });
+                                } catch (photoErr) {
+                                    console.error('[SEND_MESSAGE_ERROR]', {
+                                        teknisiJid,
+                                        type: 'image',
+                                        photoIndex: i + 1,
+                                        error: photoErr.message
+                                    });
+                                    // Continue to next photo
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                console.log(`[REPORT] Notified teknisi: ${teknisi.username} (${teknisiJid})`);
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    teknisiJid: teknisi.phone_number,
+                    error: error.message
+                });
+                console.error(`Failed to notify teknisi ${teknisi.username}:`, error);
+                // Continue to next teknisi
             }
-            
-            console.log(`[REPORT] Notified teknisi: ${teknisi.username} (${teknisiJid})`);
-        } catch (error) {
-            console.error(`Failed to notify teknisi ${teknisi.username}:`, error);
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi.username);
         }
     }
     
@@ -228,21 +285,31 @@ Untuk ambil tiket, ketik:
         acc.phone_number && acc.phone_number.trim() !== ""
     ) || [];
     
+    // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
     for (const admin of adminAccounts) {
-        try {
-            let adminJid = admin.phone_number.trim();
-            if (!adminJid.endsWith('@s.whatsapp.net')) {
-                if (adminJid.startsWith('0')) {
-                    adminJid = `62${adminJid.substring(1)}@s.whatsapp.net`;
-                } else if (adminJid.startsWith('62')) {
-                    adminJid = `${adminJid}@s.whatsapp.net`;
-                } else {
-                    adminJid = `62${adminJid}@s.whatsapp.net`;
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                let adminJid = admin.phone_number.trim();
+                if (!adminJid.endsWith('@s.whatsapp.net')) {
+                    if (adminJid.startsWith('0')) {
+                        adminJid = `62${adminJid.substring(1)}@s.whatsapp.net`;
+                    } else if (adminJid.startsWith('62')) {
+                        adminJid = `${adminJid}@s.whatsapp.net`;
+                    } else {
+                        adminJid = `62${adminJid}@s.whatsapp.net`;
+                    }
                 }
+                await global.raf.sendMessage(adminJid, { text: notifMessage });
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    adminJid: admin.phone_number,
+                    error: error.message
+                });
+                console.error(`Failed to notify admin ${admin.username}:`, error);
+                // Continue to next admin
             }
-            await global.raf.sendMessage(adminJid, { text: notifMessage });
-        } catch (error) {
-            console.error(`Failed to notify admin ${admin.username}:`, error);
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to admin', admin.username);
         }
     }
 }

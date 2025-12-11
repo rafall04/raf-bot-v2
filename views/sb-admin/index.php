@@ -28,14 +28,15 @@ if (!$monitoringEnabled && file_exists($configPath) && is_readable($configPath))
 $monitoringEnabled = true; // TEMPORARY - REMOVE AFTER TESTING
 
 // Load monitoring API wrapper if enabled
+// OPTIMASI: Jangan blocking render dengan API call - load secara async di JavaScript
 if ($monitoringEnabled) {
     $wrapperPath = __DIR__ . '/../api-monitoring-wrapper.php';
     if (file_exists($wrapperPath)) {
         require_once $wrapperPath;
-        $monitoringApi = new MonitoringAPIWrapper($_SESSION['token'] ?? '');
-        $systemHealth = $monitoringApi->getSystemHealth();
+        // Jangan panggil getSystemHealth() di sini - ini blocking render!
+        // Biarkan JavaScript yang memanggil setelah page load
+        $systemHealth = ['error' => false, 'loading' => true];
     } else {
-        // Wrapper doesn't exist, but we still enable monitoring with defaults
         $systemHealth = ['error' => false];
     }
 }
@@ -176,6 +177,9 @@ if ($monitoringEnabled) {
             color: var(--dark);
             line-height: 1;
             margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: visible;
+            text-overflow: clip;
         }
 
         .dashboard-card .card-subtitle {
@@ -417,6 +421,7 @@ if ($monitoringEnabled) {
     <?php include '_navbar.php'; ?>
     <div id="content-wrapper" class="d-flex flex-column">
         <div id="content">
+            <!-- Topbar dengan alerts custom untuk dashboard -->
             <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow-sm">
                 <button type="button" id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
                     <i class="fa fa-bars"></i>
@@ -451,11 +456,58 @@ if ($monitoringEnabled) {
 
                     <div class="topbar-divider d-none d-sm-block"></div>
                     
-                    <!-- Nav Item - User -->
+                    <!-- Nav Item - User (menggunakan logic dari topbar.php) -->
+                    <?php
+                    // Include topbar logic untuk mendapatkan userName
+                    if (session_status() === PHP_SESSION_NONE) {
+                        session_start();
+                    }
+                    $userName = 'User';
+                    $role = 'user';
+                    $debugInfo = [];
+                    
+                    // Prioritas 1: Coba ambil dari JWT token (cookie)
+                    if (isset($_COOKIE['token']) && !empty($_COOKIE['token'])) {
+                        try {
+                            $token = $_COOKIE['token'];
+                            $parts = explode('.', $token);
+                            if (count($parts) === 3 && !empty($parts[1])) {
+                                $payloadBase64 = str_replace(['-', '_'], ['+', '/'], $parts[1]);
+                                $padding = strlen($payloadBase64) % 4;
+                                if ($padding > 0) {
+                                    $payloadBase64 .= str_repeat('=', 4 - $padding);
+                                }
+                                $decoded = base64_decode($payloadBase64, true);
+                                if ($decoded !== false) {
+                                    $payload = json_decode($decoded, true);
+                                    if ($payload && is_array($payload)) {
+                                        if (isset($payload['name']) && !empty(trim($payload['name']))) {
+                                            $userName = trim($payload['name']);
+                                        } elseif (isset($payload['username']) && !empty(trim($payload['username']))) {
+                                            $userName = trim($payload['username']);
+                                        }
+                                        if (isset($payload['role']) && !empty(trim($payload['role']))) {
+                                            $role = trim($payload['role']);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception $e) {
+                            // Fallback ke session
+                        }
+                    }
+                    
+                    // Prioritas 2: Ambil dari session
+                    if ($userName === 'User' && isset($_SESSION['name']) && !empty(trim($_SESSION['name']))) {
+                        $userName = trim($_SESSION['name']);
+                    } elseif ($userName === 'User' && isset($_SESSION['username']) && !empty(trim($_SESSION['username']))) {
+                        $userName = trim($_SESSION['username']);
+                    }
+                    ?>
                     <li class="nav-item dropdown no-arrow">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                             data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <span class="mr-2 d-none d-lg-inline text-gray-600 small" id="adminUsername">Admin</span>
+                            <span class="mr-2 d-none d-lg-inline text-gray-600 small" id="topbarUserName"><?php echo htmlspecialchars($userName); ?></span>
                             <img class="img-profile rounded-circle" src="/img/undraw_profile.svg">
                         </a>
                         <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
@@ -468,6 +520,21 @@ if ($monitoringEnabled) {
                     </li>
                 </ul>
             </nav>
+            <script>
+            // Fallback: Fetch dari API jika name masih 'User'
+            (function() {
+                if (document.getElementById('topbarUserName').textContent === 'User') {
+                    fetch('/api/me', { credentials: 'include' })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 200 && data.data && data.data.name) {
+                                document.getElementById('topbarUserName').textContent = data.data.name;
+                            }
+                        })
+                        .catch(err => console.warn('Failed to fetch user name from API:', err));
+                }
+            })();
+            </script>
             <div class="container-fluid">
                 <div class="dashboard-header">
                     <div class="d-flex align-items-center justify-content-between">
@@ -729,6 +796,47 @@ if ($monitoringEnabled) {
                     </div>
                 </div>
 
+                <h4 class="dashboard-section-title">Login & Logout History</h4>
+                <div class="row">
+                    <div class="col-12 mb-4">
+                        <div class="card shadow">
+                            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                                <h6 class="m-0 font-weight-bold text-primary">
+                                    <i class="fas fa-history me-2"></i>Riwayat Login & Logout
+                                </h6>
+                                <a href="/login-logs" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-external-link-alt me-1"></i>Lihat Semua
+                                </a>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0" id="recentLoginLogsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Action</th>
+                                                <th>Waktu</th>
+                                                <th>Username</th>
+                                                <th>Role</th>
+                                                <th>Status</th>
+                                                <th>IP Address</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recentLoginLogsBody">
+                                            <tr>
+                                                <td colspan="6" class="text-center">
+                                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                        <span class="sr-only">Loading...</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row d-none mt-4" id="qr_container_parent">
                     <div class="col-xl-4 col-lg-5">
                         <div class="card qr-card mb-4">
@@ -793,9 +901,13 @@ if ($monitoringEnabled) {
             }
         };
 
-        const animateCountUp = (elementId, endValue, isCurrency = false, duration = 1000) => { // Durasi dipercepat sedikit
+        const animateCountUp = (elementId, endValue, isCurrency = false, duration = 1000) => {
             const element = document.getElementById(elementId);
             if (!element) return;
+
+            // Hapus spinner jika ada sebelum animasi
+            const spinner = element.querySelector('.spinner-border');
+            if(spinner) spinner.remove();
 
             // Jika elemen sudah menampilkan 'N/A' atau 'Error', jangan animasi
             if (element.classList.contains('error-text')) {
@@ -807,7 +919,7 @@ if ($monitoringEnabled) {
             // Coba baca nilai numerik saat ini jika ada, untuk animasi dari nilai tersebut
             const currentText = element.textContent.replace(/[^\d,-]/g, '').replace(',', '.');
             const currentNumericValue = parseFloat(currentText);
-            if (!isNaN(currentNumericValue) && element.textContent.trim() !== '' && !element.querySelector('.spinner-border')) {
+            if (!isNaN(currentNumericValue) && element.textContent.trim() !== '') {
                 startValue = currentNumericValue;
             }
 
@@ -852,22 +964,55 @@ if ($monitoringEnabled) {
 
         const updateDashboardCard = (elementId, value, isCurrency = false, hasError = false) => {
             const el = document.getElementById(elementId);
-            if(!el) return;
+            if(!el) {
+                console.warn(`[DASHBOARD_CARD] Element not found: ${elementId}`);
+                return;
+            }
+
+
+            // PENTING: Hapus semua konten (termasuk spinner) sebelum update value
+            // Gunakan innerHTML = '' untuk memastikan spinner HTML benar-benar dihapus
+            const spinner = el.querySelector('.spinner-border');
+            if(spinner) {
+                spinner.remove();
+            }
+            // Juga hapus semua child nodes untuk memastikan tidak ada sisa HTML
+            while(el.firstChild) {
+                el.removeChild(el.firstChild);
+            }
 
             if(hasError){
                 el.textContent = 'N/A';
-                el.classList.add('error-text'); // Tambahkan class untuk styling error
-                // Hapus spinner jika ada
-                const spinner = el.querySelector('.spinner-border');
-                if(spinner) spinner.remove();
+                el.classList.add('error-text');
                 return;
             }
-            el.classList.remove('error-text'); // Hapus class error jika tidak error
+            el.classList.remove('error-text');
 
             if (typeof value === 'number' && !isNaN(value)) {
                 animateCountUp(elementId, value, isCurrency);
             } else { // Untuk status teks seperti "Online", "Offline"
-                 el.textContent = value;
+                const textValue = value || 'Loading...';
+                // PENTING: Gunakan innerHTML = '' dulu untuk clear, baru set textContent
+                // Ini memastikan tidak ada sisa HTML yang tersembunyi
+                el.innerHTML = '';
+                el.textContent = textValue;
+                
+                // Force reflow untuk memastikan browser render perubahan
+                void el.offsetHeight;
+                
+                // Double check setelah reflow
+                const afterText = el.textContent.trim();
+                if (afterText !== textValue) {
+                    el.textContent = textValue;
+                }
+                
+                // Jika masih tidak match, force update sekali lagi
+                const finalText = el.textContent.trim();
+                if (finalText !== textValue && elementId === 'bot_status_value') {
+                    el.innerHTML = '';
+                    el.textContent = textValue;
+                    void el.offsetHeight;
+                }
             }
         };
 
@@ -879,9 +1024,47 @@ if ($monitoringEnabled) {
             'genieacs_status_value'  // Tambahkan ini
         ];
 
+        // Flag untuk mencegah multiple calls bersamaan
+        let isFetchingDashboard = false;
+        
         async function fetchDashboardData() {
-            console.log("Fetching consolidated dashboard data...");
-            cardValueIds.forEach(id => showLoadingSpinner(id));
+            // Prevent multiple simultaneous calls
+            if (isFetchingDashboard) {
+                return;
+            }
+            
+            isFetchingDashboard = true;
+            
+            // Hanya show spinner untuk card yang belum punya value valid
+            // PENTING: Jangan timpa value yang sudah valid seperti "Online", "Offline", atau angka
+            // PENTING: Jangan timpa teks "Checking..." dengan spinner, biarkan sebagai teks
+            // PENTING: Jangan timpa "Online" atau "Offline" dengan spinner
+            cardValueIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                
+                const currentText = el.textContent.trim();
+                const hasSpinner = el.querySelector('.spinner-border');
+                
+                // Jangan show spinner jika sudah ada value valid
+                const hasValidValue = currentText === 'Online' || 
+                                     currentText === 'Offline' || 
+                                     currentText === 'Checking...' ||
+                                     /^\d/.test(currentText); // Angka (untuk statistik)
+                
+                // Hanya show spinner jika:
+                // 1. Element benar-benar kosong (tidak ada teks dan tidak ada spinner)
+                // 2. Sudah ada spinner (untuk maintain spinner yang sudah ada)
+                // 3. Value adalah "N/A" atau "Error" (bisa diganti dengan spinner)
+                // PENTING: Jangan timpa value yang valid
+                const shouldShowSpinner = (!hasValidValue && !currentText && !hasSpinner) || 
+                                         hasSpinner ||
+                                         (currentText === 'N/A' || currentText === 'Error');
+                
+                if (shouldShowSpinner) {
+                    showLoadingSpinner(id);
+                }
+            });
 
             try {
                 const response = await fetch('/api/stats', { credentials: 'include' });
@@ -889,10 +1072,130 @@ if ($monitoringEnabled) {
                     throw new Error(`API request failed with status ${response.status}`);
                 }
                 const data = await response.json();
-                console.log("Consolidated data received:", data);
 
                 // Update all cards from a single data source
-                updateDashboardCard('bot_status_value', data.botStatus ? 'Online' : 'Offline', false, data.botStatus === undefined);
+                // PENTING: botStatus harus boolean (true/false), bukan undefined/null
+                let botStatusValue = 'Checking...';
+                let botStatusHasError = false;
+                
+                // Pastikan botStatus selalu ter-definisi dengan benar
+                // Strict check: hanya true/false yang valid, selain itu tetap "Checking..."
+                if (data.botStatus === true || data.botStatus === 1 || data.botStatus === 'true') {
+                    botStatusValue = 'Online';
+                } else if (data.botStatus === false || data.botStatus === 0 || data.botStatus === 'false') {
+                    botStatusValue = 'Offline';
+                } else {
+                    // Jika undefined/null/unknown, tampilkan "Checking..." sebagai teks
+                    botStatusValue = 'Checking...';
+                }
+                
+                // PENTING: Update bot_status_value PERTAMA sebelum card lainnya
+                // Ini memastikan tidak ada race condition dengan spinner logic
+                
+                // Clear spinner dulu jika ada, baru update
+                const botStatusEl = document.getElementById('bot_status_value');
+                if (botStatusEl) {
+                    const spinner = botStatusEl.querySelector('.spinner-border');
+                    if (spinner) {
+                        spinner.remove();
+                    }
+                }
+                
+                // PENTING: Update bot_status_value dengan mekanisme yang lebih agresif
+                // Pastikan tidak ada yang menimpa setelah update
+                const botStatusElForUpdate = document.getElementById('bot_status_value');
+                if (botStatusElForUpdate) {
+                    // Clear semua konten dulu
+                    botStatusElForUpdate.innerHTML = '';
+                    // Set textContent langsung
+                    botStatusElForUpdate.textContent = botStatusValue;
+                    // Force reflow
+                    void botStatusElForUpdate.offsetHeight;
+                }
+                
+                // Juga panggil updateDashboardCard untuk konsistensi
+                updateDashboardCard('bot_status_value', botStatusValue, false, botStatusHasError);
+                
+                // PENTING: Update juga wa-status (monitoring widget) dan elemen lain yang relevan
+                const waStatusEl = document.getElementById('wa-status');
+                if (waStatusEl) {
+                    const waStatusText = botStatusValue === 'Online' ? 'Online' : botStatusValue === 'Offline' ? 'Offline' : 'Checking...';
+                    waStatusEl.textContent = waStatusText;
+                }
+                
+                // PENTING: Update semua elemen yang mungkin menampilkan status WhatsApp
+                // Cari semua elemen yang mengandung "Checking..." dan update dengan status yang benar
+                setTimeout(() => {
+                    const allCheckingElements = Array.from(document.querySelectorAll('*')).filter(el => {
+                        const text = el.textContent?.trim();
+                        return text === 'Checking...' && 
+                               el.id !== 'bot_status_value' && 
+                               (el.id === 'wa-status' || 
+                                el.className?.includes('whatsapp') || 
+                                el.className?.includes('bot') ||
+                                el.closest('[id*="bot"]') ||
+                                el.closest('[id*="whatsapp"]') ||
+                                el.closest('[id*="wa"]'));
+                    });
+                    
+                    if (allCheckingElements.length > 0) {
+                        allCheckingElements.forEach(el => {
+                            const statusText = botStatusValue === 'Online' ? 'Online' : botStatusValue === 'Offline' ? 'Offline' : 'Checking...';
+                            el.textContent = statusText;
+                        });
+                    }
+                }, 50);
+                
+                // PENTING: Final check langsung setelah update untuk memastikan tidak ada yang menimpa
+                requestAnimationFrame(() => {
+                    const immediateCheck = document.getElementById('bot_status_value');
+                    if (immediateCheck && immediateCheck.textContent.trim() !== botStatusValue && botStatusValue !== 'Checking...') {
+                        immediateCheck.innerHTML = '';
+                        immediateCheck.textContent = botStatusValue;
+                        void immediateCheck.offsetHeight;
+                    }
+                });
+                
+                // Verify update setelah 100ms dan force update jika masih "Checking..."
+                setTimeout(() => {
+                    const botStatusElAfter = document.getElementById('bot_status_value');
+                    if (botStatusElAfter) {
+                        const actualText = botStatusElAfter.textContent.trim();
+                        
+                        // PENTING: Cek apakah ada elemen lain yang menampilkan "Checking..."
+                        const allElementsWithChecking = Array.from(document.querySelectorAll('*')).filter(el => {
+                            const text = el.textContent?.trim();
+                            return text === 'Checking...' && el.id !== 'bot_status_value';
+                        });
+                        if (allElementsWithChecking.length > 0) {
+                            // PENTING: Update semua elemen yang menampilkan "Checking..." dengan status yang benar
+                            allElementsWithChecking.forEach(el => {
+                                // Update wa-status jika ada (monitoring widget)
+                                if (el.id === 'wa-status') {
+                                    const statusText = botStatusValue === 'Online' ? 'Online' : botStatusValue === 'Offline' ? 'Offline' : 'Checking...';
+                                    el.textContent = statusText;
+                                }
+                            });
+                        }
+                        
+                        if (actualText !== botStatusValue && botStatusValue !== 'Checking...') {
+                            // Force update dengan menghapus semua child nodes dulu
+                            while(botStatusElAfter.firstChild) {
+                                botStatusElAfter.removeChild(botStatusElAfter.firstChild);
+                            }
+                            botStatusElAfter.textContent = botStatusValue;
+                            void botStatusElAfter.offsetHeight;
+                            
+                            // Verify sekali lagi setelah force update
+                            setTimeout(() => {
+                                const finalText = botStatusElAfter.textContent.trim();
+                                if (finalText !== botStatusValue) {
+                                    botStatusElAfter.innerHTML = botStatusValue;
+                                }
+                            }, 50);
+                        }
+                    }
+                }, 100);
                 updateDashboardCard('users_total_value', data.users, false, data.users === undefined);
                 updateDashboardCard('users_paid_value', data.paidUsers, false, data.paidUsers === undefined);
                 updateDashboardCard('users_unpaid_value', data.unpaidUsers, false, data.unpaidUsers === undefined);
@@ -904,8 +1207,18 @@ if ($monitoringEnabled) {
                 updateDashboardCard('hotspot_total_value', data.hotspotStats?.total, false, data.hotspotStats?.total === undefined);
                 updateDashboardCard('hotspot_active_value', data.hotspotStats?.active, false, data.hotspotStats?.active === undefined);
 
-                updateDashboardCard('mikrotik_status_value', data.mikrotikStatus?.connected ? 'Online' : 'Offline', false, data.mikrotikStatus?.connected === undefined);
-                updateDashboardCard('genieacs_status_value', data.genieAcsStatus?.connected ? 'Online' : 'Offline', false, data.genieAcsStatus?.connected === undefined);
+                // PENTING: Perbaiki logika status Mikrotik dan GenieACS
+                // Backend sudah memastikan selalu ada property connected (true/false)
+                // Jika status object tidak ada sama sekali → N/A (hasError = true)
+                // Jika connected === true → Online
+                // Jika connected === false → Offline
+                const mikrotikHasError = !data.mikrotikStatus || data.mikrotikStatus.connected === undefined;
+                const mikrotikStatusValue = mikrotikHasError ? 'N/A' : (data.mikrotikStatus.connected ? 'Online' : 'Offline');
+                updateDashboardCard('mikrotik_status_value', mikrotikStatusValue, false, mikrotikHasError);
+                
+                const genieacsHasError = !data.genieAcsStatus || data.genieAcsStatus.connected === undefined;
+                const genieacsStatusValue = genieacsHasError ? 'N/A' : (data.genieAcsStatus.connected ? 'Online' : 'Offline');
+                updateDashboardCard('genieacs_status_value', genieacsStatusValue, false, genieacsHasError);
 
                  // Optional: Show toast notifications for offline systems
                 if (!data.mikrotikStatus?.connected && typeof $ !== 'undefined' && $.fn.Toasts) {
@@ -942,6 +1255,8 @@ if ($monitoringEnabled) {
                         icon: 'fas fa-times-circle'
                     });
                 }
+            } finally {
+                isFetchingDashboard = false;
             }
         }
 
@@ -952,9 +1267,13 @@ if ($monitoringEnabled) {
         });
 
         socket.on('message', (msg) => {
-            console.log("Socket message:", msg);
             if (msg === 'connected') {
-                fetchDashboardData();
+                // Update bot status langsung tanpa fetch ulang (karena sudah tahu statusnya Online)
+                updateDashboardCard('bot_status_value', 'Online', false, false);
+                // Delay sedikit sebelum fetch ulang untuk memastikan update pertama sudah selesai
+                setTimeout(() => {
+                    fetchDashboardData();
+                }, 500);
                 qrContainerParent.classList.add('d-none');
                 if (typeof $ !== 'undefined' && $.fn.Toasts) {
                     $(document).Toasts('create', {
@@ -1052,6 +1371,98 @@ if ($monitoringEnabled) {
         // Reload announcements every 5 minutes
         setInterval(loadAnnouncements, 5 * 60 * 1000);
 
+        // Load Login & Logout History
+        function loadRecentLoginLogs() {
+            fetch('/api/logs/login?limit=20&offset=0', {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => {
+                if (response.status === 403) {
+                    // If 403, show error message
+                    const tbody = document.getElementById('recentLoginLogsBody');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted small">Akses ditolak. Silakan login ulang.</td></tr>';
+                    }
+                    return null;
+                }
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                const tbody = document.getElementById('recentLoginLogsBody');
+                if (!tbody) return;
+
+                if (!result || result.status !== 200 || !result.data) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted small">Tidak ada data login/logout logs</td></tr>';
+                    return;
+                }
+
+                const logs = result.data;
+                if (logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted small">Belum ada history login/logout</td></tr>';
+                    return;
+                }
+
+                let html = '';
+                logs.forEach(log => {
+                    // Determine action type (login or logout)
+                    const actionType = log.action_type || (log.logout_time ? 'logout' : 'login');
+                    const isLogout = actionType === 'logout';
+                    
+                    // Use logout_time for logout events, login_time for login events
+                    const timeField = isLogout && log.logout_time ? log.logout_time : (log.login_time || log.timestamp);
+                    
+                    // Format timestamp with Asia/Jakarta timezone
+                    const timestamp = timeField ? new Date(timeField).toLocaleString('id-ID', {
+                        timeZone: 'Asia/Jakarta',
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit'
+                    }) : '-';
+                    
+                    const success = log.success === 1 || log.success === true;
+                    const actionBadgeClass = isLogout ? 'badge-warning' : 'badge-primary';
+                    const actionBadgeText = isLogout ? 'Logout' : 'Login';
+                    const statusBadgeClass = success ? 'badge-success' : 'badge-danger';
+                    const statusBadgeText = success ? 'Success' : 'Failed';
+                    const roleBadge = log.role ? `<span class="badge badge-info badge-sm">${log.role}</span>` : '-';
+                    
+                    html += `
+                        <tr>
+                            <td><span class="badge ${actionBadgeClass} badge-sm">${actionBadgeText}</span></td>
+                            <td class="small">${timestamp}</td>
+                            <td><strong>${log.username || '-'}</strong></td>
+                            <td>${roleBadge}</td>
+                            <td><span class="badge ${statusBadgeClass} badge-sm">${statusBadgeText}</span></td>
+                            <td class="small text-muted">${log.ip_address || log.ipAddress || '-'}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading login/logout logs:', error);
+                const tbody = document.getElementById('recentLoginLogsBody');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted small">Error loading login/logout logs</td></tr>';
+                }
+            });
+        }
+
+        // Load login/logout history on page load
+        loadRecentLoginLogs();
+        
+        // Reload login/logout history every 2 minutes
+        setInterval(loadRecentLoginLogs, 2 * 60 * 1000);
+
         startBtn.addEventListener("click", () => {
             startBtn.disabled = true;
             startBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Connecting...`;
@@ -1063,7 +1474,7 @@ if ($monitoringEnabled) {
                     return response.json();
                 })
                 .then(data => {
-                    console.log("Start API response:", data.message);
+                    // API response received
                 })
                 .catch(error => {
                     console.error("Error starting bot:", error);
@@ -1086,13 +1497,46 @@ if ($monitoringEnabled) {
                 });
         });
 
-        // Panggil fetchDashboardData saat halaman pertama kali dimuat
-        fetchDashboardData();
+        // OPTIMASI: Tampilkan default values terlebih dahulu untuk UX yang lebih baik
+        // Halaman akan langsung ter-render tanpa menunggu API calls
+        // Untuk bot_status_value, set "Checking..." sebagai teks (bukan spinner) agar tidak stuck
+        const botStatusEl = document.getElementById('bot_status_value');
+        if (botStatusEl && !botStatusEl.textContent.trim()) {
+            botStatusEl.textContent = 'Checking...';
+        }
+        showLoadingSpinner('mikrotik_status_value');
+        showLoadingSpinner('genieacs_status_value');
         
-        // Refresh dashboard data every 30 seconds
-        setInterval(() => {
-            fetchDashboardData();
-        }, 30000);
+        // OPTIMASI: Delay lebih lama untuk memastikan halaman benar-benar ter-render dulu
+        // Ini memastikan login response cepat, dashboard load di background
+        window.addEventListener('load', () => {
+            // Delay 2 detik untuk memastikan halaman sudah fully rendered
+            // User akan melihat halaman dulu, data load di background
+            setTimeout(() => {
+                fetchDashboardData();
+            }, 2000);
+            
+            // Set interval untuk refresh status setiap 5 detik (untuk memastikan status ter-update)
+            // Hanya refresh jika masih "Checking..." untuk menghindari flickering
+            setInterval(() => {
+                const botStatusEl = document.getElementById('bot_status_value');
+                if (botStatusEl) {
+                    const currentText = botStatusEl.textContent.trim();
+                    // Hanya refresh jika masih "Checking..." atau kosong
+                    if (currentText === 'Checking...' || !currentText) {
+                        fetchDashboardData();
+                    }
+                }
+            }, 5000);
+        });
+        
+        // Refresh dashboard data every 30 seconds (hanya setelah page load)
+        let refreshInterval = null;
+        window.addEventListener('load', () => {
+            refreshInterval = setInterval(() => {
+                fetchDashboardData();
+            }, 30000);
+        });
 
     </script>
     

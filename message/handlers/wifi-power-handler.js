@@ -4,21 +4,41 @@
  */
 
 const axios = require('axios');
+const { findUserWithLidSupport } = require('../../lib/lid-handler');
 
 /**
  * Handle WiFi power change
  */
-async function handleGantiPowerWifi({ sender, args, q, isOwner, isTeknisi, users, reply, global, mess }) {
+async function handleGantiPowerWifi({ sender, args, q, isOwner, isTeknisi, users, reply, global, mess, msg, raf }) {
     try {
-        // Find user
-        const user = users.find(v => 
-            (isOwner || isTeknisi) 
-                ? v.id == args[1] 
-                : v.phone_number && v.phone_number.split("|").find(vv => vv == (/^([^:@]+)[:@]?.*$/.exec(sender)[1]))
-        );
+        let user;
+        const providedId = args[1];
+        
+        // Admin/Teknisi dapat menyebutkan ID pelanggan
+        if ((isOwner || isTeknisi) && providedId && !isNaN(parseInt(providedId))) {
+            user = users.find(v => v.id == providedId);
+        } else {
+            // Gunakan lid-handler untuk mencari user (mendukung format @lid)
+            const plainSenderNumber = sender.split('@')[0];
+            user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
+            
+            // Debug logging untuk format @lid
+            if (sender.includes('@lid') && !user) {
+                console.log('[GANTI_POWER_WIFI] @lid format detected, user not found');
+                console.log('[GANTI_POWER_WIFI] Sender:', sender);
+                // Berikan instruksi verifikasi
+                const { createLidVerification } = require('../../lib/lid-handler');
+                const lidId = sender.split('@')[0];
+                const verification = createLidVerification(lidId, users);
+                return reply(verification.message);
+            }
+        }
         
         if (!user) {
-            throw (isOwner || isTeknisi) ? mess.notRegister : mess.userNotRegister;
+            const errorMessage = (isOwner || isTeknisi)
+                ? (providedId ? `Maaf, Kak. Pelanggan dengan ID "${providedId}" tidak ditemukan.` : mess.notRegister)
+                : mess.userNotRegister;
+            throw errorMessage;
         }
         
         if (user.subscription == 'PAKET-VOUCHER') {

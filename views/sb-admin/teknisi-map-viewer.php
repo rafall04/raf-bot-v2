@@ -173,6 +173,14 @@
         .icon-customer-online i { color: #28a745 !important; }
         .icon-customer-offline i { color: #dc3545 !important; }
         .icon-customer-unknown i { color: #007bff !important; }
+        
+        /* Connection Monitoring Dashboard Styles */
+        .border-left-success { border-left: 0.25rem solid #28a745 !important; }
+        .border-left-danger { border-left: 0.25rem solid #dc3545 !important; }
+        .border-left-info { border-left: 0.25rem solid #17a2b8 !important; }
+        .border-left-warning { border-left: 0.25rem solid #ffc107 !important; }
+        
+        .badge-lg { font-size: 0.9rem; padding: 0.4rem 0.6rem; }
         .icon-my-location i { color: #17a2b8 !important; }
 
         .leaflet-control-custom-gps {
@@ -336,6 +344,75 @@
                         </button>
                     </div>
                     <div id="globalMessageMap" class="mb-2"></div>
+                    
+                    <!-- Connection Monitoring Dashboard -->
+                    <div id="connectionMonitoringDashboard" class="row mb-3" style="display: none;">
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Pelanggan Online</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-online-count">0</div>
+                                            <div class="text-xs text-muted">Aktif</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-circle text-success fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-danger shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Pelanggan Offline</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-offline-count">0</div>
+                                            <div class="text-xs text-muted">Putus</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-circle text-danger fa-2x"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Pelanggan</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-total-count">0</div>
+                                            <div class="text-xs text-muted">Terdaftar</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Uptime Rate</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-uptime-rate">0%</div>
+                                            <div class="text-xs text-muted">Ketersediaan</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div id="mapContainer">
                         <button id="manualFullscreenBtn" class="btn btn-light btn-sm" title="Layar Penuh Peta">
                             <i class="fas fa-expand"></i>
@@ -512,6 +589,8 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Map Routing Helper -->
+    <script src="/js/map-routing-helper.js?v=<?php echo time(); ?>"></script>
 
     <script>
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
@@ -523,6 +602,9 @@
         let networkMarkersLayer = L.layerGroup();
         let customerMarkersLayer = L.layerGroup();
         let linesLayer = L.layerGroup();
+        
+        // Global config untuk routing
+        let globalConfig = null;
 
         let allOdcDataTechnicianPage = [];
         let allNetworkAssetsData = [];
@@ -573,6 +655,16 @@
                 $('#loggedInTechnicianInfo').text(currentUsername);
             }
         }).catch(err => console.warn("Error fetching user data:", err));
+        
+        // Load config untuk routing
+        fetch('/api/config', { credentials: 'include' }).then(response => response.json()).then(data => {
+            if (data.status === 200 && data.config) {
+                globalConfig = data.config;
+                // Make config available globally for routing helper
+                window.globalConfig = globalConfig;
+                console.log("[TEKNISI-MAP-VIEWER] Config loaded successfully for routing");
+            }
+        }).catch(err => console.warn("[TEKNISI-MAP-VIEWER] Error loading config (routing will use defaults):", err));
 
         function displayGlobalMapMessage(message, type = 'info', duration = 7000) {
             const globalMessageDiv = $('#globalMessageMap');
@@ -774,7 +866,8 @@
             if (map) { map.remove(); map = null; if(legendControlInstance) legendControlInstance = null; }
             $('#interactiveMap .loading-spinner-container').show();
 
-            const satelliteMaxZoom = 20; const osmMaxZoom = 22;
+            const satelliteMaxZoom = 18; // Esri World Imagery hanya support sampai level 18
+            const osmMaxZoom = 22;
             map = L.map('interactiveMap', {
                 // fullscreenControl disabled - manual fullscreen button used instead
                 // fullscreenControl: { pseudoFullscreen: false, title: { 'false': 'Layar Penuh', 'true': 'Keluar Layar Penuh' }},
@@ -782,7 +875,12 @@
             }).setView([-7.2430309,111.846867], 15);
 
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: osmMaxZoom, attribution: '&copy; OSM Contributors' });
-            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: satelliteMaxZoom, attribution: 'Tiles &copy; Esri' }).addTo(map);
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
+                maxZoom: satelliteMaxZoom,
+                maxNativeZoom: 18, // Esri World Imagery hanya support sampai level 18
+                attribution: 'Tiles &copy; Esri',
+                errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Transparent 1x1 pixel
+            }).addTo(map);
 
             networkMarkersLayer.addTo(map); customerMarkersLayer.addTo(map); linesLayer.addTo(map);
 
@@ -813,7 +911,18 @@
             });
             if (map) new GpsMapControl().addTo(map);
 
-            map.on('baselayerchange', e => { map.options.maxZoom = e.name === "Satelit" ? satelliteMaxZoom : osmMaxZoom; if (map.getZoom() > map.options.maxZoom) map.setZoom(map.options.maxZoom); });
+            map.on('baselayerchange', e => { 
+                const newMaxZoom = e.name === "Satelit" ? satelliteMaxZoom : osmMaxZoom;
+                map.options.maxZoom = newMaxZoom;
+                if (map.getZoom() > newMaxZoom) map.setZoom(newMaxZoom);
+                // Update maxNativeZoom untuk layer yang aktif
+                const activeLayer = e.layer;
+                if (activeLayer && activeLayer.options) {
+                    if (e.name === "Satelit" && activeLayer.options.maxNativeZoom) {
+                        activeLayer.options.maxNativeZoom = 18;
+                    }
+                }
+            });
             map.on('fullscreenchange', () => { $('#manualFullscreenBtn i').toggleClass('fa-expand fa-compress'); if(map) map.invalidateSize(); });
             document.addEventListener('fullscreenchange', handleFullscreenGlobal);
             document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
@@ -1000,30 +1109,45 @@
                 else if (asset.type === 'ODP') odpMarkersTechnicianPage.push(marker);
             });
 
-            // Create animated lines from ODP to parent ODC (orange backbone)
-            odpMarkersTechnicianPage.forEach(odpMarker => {
+            // Create routes from ODP to parent ODC dengan routing helper
+            for (const odpMarker of odpMarkersTechnicianPage) {
                 const odpAsset = odpMarker.assetData;
                 if (odpAsset.parent_odc_id) {
                     const parentOdcMarker = odcMarkersTechnicianPage.find(m => String(m.assetData.id) === String(odpAsset.parent_odc_id));
                     if (parentOdcMarker) {
-                        // Use animated line (leaflet-ant-path) for better visualization
-                        const line = L.polyline.antPath(
-                            [parentOdcMarker.getLatLng(), odpMarker.getLatLng()], 
-                            {
-                                color: '#ff7800',           // Orange - backbone infrastructure
-                                weight: 2,
-                                opacity: 0.7,
-                                delay: 2000,                // Medium speed animation
-                                dashArray: [10, 15],
-                                pulseColor: '#FFB84D',      // Lighter orange pulse
-                                hardwareAccelerated: true   // Performance optimization
-                            }
+                        const startLatLng = parentOdcMarker.getLatLng();
+                        const endLatLng = odpMarker.getLatLng();
+                        
+                        // Get routing profile dari config (default: 'driving-car' untuk ODC-ODP)
+                        let routingProfile = 'driving-car';
+                        if (typeof window !== 'undefined' && window.globalConfig && window.globalConfig.openRouteService) {
+                            routingProfile = window.globalConfig.openRouteService.profiles?.odcToOdp || 'driving-car';
+                        }
+                        
+                        // Get route coordinates menggunakan routing helper
+                        const routeCoordinates = await getRouteCoordinates(
+                            startLatLng.lat,
+                            startLatLng.lng,
+                            endLatLng.lat,
+                            endLatLng.lng,
+                            routingProfile
                         );
+                        
+                        // Create animated line dengan route coordinates
+                        const line = L.polyline.antPath(routeCoordinates, {
+                            color: '#ff7800',           // Orange - backbone infrastructure
+                            weight: 2,
+                            opacity: 0.7,
+                            delay: 2000,                // Medium speed animation
+                            dashArray: [10, 15],
+                            pulseColor: '#FFB84D',      // Lighter orange pulse
+                            hardwareAccelerated: true   // Performance optimization
+                        });
                         line.connectedEntities = { odcId: parentOdcMarker.assetData.id, odpId: odpAsset.id };
                         odpToOdcLinesTechnicianPage.push(line);
                     }
                 }
-            });
+            }
         }
 
         async function createCustomerMarkersTechnicianPage() {
@@ -1048,14 +1172,42 @@
                 if (initialPppoeLoadFailed && customer.pppoe_username) { onlineStatus = 'unknown'; customerIpAddress = 'Unknown';}
 
                 const statusColor = onlineStatus === 'online' ? '#28a745' : (onlineStatus === 'offline' ? '#dc3545' : '#6c757d');
-                let popupContent = `<b>Pelanggan: ${customer.name || 'N/A'}</b><p>ID: ${customer.id}</p>` +
-                                 (customer.phone_number ? `<p><i class="fas fa-phone-alt fa-fw"></i> ${customer.phone_number}</p>` : '') +
-                                 (customer.address ? `<p><i class="fas fa-map-marker-alt fa-fw"></i> ${customer.address}</p>` : '') +
-                                 `<p>Paket: ${customer.subscription || 'N/A'}</p>` +
-                                 `<p>Status Bayar: ${customer.paid ? '<span class="text-success">Lunas</span>' : '<span class="text-danger">Belum Lunas</span>'}</p>`+
-                                 `<p>Status PPPoE: <span style="font-weight:bold; color:${statusColor}">${onlineStatus.toUpperCase()}</span></p>` +
-                                 (customer.pppoe_username ? `<p>PPPoE User: ${customer.pppoe_username}</p>` : '') +
-                                 `<p>IP Pelanggan: ${customerIpAddress}</p>`;
+                const statusIcon = onlineStatus === 'online' ? '<i class="fas fa-circle text-success"></i>' : 
+                                  (onlineStatus === 'offline' ? '<i class="fas fa-circle text-danger"></i>' : 
+                                  '<i class="fas fa-circle text-muted"></i>');
+                const statusBadge = onlineStatus === 'online' ? 
+                    '<span class="badge badge-success badge-lg"><i class="fas fa-check-circle"></i> ONLINE</span>' : 
+                    (onlineStatus === 'offline' ? 
+                    '<span class="badge badge-danger badge-lg"><i class="fas fa-times-circle"></i> OFFLINE</span>' : 
+                    '<span class="badge badge-secondary badge-lg"><i class="fas fa-question-circle"></i> UNKNOWN</span>');
+
+                let popupContent = `<div class="mb-3">
+                    <h5 class="mb-2"><b>${customer.name || 'N/A'}</b></h5>
+                    <div class="mb-2">${statusBadge}</div>
+                </div>
+                <hr>
+                <div class="mb-2">
+                    <strong><i class="fas fa-id-card"></i> ID Pelanggan:</strong> ${customer.id}
+                </div>
+                ${customer.phone_number ? `<div class="mb-2"><strong><i class="fas fa-phone-alt"></i> No. HP:</strong> ${customer.phone_number}</div>` : ''}
+                ${customer.address ? `<div class="mb-2"><strong><i class="fas fa-map-marker-alt"></i> Alamat:</strong> ${customer.address}</div>` : ''}
+                <div class="mb-2"><strong><i class="fas fa-box"></i> Paket:</strong> ${customer.subscription || 'N/A'}</div>
+                <div class="mb-2">
+                    <strong><i class="fas fa-money-bill-wave"></i> Status Bayar:</strong> 
+                    ${customer.paid ? '<span class="badge badge-success">Lunas</span>' : '<span class="badge badge-danger">Belum Lunas</span>'}
+                </div>
+                <hr>
+                <div class="mb-2">
+                    <strong><i class="fas fa-network-wired"></i> Status Koneksi:</strong>
+                    <div class="mt-1 p-2 rounded" style="background-color: ${onlineStatus === 'online' ? '#d4edda' : (onlineStatus === 'offline' ? '#f8d7da' : '#e2e3e5')};">
+                        <div class="d-flex align-items-center">
+                            ${statusIcon}
+                            <span class="ml-2" style="font-weight:bold; color:${statusColor};">${onlineStatus.toUpperCase()}</span>
+                        </div>
+                        ${customer.pppoe_username ? `<div class="mt-1"><small><strong>PPPoE User:</strong> ${customer.pppoe_username}</small></div>` : ''}
+                        <div class="mt-1"><small><strong>IP Address:</strong> ${customerIpAddress}</small></div>
+                    </div>
+                </div>`;
 
                 if (customer.device_id) {
                     popupContent += `<p>Tipe Modem: <span id="modem-type-${customer.id}">Memuat...</span></p>`;
@@ -1082,50 +1234,57 @@
                             if (!isNaN(dist)) odpDetailsHtml += `<p style="margin-left:15px; font-size:0.9em;">Jarak ke ODP: ${dist.toFixed(0)} m</p>`;
                         }
                         
-                        // Create animated line from customer to ODP (color-coded by online status)
+                        // Create animated line from customer to ODP dengan routing helper
+                        // Get routing profile dari config (default: 'foot-walking' untuk Customer-ODP)
+                        let routingProfile = 'foot-walking';
+                        if (typeof window !== 'undefined' && window.globalConfig && window.globalConfig.openRouteService) {
+                            routingProfile = window.globalConfig.openRouteService.profiles?.customerToOdp || 'foot-walking';
+                        }
+                        
+                        // Get route coordinates menggunakan routing helper
+                        const customerToOdpRouteCoordinates = await getRouteCoordinates(
+                            lat,
+                            lng,
+                            odpMarker.getLatLng().lat,
+                            odpMarker.getLatLng().lng,
+                            routingProfile
+                        );
+                        
+                        // Create animated line dengan route coordinates (color-coded by online status)
                         let line;
                         if (onlineStatus === 'online') {
                             // Green animated line for online customers (fast animation)
-                            line = L.polyline.antPath(
-                                [[lat, lng], odpMarker.getLatLng()], 
-                                {
-                                    color: '#28a745',           // Green - online
-                                    weight: 6,
-                                    opacity: 0.8,
-                                    delay: 1000,                // Fast animation for active connections
-                                    dashArray: [10, 20],
-                                    pulseColor: '#00FF00',      // Bright green pulse
-                                    hardwareAccelerated: true
-                                }
-                            );
+                            line = L.polyline.antPath(customerToOdpRouteCoordinates, {
+                                color: '#28a745',           // Green - online
+                                weight: 6,
+                                opacity: 0.8,
+                                delay: 1000,                // Fast animation for active connections
+                                dashArray: [10, 20],
+                                pulseColor: '#00FF00',      // Bright green pulse
+                                hardwareAccelerated: true
+                            });
                         } else if (onlineStatus === 'offline') {
                             // Red animated line for offline customers (slow animation)
-                            line = L.polyline.antPath(
-                                [[lat, lng], odpMarker.getLatLng()], 
-                                {
-                                    color: '#dc3545',           // Red - offline
-                                    weight: 4,
-                                    opacity: 0.6,
-                                    delay: 3000,                // Slower animation for problems
-                                    dashArray: [5, 10],
-                                    pulseColor: '#a92b38',      // Darker red pulse
-                                    hardwareAccelerated: true
-                                }
-                            );
+                            line = L.polyline.antPath(customerToOdpRouteCoordinates, {
+                                color: '#dc3545',           // Red - offline
+                                weight: 4,
+                                opacity: 0.6,
+                                delay: 3000,                // Slower animation for problems
+                                dashArray: [5, 10],
+                                pulseColor: '#a92b38',      // Darker red pulse
+                                hardwareAccelerated: true
+                            });
                         } else {
                             // Grey animated line for unknown status (medium animation)
-                            line = L.polyline.antPath(
-                                [[lat, lng], odpMarker.getLatLng()], 
-                                {
-                                    color: '#6c757d',           // Grey - unknown
-                                    weight: 3,
-                                    opacity: 0.5,
-                                    delay: 2500,                // Medium-slow animation
-                                    dashArray: [5, 10],
-                                    pulseColor: '#495057',      // Darker grey pulse
-                                    hardwareAccelerated: true
-                                }
-                            );
+                            line = L.polyline.antPath(customerToOdpRouteCoordinates, {
+                                color: '#6c757d',           // Grey - unknown
+                                weight: 3,
+                                opacity: 0.5,
+                                delay: 2500,                // Medium-slow animation
+                                dashArray: [5, 10],
+                                pulseColor: '#495057',      // Darker grey pulse
+                                hardwareAccelerated: true
+                            });
                         }
                         
                         line.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
@@ -1159,7 +1318,13 @@
                 marker.on('popupopen', function(e) { updateCustomerPopupDetailsTechnicianPage(e.target, e.target.customerData); });
                 customerMarkersTechnicianPage.push(marker);
                 await fetchRedamanForMarker(marker, customer.device_id);
+                
+                // Update monitoring statistics
+                updateConnectionMonitoringTechnicianPage();
             }
+            
+            // Tampilkan dashboard setelah semua marker dibuat
+            $('#connectionMonitoringDashboard').slideDown();
         }
 
         async function loadAllMapDataTechnicianPage() {
@@ -1541,10 +1706,41 @@
             $('#toggleConnectionLinesBtn').removeClass('btn-outline-success').addClass('btn-success');
             
             $('#manualFullscreenBtn').on('click', toggleFullScreenManual);
+             // Function to update connection monitoring dashboard
+            function updateConnectionMonitoringTechnicianPage() {
+                if (!customerMarkersTechnicianPage || customerMarkersTechnicianPage.length === 0) {
+                    $('#monitoring-online-count').text('0');
+                    $('#monitoring-offline-count').text('0');
+                    $('#monitoring-total-count').text('0');
+                    $('#monitoring-uptime-rate').text('0%');
+                    return;
+                }
+                
+                let onlineCount = 0;
+                let offlineCount = 0;
+                let unknownCount = 0;
+                
+                customerMarkersTechnicianPage.forEach(marker => {
+                    const status = marker.customerOnlineStatus;
+                    if (status === 'online') onlineCount++;
+                    else if (status === 'offline') offlineCount++;
+                    else unknownCount++;
+                });
+                
+                const totalCount = customerMarkersTechnicianPage.length;
+                const uptimeRate = totalCount > 0 ? ((onlineCount / totalCount) * 100).toFixed(1) : 0;
+                
+                $('#monitoring-online-count').text(onlineCount);
+                $('#monitoring-offline-count').text(offlineCount);
+                $('#monitoring-total-count').text(totalCount);
+                $('#monitoring-uptime-rate').text(uptimeRate + '%');
+            }
+            
              $('#refreshAllDataBtnMap').on('click', async function() {
                 const button = $(this); const originalHtml = button.html();
                 button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Refresh Data...');
                 await loadAllMapDataTechnicianPage();
+                updateConnectionMonitoringTechnicianPage(); // Update monitoring setelah refresh
                 button.prop('disabled', false).html(originalHtml);
                 // Check if there's an error/warning message already, if not, show success.
                 if (!$('#globalMessageMap .alert-danger').length && !$('#globalMessageMap .alert-warning').length) {
@@ -1573,6 +1769,7 @@
                         
                         try {
                             await loadAllMapDataTechnicianPage();
+                            updateConnectionMonitoringTechnicianPage(); // Update monitoring setelah refresh
                             console.log('[AutoRefresh] Automatic data refresh finished successfully.');
                         } catch (error) {
                             console.error('[AutoRefresh] Error during automatic refresh:', error);

@@ -168,12 +168,27 @@
                             <h4 class="dashboard-section-title">Migrasi dari users.json</h4>
                             <div class="card table-card mb-4">
                                 <div class="card-header">
-                                    <h6>Proses Migrasi JSON</h6>
+                                    <h6><i class="fas fa-file-code"></i> Upload & Migrasi JSON</h6>
                                 </div>
                                 <div class="card-body">
-                                    <p>Klik tombol di bawah untuk memulai proses migrasi dari <code>users.json</code> ke database SQLite.</p>
-                                    <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> Proses ini tidak dapat diurungkan. Pastikan Anda telah membuat cadangan data jika diperlukan.</p>
-                                    <button id="start-migration-btn" class="btn btn-primary">Mulai Migrasi JSON</button>
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i> <strong>Upload File users.json:</strong>
+                                        Upload file users.json untuk melakukan migrasi ke database SQLite.
+                                    </div>
+                                    
+                                    <form id="uploadUsersJsonForm" enctype="multipart/form-data">
+                                        <div class="custom-file mb-3">
+                                            <input type="file" class="custom-file-input" id="usersJsonFile" accept=".json" required>
+                                            <label class="custom-file-label" for="usersJsonFile">Pilih file users.json...</label>
+                                        </div>
+                                        
+                                        <p class="text-warning"><i class="fas fa-exclamation-triangle"></i> Proses ini tidak dapat diurungkan. Pastikan Anda telah membuat cadangan data jika diperlukan.</p>
+                                        
+                                        <button type="submit" id="start-migration-btn" class="btn btn-primary btn-block">
+                                            <i class="fas fa-upload"></i> Upload & Mulai Migrasi JSON
+                                        </button>
+                                    </form>
+                                    
                                     <div id="migration-status" class="mt-3"></div>
                                 </div>
                             </div>
@@ -217,7 +232,7 @@
                             const info = data.data;
                             let html = `
                                 <table class="table table-sm">
-                                    <tr><td><strong>File:</strong></td><td>database.sqlite</td></tr>
+                                    <tr><td><strong>File:</strong></td><td>database/database.sqlite</td></tr>
                                     <tr><td><strong>Size:</strong></td><td>${info.size}</td></tr>
                                     <tr><td><strong>Total Users:</strong></td><td>${info.totalUsers}</td></tr>
                                     <tr><td><strong>Total Columns:</strong></td><td>${info.totalColumns}</td></tr>
@@ -580,32 +595,78 @@
                 });
             });
 
-            // JSON Migration (existing code)
-            $('#start-migration-btn').on('click', function() {
-                const btn = $(this);
+            // JSON Migration - Upload file form
+            $('#uploadUsersJsonForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                const fileInput = document.getElementById('usersJsonFile');
+                const file = fileInput.files[0];
+                const btn = $('#start-migration-btn');
                 const statusDiv = $('#migration-status');
+                const originalText = btn.html();
 
-                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memigrasi...');
-                statusDiv.html('<div class="alert alert-info">Memulai proses migrasi...</div>');
+                if (!file) {
+                    statusDiv.html('<div class="alert alert-danger">Pilih file users.json untuk diupload</div>');
+                    return;
+                }
+
+                // Validate file type
+                if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+                    statusDiv.html('<div class="alert alert-danger">File harus berupa JSON (.json)</div>');
+                    return;
+                }
+
+                // Validate file size (max 10MB)
+                if (file.size > 10 * 1024 * 1024) {
+                    statusDiv.html('<div class="alert alert-danger">File terlalu besar. Maksimal 10MB.</div>');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('usersFile', file);
+
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Mengupload & Memigrasi...');
+                statusDiv.html('<div class="alert alert-info">Mengupload file dan memulai proses migrasi...</div>');
 
                 fetch('/api/migrate-users', {
                     method: 'POST',
+                    body: formData,
                     credentials: 'include'
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 200) {
-                        statusDiv.html('<div class="alert alert-success">' + data.message + '</div>');
+                        let statusHtml = '<div class="alert alert-success">' + data.message + '</div>';
+                        if (data.details) {
+                            statusHtml += '<div class="mt-2"><small>';
+                            statusHtml += '<strong>Detail:</strong> ';
+                            statusHtml += `Total: ${data.details.totalUsers}, `;
+                            statusHtml += `Berhasil: ${data.details.inserted}, `;
+                            statusHtml += `Error: ${data.details.errors}, `;
+                            statusHtml += `Dimuat: ${data.details.reloaded}`;
+                            statusHtml += '</small></div>';
+                        }
+                        statusDiv.html(statusHtml);
                         btn.removeClass('btn-primary').addClass('btn-success').html('<i class="fas fa-check"></i> Migrasi Selesai');
+                        
+                        // Reset form
+                        $('#usersJsonFile').val('');
+                        $('.custom-file-label').text('Pilih file users.json...');
                     } else {
                         statusDiv.html('<div class="alert alert-danger">Error: ' + data.message + '</div>');
-                        btn.prop('disabled', false).html('Mulai Migrasi JSON');
+                        btn.prop('disabled', false).html(originalText);
                     }
                 })
                 .catch(err => {
                     statusDiv.html('<div class="alert alert-danger">Error: ' + err.message + '</div>');
-                    btn.prop('disabled', false).html('Mulai Migrasi JSON');
+                    btn.prop('disabled', false).html(originalText);
                 });
+            });
+
+            // Update file input label when file is selected
+            $('#usersJsonFile').on('change', function() {
+                const fileName = $(this).val().split('\\').pop();
+                $(this).siblings('.custom-file-label').text(fileName || 'Pilih file users.json...');
             });
         });
     </script>

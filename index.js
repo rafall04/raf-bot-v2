@@ -1,10 +1,11 @@
-// This is a cleaned version of index.js with all duplicate routes removed
-// All routes have been moved to their respective files in the routes/ directory
+process.env.TZ = 'Asia/Jakarta';
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const { createServer } = require('http');
@@ -16,40 +17,40 @@ const phpExpress = require('php-express')({
 const qrcode = require('qrcode');
 const P = require('pino');
 const Boom = require('@hapi/boom');
+// HTTPS enforcement removed - Cloudflare Tunnel handles HTTPS
 
-// --- GLOBAL ERROR HANDLERS ---
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ Unhandled Rejection at:', promise);
     console.error('   Reason:', reason);
-    // Log but don't crash - let the app continue
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
     console.error('   Stack:', error.stack);
-    
-    // Critical error - need to restart
     console.log('🔄 Restarting process due to uncaught exception...');
     process.exit(1);
 });
 
-// Handle graceful shutdown
 process.on('SIGTERM', async () => {
     console.log('📴 SIGTERM received, shutting down gracefully...');
     
     try {
-        // Close WhatsApp connection if exists
         if (global.sock && typeof global.sock.logout === 'function') {
             console.log('   Closing WhatsApp connection...');
             await global.sock.logout();
         }
         
-        // Close database connection if exists
         if (global.db && typeof global.db.close === 'function') {
             console.log('   Closing database connection...');
             await global.db.close();
+        }
+        
+        const { closeLogsDatabase } = require('./lib/activity-logger');
+        try {
+            await closeLogsDatabase();
+            console.log('   Closing logs database connection...');
+        } catch (err) {
+            console.error('   Error closing logs database:', err);
         }
         
         console.log('✅ Graceful shutdown complete');
@@ -74,7 +75,6 @@ process.on('SIGINT', async () => {
     }
 });
 
-// --- GLOBAL VARIABLES (Initialize early) ---
 global.conn = null;
 global.whatsappConnectionState = 'close';
 global.users = [];
@@ -91,20 +91,39 @@ global.voucher = [];
 global.atm = [];
 global.networkAssets = [];
 global.cronConfig = {};
-global.config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
-// Local dependencies (after global config is loaded)
+try {
+    const { loadConfig, validateEnvironment } = require('./lib/env-config');
+    global.config = loadConfig();
+    
+    try {
+        const validationResult = validateEnvironment();
+        if (validationResult.warnings && validationResult.warnings.length > 0) {
+            console.log(`[ENV_INFO] Environment validation passed with ${validationResult.warnings.length} warning(s) - auto-migration will handle database relocation`);
+        }
+    } catch (e) {
+        const isCriticalError = !e.message.includes('old location') && !e.message.includes('auto-migrated');
+        if (isCriticalError && process.env.NODE_ENV === 'production') {
+            console.error(`[ENV_ERROR] Critical environment validation failed: ${e.message}`);
+            process.exit(1);
+        } else {
+            console.warn(`[ENV_WARN] Environment validation warning: ${e.message} (will attempt auto-migration)`);
+        }
+    }
+} catch (e) {
+    console.warn(`[CONFIG_FALLBACK] Using legacy config loading: ${e.message}`);
+    global.config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+}
 const { initializeDatabase, loadJSON, saveJSON } = require('./lib/database');
+const { authCache } = require('./lib/auth-cache');
 const { initializeAllCronTasks } = require('./lib/cron');
 const { initializeUploadDirs } = require('./lib/upload-helper');
 const msgHandler = require('./message/raf');
 
-// Error Recovery and Monitoring System
 const ErrorRecovery = require('./lib/error-recovery');
 const MonitoringService = require('./lib/monitoring-service');
 const AlertSystem = require('./lib/alert-system');
 
-// Initialize recovery systems
 global.errorRecovery = new ErrorRecovery();
 global.monitoring = new MonitoringService();
 global.alertSystem = new AlertSystem();
@@ -115,51 +134,111 @@ const app = express();
 const PORT = process.env.PORT || 3100;
 const config = global.config;
 
-// --- MIDDLEWARE SETUP (Correct Order) ---
+// ============================================
+// SECURITY MIDDLEWARE (CRITICAL)
+// ============================================
 
-// 1. CORS
+// 1. HTTPS Enforcement - REMOVED
+// Cloudflare Tunnel akan menangani HTTPS di level reverse proxy
+// Aplikasi hanya berjalan di HTTP, tidak ada HTTPS enforcement
+
+// 2. Security Headers (Helmet.js)
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdn.jsdelivr.net", "https://unpkg.com", "https://cdnjs.cloudflare.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://unpkg.com"],
+            scriptSrcAttr: ["'unsafe-inline'"], // Allow inline event handlers (onclick, etc.)
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            connectSrc: ["'self'", "https://unpkg.com"], // Allow source map requests
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: null, // Disabled - Cloudflare Tunnel handles HTTPS
+        },
+    },
+    hsts: false, // Disabled - Cloudflare Tunnel handles HTTPS
+    crossOriginEmbedderPolicy: false, // Allow embedding if needed
+    crossOriginResourcePolicy: { policy: "cross-origin" } // Allow resources from other origins
+}));
+
+// 3. Global Rate Limiting
+// PENTING: Skip rate limiting untuk authenticated users (admin/staff/customer)
+// Authenticated users perlu lebih banyak request untuk dashboard dan halaman admin
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs (untuk unauthenticated users)
+    message: {
+        status: 429,
+        message: 'Terlalu banyak permintaan dari IP ini, silakan coba lagi nanti.'
+    },
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    skip: (req) => {
+        // Skip rate limiting for static files
+        if (req.path.match(/\.(jpg|jpeg|png|gif|svg|css|js|ico|woff|woff2|ttf|eot)$/i)) {
+            return true;
+        }
+        // Skip rate limiting untuk authenticated users (admin/staff/customer)
+        // Authenticated users perlu lebih banyak request untuk dashboard dan halaman admin
+        if (req.user || req.customer) {
+            return true;
+        }
+        return false;
+    }
+});
+
+// Stricter rate limiter untuk authentication endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 requests per windowMs
+    message: {
+        status: 429,
+        message: 'Terlalu banyak percobaan login, silakan coba lagi dalam 15 menit.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true, // Don't count successful requests
+});
+
+// ============================================
+// STANDARD MIDDLEWARE
+// ============================================
+
 app.use(cors());
-
-// 2. Body Parsers
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser('rweutkhdrt'));
 
-// 3. Cookie Parser
-app.use(cookieParser('rweutkhdrt'))
-
-// Serve static files
 app.use('/static', express.static(path.join(__dirname, 'static')));
-// Legacy paths for backward compatibility
 app.use('/vendor', express.static(path.join(__dirname, 'static/vendor')));
 app.use('/css', express.static(path.join(__dirname, 'static/css')));
 app.use('/js', express.static(path.join(__dirname, 'static/js')));
 app.use('/img', express.static(path.join(__dirname, 'static/img')));
-// Serve temporary files (for payment proofs)
 app.use('/temp', express.static(path.join(__dirname, 'temp')));
-// Serve uploaded ticket photos
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 5. Main Authentication Middleware
 app.use(async (req, res, next) => {
-    // Skip auth for static files (images, css, js, etc)
     if(req.path.match(/\.(jpg|jpeg|png|gif|svg|css|js|ico|woff|woff2|ttf|eot)$/i)) {
         return next();
     }
     
-    // Let PHP engine handle its own files without interference
-    if(req.url.match(/.+\.php/)) return next();
+    if(req.url.match(/.+\.php/)) {
+        return next();
+    }
     
-    // Public paths that don't require authentication (check BEFORE token verification)
     const publicPaths = [
         '/login',
         '/api/login',
         '/api/otp',
         '/api/otpverify',
         '/api/customer/login',
+        '/api/auth/login',
+        '/api/auth/otp/request',
+        '/api/auth/otp/verify',
         '/app/',
         '/callback/payment',
-        '/api/announcements',
-        '/api/news',
         '/api/wifi-name',
         '/api/packages',
         '/api/speed-boost/packages',
@@ -170,20 +249,38 @@ app.use(async (req, res, next) => {
         '/api/monitoring/traffic',
         '/api/monitoring/users',
         '/api/monitoring/history',
-        '/.well-known/' // Chrome DevTools & browser metadata
+        '/.well-known/'
     ];
     
-    // Check if current path is public FIRST (before token verification)
-    if (publicPaths.some(p => req.path.startsWith(p))) {
+    // Special handling untuk announcements dan news: hanya GET yang public
+    const isPublicAnnouncementsOrNews = (req.method === 'GET' && (
+        req.path === '/api/announcements' || 
+        req.path === '/api/news' ||
+        req.path.startsWith('/api/announcements/recent') ||
+        req.path.startsWith('/api/news/recent')
+    ));
+    
+    const isPublicPath = isPublicAnnouncementsOrNews || publicPaths.some(p => {
+        if (req.path === p) return true;
+        if (p.endsWith('/')) {
+            return req.path.startsWith(p);
+        }
+        return req.path.startsWith(p + '/');
+    });
+    
+    if (isPublicPath) {
         return next();
     }
     
-    const token = req.cookies?.token || req.headers?.authorization?.replace('Bearer ', '');
+    let token = null;
+    if (req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    } else if (req.headers && req.headers.authorization) {
+        token = req.headers.authorization.replace('Bearer ', '').trim();
+    }
     
-    // Simple cache to track logged auth (reset every hour)
     if (!global.authLogCache) {
         global.authLogCache = new Set();
-        // Clear cache every hour
         setInterval(() => {
             global.authLogCache.clear();
         }, 3600000);
@@ -191,29 +288,79 @@ app.use(async (req, res, next) => {
     
     if (token) {
         try {
-            const decoded = jwt.verify(token, config.jwt);
+            // Gunakan cache untuk JWT verification
+            const decoded = authCache.getJWTVerification(token, () => {
+                return jwt.verify(token, config.jwt);
+            });
             
-            // Check if it's an admin/staff token (has 'role' field)
+            if (!decoded) {
+                throw new Error('Token verification failed');
+            }
+            
             if (decoded.role) {
-                const account = global.accounts.find(acc => String(acc.id) === String(decoded.id));
+                // Reload accounts dengan debounce jika kosong
+                if (!global.accounts || !Array.isArray(global.accounts) || global.accounts.length === 0) {
+                    console.log(`[AUTH_ERROR] global.accounts not initialized or empty. Attempting reload. Path: ${req.path}`);
+                    try {
+                        const reloadedAccounts = await authCache.reloadAccounts();
+                        if (reloadedAccounts && Array.isArray(reloadedAccounts)) {
+                            global.accounts = reloadedAccounts;
+                            console.log(`[AUTH_FIX] Reloaded global.accounts. New length: ${global.accounts ? global.accounts.length : 0}`);
+                        }
+                    } catch (reloadErr) {
+                        console.error(`[AUTH_CRITICAL] Failed to reload accounts.json:`, reloadErr);
+                    }
+                }
+                
+                // Gunakan cache untuk account lookup
+                let account = authCache.getAccountById(decoded.id, () => {
+                    if (global.accounts && Array.isArray(global.accounts) && global.accounts.length > 0) {
+                        return global.accounts.find(acc => String(acc.id) === String(decoded.id));
+                    }
+                    return null;
+                });
+                
+                // Jika tidak ditemukan, coba reload sekali lagi (tanpa debounce untuk retry)
+                if (!account) {
+                    try {
+                        const reloadedAccounts = loadJSON("accounts.json");
+                        if (reloadedAccounts && Array.isArray(reloadedAccounts)) {
+                            global.accounts = reloadedAccounts;
+                            // Clear cache untuk id ini dan cari lagi
+                            authCache.invalidateAccount(decoded.id);
+                            account = authCache.getAccountById(decoded.id, () => {
+                                return global.accounts.find(acc => String(acc.id) === String(decoded.id));
+                            });
+                        }
+                    } catch (retryErr) {
+                        console.error(`[AUTH_RETRY_ERROR] Failed to reload accounts during retry:`, retryErr);
+                    }
+                }
+                
                 if (account) {
-                    req.user = account;
-                    // Only log first time for this user
+                    req.user = {
+                        id: account.id,
+                        username: account.username,
+                        name: account.name || account.username,
+                        role: account.role,
+                        photo: account.photo || null
+                    };
                     const cacheKey = `admin_${account.id}`;
                     if (!global.authLogCache.has(cacheKey)) {
-                        console.log(`[AUTH] Admin ${account.username} authenticated`);
+                        console.log(`[AUTH] Admin ${account.username} (${account.role}) authenticated. Path: ${req.path}`);
                         global.authLogCache.add(cacheKey);
                     }
                 } else {
-                    console.log(`[AUTH_FAIL] Account not found for ID ${decoded.id}. Path: ${req.path}`);
+                    console.log(`[AUTH_FAIL] Account not found for ID ${decoded.id}. Path: ${req.path}. Available accounts: ${global.accounts ? global.accounts.length : 0}`);
                 }
-            } 
-            // Check if it's a customer token (has 'name' field)
-            else if (decoded.name) {
-                const customer = global.users.find(u => String(u.id) === String(decoded.id));
+            } else if (decoded.name) {
+                // Gunakan cache untuk user lookup
+                const customer = authCache.getUserById(decoded.id, () => {
+                    return global.users.find(u => String(u.id) === String(decoded.id));
+                });
+                
                 if (customer) {
                     req.customer = customer;
-                    // Only log first time for this customer
                     const cacheKey = `customer_${customer.id}`;
                     if (!global.authLogCache.has(cacheKey)) {
                         console.log(`[AUTH] Customer ${customer.name} authenticated`);
@@ -222,37 +369,53 @@ app.use(async (req, res, next) => {
                 } else {
                     console.log(`[AUTH_FAIL] Customer not found for ID ${decoded.id}. Path: ${req.path}`);
                 }
+            } else {
+                console.log(`[AUTH_ERROR] Token decoded but missing required fields (role/name). Path: ${req.path}`);
+                res.cookie("token", "", { httpOnly: true, maxAge: 0, path: "/" });
             }
         } catch (err) {
             console.log(`[AUTH_ERROR] Invalid token. Error: ${err.message}. Path: ${req.path}`);
+            if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
+                res.cookie("token", "", { httpOnly: true, maxAge: 0, path: "/" });
+            }
         }
     }
     
-    // For authenticated paths, check if user is logged in
     if (req.user || req.customer) {
         return next();
     }
     
-    // API routes should return 401
     if (req.path.startsWith('/api/')) {
         return res.status(401).json({ status: 401, message: "Unauthorized" });
     }
     
-    // If accessing login page directly, allow it
     if (req.path === '/login') {
         return next();
     }
     
-    // Check if it's an AJAX request
     if (req.xhr || req.headers.accept?.indexOf('json') > -1) {
         return res.status(401).json({ status: 401, message: "Unauthorized" });
     }
     
-    // If no token and not a public path, redirect to login
     console.log(`[AUTH_REDIRECT_GUEST] No token and not a public path. Path: ${req.path}. Redirecting to /login.`);
     return res.redirect("/login");
 }); 
 
+// ============================================
+// RATE LIMITING (SETELAH AUTHENTICATION)
+// ============================================
+// PENTING: Rate limiting harus SETELAH authentication middleware
+// agar req.user dan req.customer sudah di-set sebelum rate limiter dijalankan
+
+// Apply global rate limiting to all API routes
+// Skip untuk authenticated users (req.user atau req.customer sudah di-set oleh auth middleware)
+app.use('/api/', globalLimiter);
+
+// Apply stricter rate limiting to authentication endpoints
+app.use('/api/login', authLimiter);
+app.use('/api/customer/login', authLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/otp/request', authLimiter);
 
 // 6. Routers - Import all route modules
 const publicApiRouter = require('./routes/public');
@@ -263,6 +426,7 @@ const invoiceRouter = require('./routes/invoice');
 const paymentStatusRouter = require('./routes/payment-status');
 const requestsRouter = require('./routes/requests');
 const compensationRouter = require('./routes/compensation');
+const speedRequestsRouter = require('./routes/speed-requests');
 const statsRouter = require('./routes/stats');
 const usersRouter = require('./routes/users');
 const accountsRouter = require('./routes/accounts');
@@ -293,6 +457,7 @@ app.use('/api', apiRouter); // This has /users routes, so must come AFTER /api/u
 app.use('/api', ticketsRouter);
 app.use('/api', invoiceRouter);
 app.use('/api', compensationRouter);
+app.use('/api', speedRequestsRouter);
 app.use('/api', statsRouter); // This has catch-all /:type/:id route, must be LAST
 app.use('/', pagesRouter);
 
@@ -310,9 +475,6 @@ const server = createServer(app);
 const io = new Server(server);
 global.io = io;
 
-// Helper functions that are still needed in index.js
-
-// Fungsi untuk membersihkan request pending yang lama
 function cleanupOldPendingRequests() {
     try {
         const allRequests = loadJSON('database/requests.json');
@@ -359,17 +521,15 @@ function cleanupOldPendingRequests() {
 
 function startHttpServer() {
     server.listen(PORT, async () => {
-        console.log(`[SERVER_START] HTTP server listening on port ${PORT}`);
+        console.log(`[SERVER] Listening on port ${PORT}`);
         
         // Use absolute path for better cross-platform compatibility
         const sessionPath = path.resolve(process.cwd(), 'sessions', config.sessionName);
-        console.log(`[WA_CONNECT] Checking session at: ${sessionPath}`);
         
         if(fs.existsSync(sessionPath)) {
-            console.log("[WA_CONNECT] Session file found, attempting to connect to WhatsApp...");
             connect();
         } else {
-            console.log("[WA_CONNECT] No session file found. Please scan the QR code on the admin panel to connect.");
+            console.log("[WA] No session found - scan QR code to connect");
         }
     });
 }
@@ -380,7 +540,15 @@ async function startApp() {
 
     // Initialize databases and cron tasks
     initializeDatabase().then(() => {
-        console.log('[DATABASE] Database initialized successfully');
+        // Database initialized (silent)
+        
+        // Auto-migrate databases on startup (safe, non-blocking)
+        const { runAutoMigration } = require('./scripts/auto-migrate-on-startup');
+        runAutoMigration().catch(err => {
+            console.error('[STARTUP] Auto-migration failed:', err.message);
+            // Continue startup even if migration fails (for manual fix)
+        });
+        
         initializeAllCronTasks();
         
         // Initialize upload directories
@@ -398,10 +566,6 @@ async function startApp() {
     // Clean up expired speed boost requests
     const { scheduleSpeedBoostCleanup } = require('./lib/speed-boost-cleanup');
     scheduleSpeedBoostCleanup();
-    
-    if (global.cronConfig) {
-        initializeAllCronTasks();
-    }
 
     // Start the HTTP server
     startHttpServer();
@@ -425,42 +589,65 @@ async function startApp() {
         // Assign delay to global scope if needed elsewhere
         global.delay = delay;
 
+        // Listen for LID mapping updates
+        raf.ev.on('lid-mapping.update', async (update) => {
+            console.log('[LID_MAPPING_UPDATE] Received new LID<->PN mapping:', update);
+            // Mapping is automatically handled by signalRepository
+        });
+        
+        // Message deduplication tracker
+        const processedMessages = new Set();
+        const MESSAGE_CACHE_DURATION = 60000; // 1 minute
+        
+        // Clear old messages periodically
+        setInterval(() => {
+            processedMessages.clear();
+        }, MESSAGE_CACHE_DURATION);
+        
         raf.ev.on('messages.upsert', async m => {
             if (!m.messages || !m.messages[0]?.message) return;
             
+            const msg = m.messages[0];
+            const messageId = msg.key?.id;
+            
+            if (messageId && processedMessages.has(messageId)) {
+                console.log('[MESSAGE_SKIP] Message already processed:', messageId);
+                return;
+            }
+            
+            if (messageId) {
+                processedMessages.add(messageId);
+            }
+            
             try {
-                // Update monitoring metrics
                 global.monitoring.incrementMetric('messages.received');
-                
-                // Process message
-                await msgHandler(raf, m.messages[0], m);
-                
-                // Track success
+                await msgHandler(raf, msg, m);
                 global.monitoring.incrementMetric('messages.sent');
                 
             } catch (error) {
                 console.error('[MESSAGE_ERROR] Error processing message:', error);
-                
-                // Update error metrics
                 global.monitoring.incrementMetric('messages.failed');
                 global.monitoring.logError(error, { context: 'message_processing' });
                 
-                // Handle error recovery
-                const recovery = await global.errorRecovery.handleError(error, { 
-                    context: 'message_processing',
-                    retryable: true,
-                    identifier: `msg_${m.messages[0]?.key?.id || 'unknown'}`
-                });
-                
-                // Retry if suggested
-                if (recovery.retry && recovery.delay) {
-                    setTimeout(async () => {
-                        try {
-                            await msgHandler(raf, m.messages[0], m);
-                        } catch (retryError) {
-                            console.error('[MESSAGE_RETRY_ERROR] Retry failed:', retryError);
-                        }
-                    }, recovery.delay);
+                if (!error.message?.includes('Bad MAC') && !error.message?.includes('decrypt')) {
+                    const recovery = await global.errorRecovery.handleError(error, { 
+                        context: 'message_processing',
+                        retryable: true,
+                        identifier: `msg_${messageId || 'unknown'}`
+                    });
+                    
+                    if (recovery.retry && recovery.delay) {
+                        setTimeout(async () => {
+                            try {
+                                if (messageId) processedMessages.delete(messageId);
+                                await msgHandler(raf, msg, m);
+                            } catch (retryError) {
+                                console.error('[MESSAGE_RETRY_ERROR] Retry failed:', retryError);
+                            }
+                        }, recovery.delay);
+                    }
+                } else {
+                    console.log('[MESSAGE_SKIP] Skipping retry for decryption error');
                 }
             }
         });
@@ -468,17 +655,23 @@ async function startApp() {
         raf.ev.on('connection.update', async update => {
             const { connection, lastDisconnect, qr } = update
             
-            // Update monitoring status
             global.monitoring.updateConnectionStatus('whatsapp', connection);
             
             if (connection === 'open') {
                 global.conn = raf;
-                global.raf = raf;  // Make raf globally available
+                global.raf = raf;
                 global.whatsappConnectionState = 'open';
                 console.log("✅ WhatsApp connection is open.");
+                
+                const { initializeWrapper } = require('./lib/whatsapp-notification-wrapper');
+                if (initializeWrapper(raf)) {
+                    console.log("✅ Notification duplicate prevention activated.");
+                } else {
+                    console.log("⚠️ Failed to initialize notification wrapper.");
+                }
+                
                 io.emit('message', 'connected');
                 
-                // Send recovery notification if this was after disconnection
                 if (global.wasDisconnected) {
                     await global.alertSystem.sendAlert('info', 'SERVICE_RECOVERED', {
                         service: 'WhatsApp'
@@ -498,23 +691,20 @@ async function startApp() {
                 const error = lastDisconnect?.error || new Error('Connection closed');
                 error.code = reason || 'CONNECTION_CLOSED';
                 
-                // Log to monitoring
                 global.monitoring.logError(error, { 
                     context: 'whatsapp_connection',
                     reason: reason 
                 });
                 
-                // Check specific disconnect reasons
                 if (reason === DisconnectReason.connectionReplaced) {
                     console.log("Connection Replaced, Another New Session Opened, Please Close Current Session First");
                     raf.logout();
                 } else if (reason === DisconnectReason.loggedOut) {
                     console.log(`Device Logged Out, Please Scan Again`);
                     global.conn = null;
-                    global.raf = null;  // Clear global.raf too
+                    global.raf = null;
                     io.emit('message', 'disconnected');
                 } else {
-                    // Handle auto-reconnection through error recovery
                     console.log("Connection lost, initiating recovery...");
                     
                     const recovery = await global.errorRecovery.handleError(error, {
@@ -534,7 +724,6 @@ async function startApp() {
                         console.log("❌ Max reconnection attempts reached");
                         io.emit('message', 'disconnected');
                         
-                        // Alert admin about persistent failure
                         await global.alertSystem.sendAlert('critical', 'WHATSAPP_DISCONNECTED', {
                             reason: reason,
                             message: 'Failed to reconnect after multiple attempts'
@@ -543,7 +732,6 @@ async function startApp() {
                 }
             } else if (update.qr) {
                 console.log("Please scan QR code");
-                // Generate QR string for terminal
                 qrcode.toString(update.qr, { type: 'terminal', small: true }, (err, qrString) => {
                     if (err) throw err;
                     console.log(qrString);
@@ -551,9 +739,6 @@ async function startApp() {
                 qrcode.toDataURL(update.qr, (err, url) => {
                     io.emit('qr', url);
                 });
-            } else {
-                // Debug: Uncomment to see all connection updates
-                // console.log(update);
             }
         });
 

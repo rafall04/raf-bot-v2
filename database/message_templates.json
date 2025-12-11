@@ -37,7 +37,7 @@
   },
   "customer_welcome": {
     "name": "Pendaftaran Pelanggan Baru",
-    "template": "✨ *Selamat Bergabung di ${nama_wifi}!* ✨\n\nHalo *${nama_pelanggan}*,\n\nAkun Anda telah berhasil dibuat. Berikut adalah detail login Anda untuk mengakses portal pelanggan:\n\n👤 *Username:* `${username}`\n🔑 *Password:* `${password}`\n\nMohon simpan informasi ini baik-baik. Anda dapat menggunakan kredensial ini untuk memeriksa status layanan, tagihan, dan lainnya di aplikasi atau website kami.\n\nTerima kasih telah memilih kami sebagai penyedia layanan internet Anda."
+    "template": "✨ *Selamat Bergabung di ${nama_wifi}!* ✨\n\nHalo *${nama_pelanggan}*,\n\nAkun Anda telah berhasil dibuat. Berikut adalah detail login Anda untuk mengakses portal pelanggan:\n\n👤 *Username:* `${username}`\n🔑 *Password:* `${password}`\n🌐 *Portal Pelanggan:* ${portal_url}\n\nMohon simpan informasi ini baik-baik. Anda dapat menggunakan kredensial ini untuk memeriksa status layanan, tagihan, dan lainnya di portal pelanggan.\n\nTerima kasih telah memilih kami sebagai penyedia layanan internet Anda.\n\n*${nama_bot}*"
   },
   "redaman_alert": {
     "name": "Notifikasi Gangguan Redaman",
@@ -57,11 +57,11 @@
   },
   "ticket_otw_customer": {
     "name": "Notifikasi Teknisi OTW (Pelanggan)",
-    "template": "🚗 *TEKNISI SEDANG MENUJU LOKASI*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\nTeknisi sedang menuju lokasi Anda.\nPerkiraan tiba dalam ${estimasi_waktu}.\n\n📍 ${lokasi_info}\n\nMohon menunggu dan siapkan:\n• Kode OTP untuk verifikasi\n• Akses ke perangkat/area yang bermasalah\n\n_Update akan diberikan saat teknisi tiba._"
+    "template": "🚗 *TEKNISI BERANGKAT*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\nTeknisi sedang menuju lokasi Anda.\n\n⏱️ *Estimasi Tiba:* ${estimasi_waktu}\n_Waktu dapat berubah tergantung kondisi_\n\n📍 ${lokasi_info}\n\n🔐 *KODE VERIFIKASI:*\n╔════════════════╗\n║  *${otp}*  ║\n╚════════════════╝\n\nBerikan kode ini saat teknisi tiba."
   },
   "ticket_arrived_customer": {
     "name": "Notifikasi Teknisi Sampai (Pelanggan)",
-    "template": "🏁 *TEKNISI SUDAH TIBA*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\n✅ Teknisi sudah di lokasi Anda\n\n🔐 Mohon berikan *KODE OTP* kepada teknisi untuk memulai pekerjaan.\n\n_Pastikan OTP yang diberikan sesuai dengan yang Anda terima sebelumnya._"
+    "template": "🎉 *TEKNISI SUDAH TIBA*\n\n━━━━━━━━━━━━━━━━\n📋 ID Tiket: *${ticket_id}*\n🔧 Teknisi: *${teknisi_name}*\n${teknisi_phone_section}━━━━━━━━━━━━━━━━\n\n✅ Teknisi sudah di lokasi Anda\n\n🔐 *KODE VERIFIKASI:*\n╔════════════════╗\n║  *${otp}*  ║\n╚════════════════╝\n\n⚠️ *PENTING:*\n• Berikan kode ini ke teknisi\n• Untuk memverifikasi identitas\n• Jangan berikan ke orang lain\n\n_Perbaikan akan segera dimulai._"
   },
   "ticket_working_customer": {
     "name": "Notifikasi Mulai Perbaikan (Pelanggan)",
@@ -74,5 +74,89 @@
   "ticket_created_teknisi": {
     "name": "Notifikasi Tiket Baru (Teknisi)",
     "template": "🆕 *TIKET LAPORAN BARU* 🆕\n\nAda laporan gangguan baru:\n\n📋 *Detail Tiket:*\n• ID Tiket: *${ticket_id}*\n• Prioritas: ${prioritas}\n• Pelanggan: ${nama_pelanggan}\n• No. HP: ${no_hp}\n• Alamat: ${alamat}\n• Masalah: ${issue_type}\n• Laporan: ${laporan_text}\n\n⚡ *Tindakan:*\nKetik *proses ${ticket_id}* untuk mengambil tiket ini\n\n_Harap segera ditindaklanjuti sesuai prioritas._"
+  },
+  "saldo_ditambahkan": {
+    "name": "Notifikasi Saldo Ditambahkan",
+    "template": "✅ *SALDO DITAMBAHKAN*\n\nSaldo Anda telah ditambahkan sebesar:\n💰 *${harga}*\n\nSaldo saat ini: *${formattedSaldo}*\n\nKeterangan: ${keterangan}\n\nTerima kasih! 🙏"
+  },
+  "transfer_saldo_masuk": {
+    "name": "Notifikasi Transfer Saldo Masuk",
+    "template": "💰 *SALDO MASUK*\n\nAnda menerima transfer saldo sebesar:\n💵 *${jumlah}*\n\nDari: ${nama_pengirim}\n\nSaldo Anda sekarang: *${formattedSaldo}*\n\nTerima kasih! 🙏"
+  },
+  "voucher_purchase_success": {
+    "name": "Notifikasi Pembelian Voucher Berhasil",
+    "template": "=============================\nPaket                    : *${nama_paket}*\nHarga                    : *${harga}*\nKode Voucher     : *${kode_voucher}*\n=============================\nStatus Transaksi : *Berhasil*\n=============================\n_Terima Kasih Atas Pembelian Anda_"
+  },
+  "topup_saldo_masuk": {
+    "name": "Notifikasi Topup Saldo Masuk",
+    "template": "Topup saldo masuk!\n- Terbaca: ${harga}\n- Total saldo: ${formattedSaldo}"
+  },
+  "otp_code": {
+    "name": "Notifikasi Kode OTP",
+    "template": "Kode OTP Anda: \n${otp}\n\nBerlaku Hanya 5 Menit."
+  },
+  "invoice_caption": {
+    "name": "Caption Invoice PDF",
+    "template": "📄 *INVOICE*\n\nKepada Yth. ${nama_pelanggan}\n\nBerikut kami kirimkan invoice untuk layanan internet Anda.\n\nTerima kasih atas kepercayaan Anda."
+  },
+  "invoice_fallback": {
+    "name": "Notifikasi Invoice Fallback (PDF Gagal)",
+    "template": "⚠️ *Mohon Maaf*\nInvoice PDF tidak dapat digenerate otomatis. Berikut detail pembayaran Anda:\n\n📋 *DETAIL INVOICE*\n• Nama: ${nama_pelanggan}\n• Paket: ${nama_paket}\n• Status: LUNAS ✅\n• Tanggal: ${tanggal}\n\n_Tim admin akan mengirimkan invoice manual dalam 1x24 jam._\n\n_Jika ada pertanyaan, silakan hubungi admin._"
+  },
+  "topup_no_pending": {
+    "name": "Notifikasi Tidak Ada Request Topup",
+    "template": "❌ Tidak ada request topup yang menunggu bukti transfer.\n\nSilakan buat request topup baru dengan mengetik *topup*"
+  },
+  "topup_verified_success": {
+    "name": "Notifikasi Topup Diverifikasi Berhasil",
+    "template": "🎉 *TOPUP BERHASIL DIVERIFIKASI*\n\nID Request: *${request_id}*\nJumlah: *${harga}*\nSaldo Sekarang: *${formattedSaldo}*\n\n✅ Saldo Anda telah ditambahkan.\nTerima kasih atas pembayaran Anda! 🙏\n\n_Gunakan saldo untuk membeli voucher atau layanan lainnya._"
+  },
+  "topup_rejected": {
+    "name": "Notifikasi Topup Ditolak",
+    "template": "❌ *TOPUP DITOLAK*\n\nID Request: *${request_id}*\nJumlah: *${harga}*\n\n📋 *Alasan:* ${alasan}\n\nSilakan buat request topup baru dengan bukti transfer yang valid.\nJika ada pertanyaan, silakan hubungi admin."
+  },
+  "topup_request_admin": {
+    "name": "Notifikasi Request Topup ke Admin",
+    "template": "📢 *REQUEST TOPUP BARU*\n\nUser: ${user_id}\nJumlah: ${harga}\nMetode: ${metode_pembayaran}\n${bukti_section}\n\nID Request: ${request_id}\n\nSilakan cek di panel admin untuk verifikasi."
+  },
+  "voucher_purchase_admin": {
+    "name": "Notifikasi Pembelian Voucher ke Admin",
+    "template": "✅ *PEMBELIAN VOUCHER BERHASIL*\n\nVoucher: *${nama_paket}*\nDurasi: ${durasi}\nHarga: ${harga}\n\n📱 *KODE VOUCHER HOTSPOT:*\n━━━━━━━━━━━━━━━━━\nUsername: `${username}`\nPassword: `${password}`\n━━━━━━━━━━━━━━━━━\n\nSisa saldo: ${sisa_saldo}\n\n📌 *CARA PENGGUNAAN:*\n1. Hubungkan ke WiFi hotspot\n2. Buka browser\n3. Masukkan username & password\n\n_⚠️ Screenshot atau catat kode voucher ini!_"
+  },
+  "topup_success_admin": {
+    "name": "Notifikasi Topup Manual Berhasil (Admin)",
+    "template": "*「 SUKSES 」*\n\nPengiriman uang telah sukses\nDari : +${nomor_pengirim}\nKe : +${nomor_tujuan}\nJumlah transfer : ${jumlah}"
+  },
+  "topup_success_recipient_manual": {
+    "name": "Notifikasi Topup Manual Berhasil (Penerima)",
+    "template": "*「 SUKSES 」*\n\nPengisian Saldo Dengan Jumlah\n${jumlah}\n\nSilahkan Cek Saldo Anda Dengan Ketik ceksaldo\n\nTerima Kasih Telah Melakukan Topup\nBy Bot"
+  },
+  "del_saldo_success": {
+    "name": "Notifikasi Hapus Saldo Berhasil",
+    "template": "*「 SUKSES 」*\n\nHapus Saldo User Dengan Nomor :\n${nomor_user}"
+  },
+  "cek_saldo_response": {
+    "name": "Response Cek Saldo",
+    "template": "💰 *INFORMASI SALDO*\n\nNama: ${nama_pelanggan}\nNomor: ${nomor_hp}\nSaldo: *${formattedSaldo}*\n\n${riwayat_section}\n\n💡 Ketik *topup* untuk isi saldo"
+  },
+  "topup_pending_info": {
+    "name": "Info Request Topup Pending",
+    "template": "⏳ *Anda memiliki request topup yang belum selesai*\n\nJumlah: ${jumlah}\nMetode: ${metode_pembayaran}\nStatus: ${status}\n\n${rekening_section}${bukti_section}\n\n❌ Ketik *batal topup* untuk membatalkan request ini"
+  },
+  "topup_init_menu": {
+    "name": "Menu Pilihan Topup",
+    "template": "💰 *TOPUP SALDO*\n\nHai ${nama_pelanggan}, silakan pilih metode pembayaran:\n\n1️⃣ Transfer Bank\n2️⃣ Bayar ke Agent/Datang ke Rumah\n\nBalas dengan angka pilihan Anda (1-2)\nKetik *batal* untuk membatalkan"
+  },
+  "topup_cancelled": {
+    "name": "Notifikasi Topup Dibatalkan",
+    "template": "✅ *REQUEST TOPUP DIBATALKAN*\n\nID Request: ${request_id}\nJumlah: Rp ${jumlah}\n${sisa_waktu_section}\n\nAnda dapat membuat request topup baru kapan saja."
+  },
+  "beli_voucher_menu": {
+    "name": "Menu Beli Voucher",
+    "template": "🎫 *BELI VOUCHER DENGAN SALDO*\n\nSaldo Anda: ${formattedSaldo}\n\n📋 *Voucher Tersedia:*\n${voucher_list}\n\nBalas dengan nomor voucher yang ingin dibeli\nKetik *batal* untuk membatalkan"
+  },
+  "qris_payment_info": {
+    "name": "Info Pembayaran QRIS",
+    "template": "*GO TO PAY*\n\n- Sub Total: Rp. ${sub_total}\n- Biaya admin: Rp. ${biaya_admin}\n- Total dibayarkan: Rp. ${total_bayar}\n\nSilahkan simpan QR ini, pergi ke aplikasi ewallet/bank virtual anda, lalu scan QR ini dengan aplikasi ewallet/bank virtual anda lalu bayarkan!"
   }
 }

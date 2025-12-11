@@ -1,8 +1,10 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
+const axios = require('axios');
 const { hashPassword, comparePassword } = require('../lib/password');
-const { updatePPPoEProfile, deleteActivePPPoEUser, addPPPoEUser } = require('../lib/mikrotik');
+const { updatePPPoEProfile, deleteActivePPPoEUser, addPPPoEUser, checkPPPoEUserExists } = require('../lib/mikrotik');
 const { getProfileBySubscription } = require('../lib/myfunc');
 const { handlePaidStatusChange } = require('../lib/approval-logic');
 const { validatePhoneNumbers, normalizePhone, getSupportedCountries } = require('../lib/phone-validator-international');
@@ -16,9 +18,77 @@ const {
     updateOdcPortUsage,
     saveNetworkAssets
 } = require('../lib/database');
+const { parseGoogleMapsLink, generateRandomPassword, validateCoordinates } = require('../lib/psb-helper');
+const { sendPSBPhase1Notification, sendPSBPhase2Notification, sendPSBTeknisiMeluncurNotification } = require('../lib/psb-notification');
+const { logActivity } = require('../lib/activity-logger');
+const { insertPSBRecord, updatePSBRecord, getPSBRecord, getPSBRecordsByStatus, movePSBToUsers, getNextAvailablePSBId } = require('../lib/psb-database');
+const { logWifiChange } = require('../lib/wifi-logger');
 const crypto = require('crypto');
+const { rateLimit } = require('../lib/security');
+const { withLock } = require('../lib/request-lock');
 
 const router = express.Router();
+
+// Helper function to extract value from device using parameter configuration
+function extractParameterValue(device, parameterType) {
+    try {
+        const parameters = loadJSON('genieacs_parameters.json') || [];
+        const paramConfig = parameters.find(p => p.type === parameterType);
+        
+        if (!paramConfig || !paramConfig.paths || paramConfig.paths.length === 0) {
+            return null;
+        }
+        
+        // Helper to get nested value
+        const getNestedValue = (obj, path) => {
+            const parts = path.split('.');
+            let current = obj;
+            for (const part of parts) {
+                if (current && typeof current === 'object') {
+                    if (current.hasOwnProperty(part)) {
+                        current = current[part];
+                    } else {
+                        // Try with different casing
+                        const lowerPart = part.toLowerCase();
+                        const foundKey = Object.keys(current).find(key => key.toLowerCase() === lowerPart);
+                        if (foundKey) {
+                            current = current[foundKey];
+                        } else {
+                            return undefined;
+                        }
+                    }
+                } else {
+                    return undefined;
+                }
+            }
+            return current;
+        };
+        
+        // Try each path until we find a value
+        for (const path of paramConfig.paths) {
+            const pathValue = getNestedValue(device, path);
+            if (pathValue !== undefined && pathValue !== null) {
+                // Handle _value wrapper
+                if (typeof pathValue === 'object' && pathValue.hasOwnProperty('_value')) {
+                    return pathValue._value;
+                } 
+                // Handle direct value (string, number, etc.)
+                else if (typeof pathValue !== 'object' || Array.isArray(pathValue)) {
+                    return pathValue;
+                }
+                // Handle object that might have value property
+                else if (pathValue.value !== undefined) {
+                    return pathValue.value;
+                }
+            }
+        }
+        
+        return null;
+    } catch (error) {
+        console.error(`[extractParameterValue] Error extracting ${parameterType}:`, error);
+        return null;
+    }
+}
 
 // Middleware to ensure user is authenticated
 function ensureAuthenticated(req, res, next) {
@@ -69,8 +139,22 @@ router.get('/send/:id/:text', async (req, res) => {
         } else if (req.params.id.endsWith("@c.us") || req.params.id.endsWith("@s.whatsapp.net")) {
             if (!(await global.raf.onWhatsApp(req.params.id))[0]) return res.send({ status: 400, message: "Invalid contact id" });
         } else return res.send({ status: 400, message: "Invalid id" });
-        const send = await global.raf.sendMessage(req.params.id, { text: req.params.text });
-        return res.send({ status: 200, message: `Success send message with text ${req.params.text}`, result: send });
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk command response
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                const send = await global.raf.sendMessage(req.params.id, { text: req.params.text }, { skipDuplicateCheck: true });
+                return res.send({ status: 200, message: `Success send message with text ${req.params.text}`, result: send });
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    recipientId: req.params.id,
+                    error: error.message
+                });
+                return res.send({ status: 500, message: `Failed to send message: ${error.message}` });
+            }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', req.params.id);
+            return res.send({ status: 503, message: 'WhatsApp connection not available' });
+        }
     } catch (e) {
         return res.send({ status: 500, message: e });
     }
@@ -79,11 +163,55 @@ router.get('/send/:id/:text', async (req, res) => {
 // GET /api/users - Get all users
 router.get('/users', ensureAuthenticated, (req, res) => {
     try {
-        // Return users from global.users which is already synced with database
-        return res.json({ 
-            status: 200, 
-            message: "Data pengguna berhasil dimuat",
-            data: global.users 
+        // IMPORTANT: Verify data integrity - check if global.users matches database
+        // If there's a mismatch, reload from database
+        const sqlite3 = require('sqlite3').verbose();
+        const { getDatabasePath } = require('../lib/env-config');
+        const dbPath = getDatabasePath('users.sqlite');
+        
+        // Quick verification: Count users in database vs memory
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
+        db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
+            if (err) {
+                console.error('[GET_USERS] Error verifying database count:', err.message);
+                // Continue with global.users even if verification fails
+                db.close();
+                return res.json({ 
+                    status: 200, 
+                    message: "Data pengguna berhasil dimuat",
+                    data: global.users || [],
+                    warning: "Database verification failed"
+                });
+            }
+            
+            const dbCount = row ? row.count : 0;
+            const memoryCount = global.users ? global.users.length : 0;
+            
+            if (dbCount !== memoryCount) {
+                console.warn(`[GET_USERS] WARNING: Data mismatch! Database has ${dbCount} users but memory has ${memoryCount} users`);
+                console.warn(`[GET_USERS] This indicates data synchronization issue. Consider reloading users from database.`);
+                
+                // Still return global.users but log warning
+                db.close();
+                return res.json({ 
+                    status: 200, 
+                    message: "Data pengguna berhasil dimuat",
+                    data: global.users || [],
+                    warning: `Data mismatch detected: Database has ${dbCount} users, memory has ${memoryCount} users`,
+                    databaseCount: dbCount,
+                    memoryCount: memoryCount
+                });
+            }
+            
+            db.close();
+            
+            // Data matches, return normally
+            return res.json({ 
+                status: 200, 
+                message: "Data pengguna berhasil dimuat",
+                data: global.users || [],
+                count: memoryCount
+            });
         });
     } catch (error) {
         console.error('[GET_USERS_ERROR]', error);
@@ -185,12 +313,9 @@ async function getNextAvailableUserId() {
             // Combine and deduplicate all IDs
             const allIds = [...new Set([...dbIds, ...memoryIds])].sort((a, b) => a - b);
             
-            console.log(`[GET_NEXT_ID] Found ${dbIds.length} IDs in database, ${memoryIds.length} in memory`);
-            console.log(`[GET_NEXT_ID] All existing IDs:`, allIds.slice(0, 10), allIds.length > 10 ? '...' : '');
-            
+            // Simplified logging
             // If no users at all, start with ID 1
             if (allIds.length === 0) {
-                console.log('[GET_NEXT_ID] No existing users, starting with ID 1');
                 resolve(1);
                 return;
             }
@@ -200,7 +325,6 @@ async function getNextAvailableUserId() {
             for (const id of allIds) {
                 if (id > expectedId) {
                     // Found a gap, use this ID
-                    console.log(`[GET_NEXT_ID] Found gap at ID ${expectedId} (before ${id})`);
                     resolve(expectedId);
                     return;
                 }
@@ -209,7 +333,6 @@ async function getNextAvailableUserId() {
             
             // No gaps found, use the next ID after the last one
             const nextId = Math.max(...allIds) + 1;
-            console.log(`[GET_NEXT_ID] No gaps found, using next sequential ID: ${nextId}`);
             resolve(nextId);
         });
     });
@@ -230,10 +353,22 @@ router.post('/users', ensureAdmin, async (req, res) => {
             
             const existingUser = global.users[userIndex];
             
+            // PENTING: Jika bulk kosong atau tidak ada, set default dari config (atau SSID 1 sebagai fallback)
+            let bulkData = userData.bulk;
+            if (!bulkData || !Array.isArray(bulkData) || bulkData.length === 0) {
+                // Ambil default SSID dari config, fallback ke '1' jika tidak ada
+                const defaultSSID = (global.config && global.config.defaultBulkSSID) 
+                    ? String(global.config.defaultBulkSSID) 
+                    : '1';
+                bulkData = [defaultSSID];
+                console.log(`[UPDATE_USER] User ${userData.id} tidak memiliki bulk, otomatis set ke SSID ${defaultSSID} (dari config)`);
+            }
+            
             // Update user data
             const updatedUser = {
                 ...existingUser,
                 ...userData,
+                bulk: bulkData,
                 updated_at: new Date().toISOString()
             };
             
@@ -247,8 +382,43 @@ router.post('/users', ensureAdmin, async (req, res) => {
                 });
             }
             
+            // Store old values for activity log
+            const oldUserData = {
+                name: existingUser.name,
+                phone_number: existingUser.phone_number,
+                subscription: existingUser.subscription,
+                paid: existingUser.paid,
+                pppoe_username: existingUser.pppoe_username
+            };
+            
             // Update in memory
             global.users[userIndex] = updatedUser;
+            
+            // Log activity
+            try {
+                await logActivity({
+                    userId: req.user.id,
+                    username: req.user.username,
+                    role: req.user.role,
+                    actionType: 'UPDATE',
+                    resourceType: 'user',
+                    resourceId: updatedUser.id.toString(),
+                    resourceName: updatedUser.name,
+                    description: `Updated user ${updatedUser.name}`,
+                    oldValue: oldUserData,
+                    newValue: {
+                        name: updatedUser.name,
+                        phone_number: updatedUser.phone_number,
+                        subscription: updatedUser.subscription,
+                        paid: updatedUser.paid,
+                        pppoe_username: updatedUser.pppoe_username
+                    },
+                    ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                    userAgent: req.headers['user-agent']
+                });
+            } catch (logErr) {
+                console.error('[ACTIVITY_LOG_ERROR] Failed to log user update:', logErr);
+            }
             
             // Update in database
             const updateQuery = `
@@ -258,7 +428,8 @@ router.post('/users', ensureAdmin, async (req, res) => {
                     connected_odp_id = ?, send_invoice = ?,
                     is_corporate = ?, corporate_name = ?, corporate_address = ?,
                     corporate_npwp = ?, corporate_pic_name = ?, 
-                    corporate_pic_phone = ?, corporate_pic_email = ?
+                    corporate_pic_phone = ?, corporate_pic_email = ?,
+                    bulk = ?
                 WHERE id = ?
             `;
             
@@ -280,6 +451,7 @@ router.post('/users', ensureAdmin, async (req, res) => {
                     updatedUser.corporate_pic_name || null,
                     updatedUser.corporate_pic_phone || null,
                     updatedUser.corporate_pic_email || null,
+                    JSON.stringify(updatedUser.bulk || ['1']),
                     updatedUser.id
                 ], function(err) {
                     if (err) reject(err);
@@ -339,6 +511,48 @@ router.post('/users', ensureAdmin, async (req, res) => {
                 });
             }
             
+            // Generate username and password if not provided
+            let finalUsername = userData.username;
+            let finalPassword = userData.password;
+            let plainTextPassword = '';
+            
+            if (!finalUsername || finalUsername.trim() === '') {
+                // Generate username from name
+                const nameParts = (userData.name || '').toLowerCase().split(' ').filter(Boolean);
+                let baseUsername = nameParts[0] || 'user';
+                if (nameParts.length > 1) {
+                    baseUsername += nameParts[1].charAt(0);
+                }
+                let counter = 1;
+                finalUsername = baseUsername;
+                // Check for conflicts in both database and memory
+                while (global.users.some(u => u.username === finalUsername && String(u.id) !== String(newUserId))) {
+                    counter++;
+                    finalUsername = `${baseUsername}${counter}`;
+                }
+            }
+            
+            if (!finalPassword || finalPassword.trim() === '') {
+                // Generate random password
+                const { generateRandomPassword } = require('../lib/psb-helper');
+                plainTextPassword = generateRandomPassword();
+                finalPassword = await hashPassword(plainTextPassword);
+            } else {
+                plainTextPassword = finalPassword;
+                finalPassword = await hashPassword(finalPassword);
+            }
+            
+            // PENTING: Jika bulk kosong atau tidak ada, set default dari config (atau SSID 1 sebagai fallback)
+            let bulkData = userData.bulk;
+            if (!bulkData || !Array.isArray(bulkData) || bulkData.length === 0) {
+                // Ambil default SSID dari config, fallback ke '1' jika tidak ada
+                const defaultSSID = (global.config && global.config.defaultBulkSSID) 
+                    ? String(global.config.defaultBulkSSID) 
+                    : '1';
+                bulkData = [defaultSSID];
+                console.log(`[CREATE_USER] User baru tidak memiliki bulk, otomatis set ke SSID ${defaultSSID} (dari config)`);
+            }
+            
             const newUser = {
                 id: newUserId,
                 ...userData,
@@ -349,11 +563,40 @@ router.post('/users', ensureAdmin, async (req, res) => {
                 paid: userData.paid || false,
                 send_invoice: userData.send_invoice || false,
                 is_corporate: userData.is_corporate || false,
+                bulk: bulkData,
+                username: finalUsername,
+                password: finalPassword,
                 created_at: new Date().toISOString()
             };
             
             // Add to memory
             global.users.push(newUser);
+            
+            // Log activity
+            try {
+                await logActivity({
+                    userId: req.user.id,
+                    username: req.user.username,
+                    role: req.user.role,
+                    actionType: 'CREATE',
+                    resourceType: 'user',
+                    resourceId: newUser.id.toString(),
+                    resourceName: newUser.name,
+                    description: `Created new user ${newUser.name}`,
+                    oldValue: null,
+                    newValue: {
+                        name: newUser.name,
+                        phone_number: newUser.phone_number,
+                        subscription: newUser.subscription,
+                        paid: newUser.paid,
+                        pppoe_username: newUser.pppoe_username
+                    },
+                    ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                    userAgent: req.headers['user-agent']
+                });
+            } catch (logErr) {
+                console.error('[ACTIVITY_LOG_ERROR] Failed to log user create:', logErr);
+            }
             
             // Insert into database
             const insertQuery = `
@@ -362,8 +605,8 @@ router.post('/users', ensureAdmin, async (req, res) => {
                     pppoe_username, pppoe_password, connected_odp_id, 
                     send_invoice, is_corporate, corporate_name, 
                     corporate_address, corporate_npwp, corporate_pic_name,
-                    corporate_pic_phone, corporate_pic_email
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    corporate_pic_phone, corporate_pic_email, bulk
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             await new Promise((resolve, reject) => {
@@ -384,18 +627,77 @@ router.post('/users', ensureAdmin, async (req, res) => {
                     newUser.corporate_npwp || null,
                     newUser.corporate_pic_name || null,
                     newUser.corporate_pic_phone || null,
-                    newUser.corporate_pic_email || null
+                    newUser.corporate_pic_email || null,
+                    JSON.stringify(newUser.bulk || ['1'])
                 ], function(err) {
                     if (err) reject(err);
                     else resolve();
                 });
             });
             
-            // Add PPPoE user if needed
-            if (newUser.pppoe_username && newUser.pppoe_password && newUser.subscription) {
+            // Add PPPoE user if needed - HANYA jika checkbox "add_to_mikrotik" dicentang
+            const addToMikrotik = userData.add_to_mikrotik === true || userData.add_to_mikrotik === 'true';
+            if (addToMikrotik && newUser.pppoe_username && newUser.pppoe_password && newUser.subscription) {
                 const profile = getProfileBySubscription(newUser.subscription);
                 if (profile) {
-                    await addPPPoEUser(newUser.pppoe_username, newUser.pppoe_password, profile);
+                    try {
+                        await addPPPoEUser(newUser.pppoe_username, newUser.pppoe_password, profile);
+                        // PPPoE user added to MikroTik
+                    } catch (mikrotikError) {
+                        // Jika error karena user sudah ada, log warning tapi jangan gagalkan proses
+                        if (mikrotikError.message && mikrotikError.message.includes('sudah ada')) {
+                            console.warn(`[USER_CREATE_WARNING] PPPoE user ${newUser.pppoe_username} sudah ada di MikroTik. User tetap ditambahkan ke database.`);
+                        } else {
+                            // Untuk error lain, throw error untuk mencegah inconsistent state
+                            throw new Error(`Gagal menambahkan user ke MikroTik: ${mikrotikError.message}`);
+                        }
+                    }
+                } else {
+                    console.warn(`[USER_CREATE_WARNING] Profile tidak ditemukan untuk subscription ${newUser.subscription}. User tetap ditambahkan ke database.`);
+                }
+            } else if (newUser.pppoe_username && newUser.pppoe_password && newUser.subscription && !addToMikrotik) {
+                // Log info jika field PPPoE terisi tapi checkbox tidak dicentang
+                // Simplified log
+            }
+            
+            // Send welcome message if enabled
+            const welcomeEnabled = global.config.welcomeMessage?.enabled !== false; // Default to true
+            if (welcomeEnabled && newUser.username && plainTextPassword && newUser.phone_number) {
+                try {
+                    const { normalizePhoneNumber } = require('../lib/utils');
+                    const portalUrl = global.config.welcomeMessage?.customerPortalUrl || global.config.company?.website || global.config.site_url_bot || 'https://rafnet.my.id/customer';
+                    
+                    const templateData = {
+                        nama_pelanggan: newUser.name,
+                        username: newUser.username,
+                        password: plainTextPassword, // Use plain text password for message
+                        portal_url: portalUrl,
+                        nama_wifi: global.config.nama || global.config.nama_wifi || 'Layanan Kami',
+                        nama_bot: global.config.namabot || global.config.botName || 'RAF NET BOT'
+                    };
+                    
+                    const messageText = renderTemplate('customer_welcome', templateData);
+                    const phoneNumbers = newUser.phone_number.split('|').map(p => p.trim()).filter(p => p);
+                    
+                    // Send message asynchronously (non-blocking)
+                    (async () => {
+                        for (const number of phoneNumbers) {
+                            const normalizedNumber = normalizePhoneNumber(number);
+                            if (normalizedNumber && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                                const jid = `${normalizedNumber}@s.whatsapp.net`;
+                                try {
+                                    const { delay } = await import('@whiskeysockets/baileys');
+                                    await delay(1000);
+                                    await global.raf.sendMessage(jid, { text: messageText });
+                                } catch (e) {
+                                    console.error(`[WELCOME_MSG_ERROR] Failed to send welcome message to ${jid}:`, e.message);
+                                }
+                            }
+                        }
+                    })();
+                } catch (welcomeError) {
+                    console.error('[WELCOME_MSG_ERROR] Failed to send welcome message:', welcomeError.message);
+                    // Don't fail user creation if welcome message fails
                 }
             }
             
@@ -485,6 +787,15 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
         
         userToUpdate.updated_at = new Date().toISOString();
         
+        // Store old values for activity log (before database update)
+        const oldUserData = {
+            name: userToUpdate.name,
+            phone_number: userToUpdate.phone_number,
+            subscription: userToUpdate.subscription,
+            paid: oldPaidStatus,
+            pppoe_username: userToUpdate.pppoe_username
+        };
+        
         // Update database - use dynamic fields based on what's in userData
         const fields = Object.keys(userData).filter(key => key !== 'id');
         if (fields.length > 0) {
@@ -517,6 +828,9 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
                     // Convert booleans to integers for SQLite
                     if (typeof value === 'boolean') {
                         updateValues.push(value ? 1 : 0);
+                    } else if (dbField === 'bulk') {
+                        // PENTING: bulk harus di-stringify karena database menyimpan sebagai TEXT JSON
+                        updateValues.push(Array.isArray(value) ? JSON.stringify(value) : (value || null));
                     } else {
                         updateValues.push(value);
                     }
@@ -552,6 +866,39 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
             } else {
                 console.log('[DB_UPDATE_SKIP] No valid fields to update');
             }
+        }
+        
+        // Log activity
+        try {
+            const changedFields = [];
+            if (oldUserData.name !== userToUpdate.name) changedFields.push('name');
+            if (oldUserData.phone_number !== userToUpdate.phone_number) changedFields.push('phone_number');
+            if (oldUserData.subscription !== userToUpdate.subscription) changedFields.push('subscription');
+            if (oldUserData.paid !== userToUpdate.paid) changedFields.push('paid');
+            if (oldUserData.pppoe_username !== userToUpdate.pppoe_username) changedFields.push('pppoe_username');
+            
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'user',
+                resourceId: userToUpdate.id.toString(),
+                resourceName: userToUpdate.name,
+                description: `Updated user ${userToUpdate.name} (changed: ${changedFields.join(', ') || 'none'})`,
+                oldValue: oldUserData,
+                newValue: {
+                    name: userToUpdate.name,
+                    phone_number: userToUpdate.phone_number,
+                    subscription: userToUpdate.subscription,
+                    paid: userToUpdate.paid,
+                    pppoe_username: userToUpdate.pppoe_username
+                },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[ACTIVITY_LOG_ERROR] Failed to log user update:', logErr);
         }
         
         // Handle paid status change
@@ -617,6 +964,32 @@ router.delete('/users/:id', ensureAdmin, async (req, res) => {
         }
         
         const user = global.users[userIndex];
+        
+        // Log activity before deletion
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'DELETE',
+                resourceType: 'user',
+                resourceId: user.id.toString(),
+                resourceName: user.name,
+                description: `Deleted user ${user.name}`,
+                oldValue: {
+                    name: user.name,
+                    phone_number: user.phone_number,
+                    subscription: user.subscription,
+                    paid: user.paid,
+                    pppoe_username: user.pppoe_username
+                },
+                newValue: null,
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[ACTIVITY_LOG_ERROR] Failed to log user delete:', logErr);
+        }
         
         // Delete from PPPoE if exists
         if (user.pppoe_username) {
@@ -785,6 +1158,1884 @@ router.get('/start', ensureAdmin, async (req, res) => {
         return res.status(500).json({
             status: 500,
             message: 'Terjadi kesalahan saat memulai koneksi WhatsApp',
+            error: error.message
+        });
+    }
+});
+
+// ==================== PSB (Pasang Baru) Endpoints ====================
+
+// Multer storage untuk PSB photo upload
+// Struktur: uploads/psb/YEAR/MONTH/tempId/ktp_photo.jpg dan house_photo.jpg
+// Catatan: req.body mungkin belum tersedia saat destination dipanggil untuk multipart/form-data
+// Solusi: Gunakan query parameter atau simpan di req sebelum multer
+const psbStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        // Coba ambil tempId dari berbagai sumber (body, query, atau header)
+        // Untuk multipart/form-data, body mungkin belum terisi saat destination dipanggil
+        let tempId = req.body?.tempId || req.query?.tempId || req.headers['x-temp-id'];
+        
+        // Jika masih belum ada, coba parse dari fieldname atau buat fallback
+        // Tapi lebih baik pastikan frontend mengirim via query parameter
+        if (!tempId) {
+            // Fallback: buat tempId baru (tidak ideal, tapi mencegah error)
+            tempId = 'TEMP_' + Date.now();
+            console.warn(`[PSB_UPLOAD_WARN] tempId tidak ditemukan, menggunakan fallback: ${tempId}`);
+        }
+        
+        const year = String(new Date().getFullYear()); // Convert to string
+        const month = String(new Date().getMonth() + 1).padStart(2, '0');
+        // Satu folder per request pelanggan: uploads/psb/YEAR/MONTH/tempId/
+        const uploadDir = path.join(__dirname, '../uploads/psb', year, month, tempId);
+        
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        
+        // Simpan tempId di req untuk digunakan di filename function
+        req._psbTempId = tempId;
+        
+        // Coba ambil fieldname dari query parameter juga (untuk memastikan tersedia)
+        const fieldname = req.query?.fieldname || req.body?.fieldname;
+        if (fieldname) {
+            req._psbFieldname = fieldname;
+        }
+        
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Gunakan fieldname dari berbagai sumber
+        // Query parameter lebih reliable untuk multipart/form-data
+        let fieldname = req._psbFieldname || req.query?.fieldname || req.body?.fieldname;
+        
+        // Jika masih belum ada, coba deteksi dari file.fieldname atau gunakan default
+        if (!fieldname) {
+            // file.fieldname biasanya adalah nama field di FormData ('photo')
+            // Tapi kita butuh 'ktp_photo' atau 'house_photo'
+            // Fallback: gunakan 'photo' dan akan diperbaiki saat submit
+            fieldname = 'photo';
+            console.warn(`[PSB_UPLOAD_WARN] fieldname tidak ditemukan, menggunakan fallback: ${fieldname}`);
+        }
+        
+        const ext = path.extname(file.originalname) || '.jpg';
+        // Nama file: ktp_photo.jpg atau house_photo.jpg
+        cb(null, `${fieldname}${ext}`);
+    }
+});
+
+const psbUpload = multer({
+    storage: psbStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: function (req, file, cb) {
+        // Accept images only
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Hanya file gambar yang diperbolehkan'), false);
+        }
+        cb(null, true);
+    }
+});
+
+// Middleware untuk ensure teknisi/staff
+function ensureAuthenticatedStaff(req, res, next) {
+    if (!req.user) {
+        return res.status(401).json({ status: 401, message: "Unauthorized" });
+    }
+    // Allow admin, owner, superadmin, and teknisi
+    const allowedRoles = ['admin', 'owner', 'superadmin', 'teknisi'];
+    if (!allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak. Hanya teknisi dan admin yang dapat mengakses." });
+    }
+    next();
+}
+
+// POST /api/psb/upload-photo - Upload foto untuk PSB (KTP atau rumah)
+router.post('/psb/upload-photo', ensureAuthenticatedStaff, rateLimit('psb-upload-photo', 20, 60000), psbUpload.single('photo'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                status: 400,
+                message: 'File foto harus diupload'
+            });
+        }
+        
+        // Ambil tempId dari berbagai sumber (body, query, atau yang disimpan di req)
+        // Body mungkin sudah terisi setelah multer memproses
+        const tempId = req.body?.tempId || req.query?.tempId || req._psbTempId;
+        
+        // Validasi tempId harus ada
+        if (!tempId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'tempId harus disediakan. Satu tempId untuk satu request pelanggan. Pastikan tempId dikirim via query parameter atau form data.'
+            });
+        }
+        
+        const year = String(new Date().getFullYear()); // Convert to string
+        const month = String(new Date().getMonth() + 1).padStart(2, '0');
+        
+        // Path relatif untuk web access
+        // Struktur: /uploads/psb/YEAR/MONTH/tempId/ktp_photo.jpg atau house_photo.jpg
+        const webPath = `/uploads/psb/${year}/${month}/${tempId}/${req.file.filename}`;
+        
+        // Full storage path for reference
+        const fullStoragePath = path.join(__dirname, '../uploads/psb', year, month, tempId, req.file.filename);
+        
+        // Log untuk debugging
+        const fieldnameUsed = req._psbFieldname || req.query?.fieldname || req.body?.fieldname || 'not found';
+        console.log(`[PSB_UPLOAD_SUCCESS] File uploaded: ${req.file.filename}`);
+        console.log(`[PSB_UPLOAD_SUCCESS] fieldname used: ${fieldnameUsed}`);
+        console.log(`[PSB_UPLOAD_SUCCESS] tempId: ${tempId} (satu folder untuk 2 foto: KTP + Rumah)`);
+        console.log(`[PSB_UPLOAD_SUCCESS] Web path: ${webPath}`);
+        console.log(`[PSB_UPLOAD_SUCCESS] Storage path: ${fullStoragePath}`);
+        
+        return res.json({
+            status: 200,
+            message: 'Foto berhasil diupload',
+            data: {
+                path: webPath,
+                filename: req.file.filename,
+                size: req.file.size,
+                tempId: tempId,
+                storagePath: `uploads/psb/${year}/${month}/${tempId}/${req.file.filename}`,
+                year: year,
+                month: month
+            }
+        });
+    } catch (error) {
+        console.error('[PSB_UPLOAD_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal upload foto',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/submit-phase1 - Submit data awal PSB (sebelum instalasi)
+router.post('/psb/submit-phase1', ensureAuthenticatedStaff, rateLimit('psb-submit-phase1', 5, 60000), async (req, res) => {
+    try {
+        const { 
+            phone_number, 
+            name, 
+            address, 
+            odc_id,
+            odp_id, 
+            location_url, 
+            latitude, 
+            longitude, 
+            ktp_photo_path, 
+            house_photo_path, 
+            temp_id 
+        } = req.body;
+        
+        // Validasi required fields
+        if (!phone_number || !name || !address) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Nomor HP, nama, dan alamat harus diisi'
+            });
+        }
+        
+        if (!ktp_photo_path || !house_photo_path) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Foto KTP dan foto rumah harus diupload'
+            });
+        }
+        
+        // Parse location dari Google Maps link jika ada
+        let finalLat = latitude ? parseFloat(latitude) : null;
+        let finalLng = longitude ? parseFloat(longitude) : null;
+        
+        if (location_url && (!finalLat || !finalLng)) {
+            const parsed = parseGoogleMapsLink(location_url);
+            if (parsed) {
+                finalLat = parsed.latitude;
+                finalLng = parsed.longitude;
+            }
+        }
+        
+        // Validasi koordinat jika ada
+        if (finalLat !== null && finalLng !== null) {
+            if (!validateCoordinates(finalLat, finalLng)) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Koordinat lokasi tidak valid'
+                });
+            }
+        }
+        
+        // Validasi nomor HP (cek duplikasi dan max limit)
+        const defaultCountry = 'ID';
+        // Get accessLimit from config (could be in mainConfig or cronConfig)
+        // Format: accessLimit can be string or number in config.json (e.g., "5" or 5)
+        let accessLimit = 3; // Default
+        const configAccessLimit = global.config?.accessLimit;
+        const cronAccessLimit = global.cronConfig?.accessLimit;
+        
+        if (configAccessLimit !== undefined && configAccessLimit !== null) {
+            accessLimit = parseInt(configAccessLimit) || 3;
+        } else if (cronAccessLimit !== undefined && cronAccessLimit !== null) {
+            accessLimit = parseInt(cronAccessLimit) || 3;
+        }
+        
+        console.log('[PSB_PHASE1] accessLimit from config:', accessLimit, '(type:', typeof accessLimit, ', from mainConfig:', configAccessLimit, '(type:', typeof configAccessLimit, '), cronConfig:', cronAccessLimit, '(type:', typeof cronAccessLimit, '))');
+        
+        // Split phone numbers untuk check count
+        const phoneNumbers = phone_number.split('|').map(p => p.trim()).filter(p => p);
+        
+        if (phoneNumbers.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Minimal 1 nomor HP harus diisi'
+            });
+        }
+        
+        if (phoneNumbers.length > accessLimit) {
+            return res.status(400).json({
+                status: 400,
+                message: `Maksimal ${accessLimit} nomor HP sesuai konfigurasi. Anda memasukkan ${phoneNumbers.length} nomor.`
+            });
+        }
+        
+        // Validate format dan duplikasi
+        const validationResult = await validatePhoneNumbers(global.db, phone_number, null, defaultCountry);
+        
+        if (!validationResult.valid) {
+            return res.status(400).json({
+                status: 400,
+                message: validationResult.message,
+                conflictUser: validationResult.conflictUser || null
+            });
+        }
+        
+        // Generate Customer ID
+        // IMPORTANT: Use getNextAvailablePSBId() which checks BOTH psb_records AND users tables
+        // because PSB records eventually move to users table, so they share the same ID space
+        let customerId;
+        try {
+            customerId = await getNextAvailablePSBId();
+            console.log(`[PSB_PHASE1] Generated PSB ID: ${customerId}`);
+        } catch (err) {
+            console.error('[PSB_PHASE1] Get ID error:', err);
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal mendapatkan ID untuk customer baru',
+                error: err.message
+            });
+        }
+        
+        // Pindahkan foto ke folder final
+        const year = String(new Date().getFullYear()); // Convert to string
+        const month = String(new Date().getMonth() + 1).padStart(2, '0');
+        const finalDir = path.join(__dirname, '../uploads/psb', year, month, customerId.toString());
+        
+        // Create final directory
+        if (!fs.existsSync(finalDir)) {
+            fs.mkdirSync(finalDir, { recursive: true });
+        }
+        
+        // Move photos from tempId folder to customerId folder
+        // Struktur: uploads/psb/YEAR/MONTH/tempId/ktp_photo.jpg -> uploads/psb/YEAR/MONTH/customerId/ktp_photo.jpg
+        // Satu folder per request pelanggan, berisi 2 foto: ktp_photo.jpg dan house_photo.jpg
+        let finalKtpPath = ktp_photo_path;
+        if (temp_id && ktp_photo_path.includes(temp_id)) {
+            const oldKtpPath = path.join(__dirname, '..', ktp_photo_path.replace(/^\//, ''));
+            if (fs.existsSync(oldKtpPath)) {
+                const ktpFilename = path.basename(ktp_photo_path);
+                // Pastikan nama file konsisten: ktp_photo.jpg
+                const finalKtpFilename = ktpFilename.startsWith('ktp_photo') ? ktpFilename : `ktp_photo${path.extname(ktpFilename)}`;
+                const newKtpPath = path.join(finalDir, finalKtpFilename);
+                fs.renameSync(oldKtpPath, newKtpPath);
+                finalKtpPath = `/uploads/psb/${year}/${month}/${customerId}/${finalKtpFilename}`;
+                console.log(`[PSB_PHASE1] KTP photo moved: ${oldKtpPath} -> ${newKtpPath}`);
+            }
+        }
+        
+        // Move house photo
+        let finalHousePath = house_photo_path;
+        if (temp_id && house_photo_path.includes(temp_id)) {
+            const oldHousePath = path.join(__dirname, '..', house_photo_path.replace(/^\//, ''));
+            if (fs.existsSync(oldHousePath)) {
+                const houseFilename = path.basename(house_photo_path);
+                // Pastikan nama file konsisten: house_photo.jpg
+                const finalHouseFilename = houseFilename.startsWith('house_photo') ? houseFilename : `house_photo${path.extname(houseFilename)}`;
+                const newHousePath = path.join(finalDir, finalHouseFilename);
+                fs.renameSync(oldHousePath, newHousePath);
+                finalHousePath = `/uploads/psb/${year}/${month}/${customerId}/${finalHouseFilename}`;
+                console.log(`[PSB_PHASE1] House photo moved: ${oldHousePath} -> ${newHousePath}`);
+            }
+        }
+        
+        // Clean up temp folder if empty
+        if (temp_id) {
+            const tempDir = path.join(__dirname, '../uploads/psb', year, month, temp_id);
+            try {
+                if (fs.existsSync(tempDir)) {
+                    const files = fs.readdirSync(tempDir);
+                    if (files.length === 0) {
+                        fs.rmdirSync(tempDir);
+                        console.log(`[PSB_PHASE1] Temp folder cleaned up: ${tempDir}`);
+                    }
+                }
+            } catch (err) {
+                console.warn(`[PSB_PHASE1] Could not clean up temp folder: ${err.message}`);
+            }
+        }
+        
+        // Buat PSB record dengan status phase1_completed
+        const psbRecord = {
+            id: customerId,
+            name: name,
+            phone_number: phone_number,
+            address: address,
+            latitude: finalLat,
+            longitude: finalLng,
+            location_url: location_url || null,
+            psb_status: 'phase1_completed',
+            created_at: new Date().toISOString(),
+            created_by: req.user.username,
+            phase1_completed_at: new Date().toISOString(),
+            odc_id: odc_id || null,
+            odp_id: odp_id || null,
+            psb_data: {
+                ktp_photo: finalKtpPath,
+                house_photo: finalHousePath,
+                location_shared_at: new Date().toISOString(),
+                odc_id: odc_id || null,
+                odp_id: odp_id || null
+            }
+        };
+        
+        // Insert into PSB database (NOT users table)
+        await insertPSBRecord(psbRecord);
+        
+        // Add to memory (global.psbRecords)
+        if (!global.psbRecords) {
+            global.psbRecords = [];
+        }
+        global.psbRecords.push(psbRecord);
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'CREATE',
+                resourceType: 'user',
+                resourceId: customerId.toString(),
+                resourceName: name,
+                description: `PSB Phase 1 completed for ${name}`,
+                oldValue: null,
+                newValue: {
+                    name: name,
+                    phone_number: phone_number,
+                    psb_status: 'phase1_completed'
+                },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[PSB_PHASE1] Activity log error:', logErr);
+        }
+        
+        // Send WhatsApp notification
+        try {
+            await sendPSBPhase1Notification(psbRecord);
+        } catch (notifErr) {
+            console.error('[PSB_PHASE1] Notification error:', notifErr);
+            // Continue even if notification fails
+        }
+        
+        return res.json({
+            status: 200,
+            message: 'Data awal PSB berhasil disimpan',
+            data: {
+                customerId: customerId,
+                name: name,
+                phone_number: phone_number,
+                psb_status: 'phase1_completed'
+            }
+        });
+        
+    } catch (error) {
+        console.error('[PSB_PHASE1_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal menyimpan data awal PSB',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/find-device - Cari device di GenieACS
+router.post('/psb/find-device', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { deviceId } = req.body;
+        
+        if (!deviceId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Device ID harus diisi'
+            });
+        }
+        
+        // Query GenieACS untuk device
+        const query = { "_id": deviceId };
+        
+        const response = await axios.get(`${global.config.genieacsBaseUrl}/devices/`, {
+            params: {
+                query: JSON.stringify(query),
+                projection: '_id,Device.DeviceInfo,InternetGatewayDevice.DeviceInfo,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1,Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1'
+            },
+            timeout: 10000
+        });
+        
+        if (response.data && response.data.length > 0) {
+            const device = response.data[0];
+            
+            // Extract current PPP username if exists (try multiple paths)
+            const currentPPPUsername = device.InternetGatewayDevice?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                      device.Device?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                      null;
+            
+            return res.json({
+                status: 200,
+                message: 'Device ditemukan',
+                data: {
+                    deviceId: device._id,
+                    serialNumber: device.Device?.DeviceInfo?.SerialNumber?._value || 
+                                 device.InternetGatewayDevice?.DeviceInfo?.SerialNumber?._value || 
+                                 null,
+                    model: device.Device?.DeviceInfo?.ModelName?._value || 
+                          device.InternetGatewayDevice?.DeviceInfo?.ModelName?._value || 
+                          null,
+                    manufacturer: device.Device?.DeviceInfo?.Manufacturer?._value || 
+                                device.InternetGatewayDevice?.DeviceInfo?.Manufacturer?._value || 
+                                null,
+                    currentPPPUsername: currentPPPUsername // Biasanya "tes@hw" untuk device baru
+                }
+            });
+        } else {
+            return res.status(404).json({
+                status: 404,
+                message: 'Device tidak ditemukan di GenieACS'
+            });
+        }
+    } catch (error) {
+        console.error('[PSB_FIND_DEVICE_ERROR]', error);
+        console.error('[PSB_FIND_DEVICE_ERROR] Stack:', error.stack);
+        
+        // Handle specific error cases
+        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+            return res.status(503).json({
+                status: 503,
+                message: 'GenieACS tidak dapat dijangkau. Pastikan server GenieACS berjalan.',
+                error: error.message
+            });
+        }
+        
+        if (error.response) {
+            return res.status(error.response.status || 500).json({
+                status: error.response.status || 500,
+                message: 'Error dari GenieACS',
+                error: error.response.data || error.message
+            });
+        }
+        
+        return res.status(500).json({
+            status: 500,
+            message: 'Error mencari device',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/psb/list-customers - List PSB customers berdasarkan status
+router.get('/psb/list-customers', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { status } = req.query; // Optional: filter by status
+        
+        // Get from memory (global.psbRecords)
+        let customers = global.psbRecords || [];
+        
+        // Filter by status if provided
+        if (status) {
+            customers = customers.filter(c => c.psb_status === status);
+        }
+        
+        return res.json({
+            status: 200,
+            message: 'Data customers berhasil diambil',
+            data: customers
+        });
+    } catch (error) {
+        console.error('[PSB_LIST_CUSTOMERS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil data customers',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/psb/list-devices - List devices dengan berbagai filter
+// Query params: filter (default|new|all), serialNumber (optional - filter by serial number)
+router.get('/psb/list-devices', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const filterType = req.query.filter || 'default'; // default, new, by-sn
+        // Handle serialNumber parameter - could be string, array, or undefined
+        let serialNumberFilter = null;
+        if (req.query.serialNumber) {
+            // If it's an array (multiple query params), take the first one
+            if (Array.isArray(req.query.serialNumber)) {
+                serialNumberFilter = req.query.serialNumber[0] ? String(req.query.serialNumber[0]).trim() : null;
+            } else if (typeof req.query.serialNumber === 'string') {
+                serialNumberFilter = req.query.serialNumber.trim();
+            } else {
+                // Convert to string if it's another type
+                serialNumberFilter = String(req.query.serialNumber).trim();
+            }
+            // Set to null if empty after trim
+            if (!serialNumberFilter || serialNumberFilter === '') {
+                serialNumberFilter = null;
+            }
+        }
+        
+        // Validate: "by-sn" filter requires Serial Number
+        if (filterType === 'by-sn' && !serialNumberFilter) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Filter "By SN" memerlukan Serial Number. Silakan masukkan Serial Number terlebih dahulu.',
+                error: 'Serial Number required for by-sn filter'
+            });
+        }
+        
+        // Build query based on filter type
+        let query = {};
+        let limit = 100;
+        
+        if (filterType === 'new') {
+            // Filter devices registered in the last 24 hours (86700000 ms = 24 hours)
+            // According to GenieACS: Events.Registered is a Date object in MongoDB
+            // User confirmed: Events.Registered shows as "11/20/2025, 10:23:21 PM" in GenieACS UI
+            // PROBLEM: Server-side query with Events.Registered returns 0 results
+            // SOLUTION: Fetch all devices and filter client-side (Events might not be included in projection with query filter)
+            const oneDayAgo = Date.now() - 86700000;
+            const oneDayAgoDate = new Date(oneDayAgo);
+            
+            // Don't use server-side query - it doesn't work with Events.Registered
+            // Fetch all devices and filter client-side instead
+            query = {}; // Empty query to get all devices
+            
+            limit = 500; // Get more devices to ensure we don't miss any
+            
+            console.log(`[PSB_LIST_DEVICES] New filter: Will fetch all devices and filter client-side for Events.Registered > ${oneDayAgoDate.toISOString()}`);
+        } else if (filterType === 'by-sn') {
+            // Filter by Serial Number only - fetch all devices, filter client-side
+            // Note: Serial Number filter is already validated above
+            query = {}; // Empty query to get all devices, will filter by SN client-side
+            limit = 500; // Get more devices to search for matching SN
+            
+            console.log(`[PSB_LIST_DEVICES] By SN filter: Will fetch all devices and filter client-side for Serial Number containing "${serialNumberFilter}"`);
+        } else {
+            // Default: filter by username "tes@hw" or empty/null
+            // GenieACS query might not support complex $or with nested paths, so we'll fetch more and filter client-side
+            // Try simple query first - get devices with username "tes@hw" if possible
+            query = {}; // Get all devices, filter client-side for better reliability
+            limit = 300; // Get more devices to filter client-side
+        }
+        
+        console.log(`[PSB_LIST_DEVICES] Filter: ${filterType}, Query:`, JSON.stringify(query));
+        
+        // Request DeviceInfo fields - using whole object for better compatibility
+        // GenieACS may return data in different structures, so we'll extract with multiple attempts
+        // Also include VirtualParameters in case SerialNumber is stored there
+        // IMPORTANT: Events.Registered is a parameter like VirtualParameters.RXPower
+        // So we need to include it in projection as "Events.Registered" (not just "Events")
+        // Similar to how we get VirtualParameters.RXPower with projection: "VirtualParameters.RXPower"
+        let projectionFields = '_id,Device.DeviceInfo,InternetGatewayDevice.DeviceInfo,VirtualParameters,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1,Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1,_lastInform';
+        
+        // Add Events.Registered to projection (like other parameters)
+        if (filterType === 'new' || filterType === 'all') {
+            projectionFields += ',Events.Registered';
+            console.log(`[PSB_LIST_DEVICES] Including Events.Registered in projection for filter: ${filterType}`);
+        }
+        
+        // For "new" filter, use empty query to get all devices, then filter client-side
+        let actualQuery = query;
+        if (filterType === 'new') {
+            actualQuery = {}; // Empty query to get all devices
+            console.log(`[PSB_LIST_DEVICES] New filter: Using empty query to fetch all devices, will filter client-side`);
+        }
+        
+        console.log(`[PSB_LIST_DEVICES] Requesting devices with filter: ${filterType}`);
+        console.log(`[PSB_LIST_DEVICES] Query: ${JSON.stringify(actualQuery)}`);
+        console.log(`[PSB_LIST_DEVICES] Projection: ${projectionFields}`);
+        console.log(`[PSB_LIST_DEVICES] Limit: ${limit}`);
+        
+        const response = await axios.get(`${global.config.genieacsBaseUrl}/devices/`, {
+            params: {
+                query: JSON.stringify(actualQuery),
+                projection: projectionFields,
+                limit: limit
+            },
+            timeout: 20000
+        });
+        
+        console.log(`[PSB_LIST_DEVICES] Response: ${response.data?.length || 0} devices returned from GenieACS`);
+        
+        // Debug: Check if Events.Registered is included in response (sample first device)
+        if (response.data && response.data.length > 0) {
+            const sampleDevice = response.data[0];
+            // Events.Registered is accessed like VirtualParameters.RXPower
+            // So it might be: device.Events.Registered or device['Events.Registered'] or nested
+            let eventsRegistered = null;
+            let eventsRegisteredPath = null;
+            
+            // Try different ways to access Events.Registered
+            if (sampleDevice.Events && sampleDevice.Events.Registered !== undefined) {
+                eventsRegistered = sampleDevice.Events.Registered;
+                eventsRegisteredPath = 'Events.Registered';
+            } else if (sampleDevice['Events.Registered'] !== undefined) {
+                eventsRegistered = sampleDevice['Events.Registered'];
+                eventsRegisteredPath = 'Events.Registered (flat)';
+            } else {
+                // Try to find it in nested structure
+                const deviceKeys = Object.keys(sampleDevice);
+                const eventsKey = deviceKeys.find(k => k.includes('Events') || k.includes('Registered'));
+                if (eventsKey) {
+                    eventsRegistered = sampleDevice[eventsKey];
+                    eventsRegisteredPath = eventsKey;
+                }
+            }
+            
+            if (eventsRegistered !== null && eventsRegistered !== undefined) {
+                const regType = typeof eventsRegistered;
+                let regDate = null;
+                if (regType === 'object' && eventsRegistered._value !== undefined) {
+                    // Parameter format: { _value: ... }
+                    regDate = eventsRegistered._value;
+                    console.log(`[PSB_LIST_DEVICES] ✓ Sample Events.Registered found at ${eventsRegisteredPath} (parameter format with _value)`);
+                } else {
+                    regDate = eventsRegistered;
+                    console.log(`[PSB_LIST_DEVICES] ✓ Sample Events.Registered found at ${eventsRegisteredPath}`);
+                }
+                
+                const regDateStr = regDate instanceof Date ? regDate.toISOString() : 
+                                 typeof regDate === 'string' ? regDate : 
+                                 typeof regDate === 'number' ? new Date(regDate).toISOString() : 
+                                 String(regDate);
+                console.log(`[PSB_LIST_DEVICES] Sample Events.Registered value: ${regDateStr} (type: ${typeof regDate})`);
+            } else {
+                console.warn(`[PSB_LIST_DEVICES] ⚠️ Events.Registered NOT found in response!`);
+                console.warn(`[PSB_LIST_DEVICES] Available keys: ${Object.keys(sampleDevice).join(', ')}`);
+            }
+        }
+        
+        if (response.data && Array.isArray(response.data)) {
+            let filteredDevices = response.data;
+            
+            // Apply additional client-side filtering for more accuracy
+            if (filterType === 'default') {
+                // Double-check username filter (in case GenieACS query didn't work perfectly)
+                filteredDevices = response.data.filter(device => {
+                    const currentPPPUsername = device.InternetGatewayDevice?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                              device.Device?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                              null;
+                    
+                    // Include devices with "tes@hw" or empty/null username (new devices)
+                    return !currentPPPUsername || currentPPPUsername === 'tes@hw' || currentPPPUsername === '';
+                });
+                console.log(`[PSB_LIST_DEVICES] After default filter: ${filteredDevices.length} devices`);
+            } else if (filterType === 'new') {
+                // Client-side filter for new devices (registered in last 24 hours)
+                // CRITICAL: Events might not be included when using query filter
+                // So we fetch all devices and filter client-side
+                const oneDayAgo = Date.now() - 86700000;
+                const oneDayAgoDate = new Date(oneDayAgo);
+                
+                console.log(`[PSB_LIST_DEVICES] Client-side filtering ${response.data.length} devices for new (registered after ${oneDayAgoDate.toISOString()})`);
+                
+                // Count devices with Events
+                const devicesWithEvents = response.data.filter(d => d.Events).length;
+                console.log(`[PSB_LIST_DEVICES] Devices with Events: ${devicesWithEvents} / ${response.data.length}`);
+                
+                filteredDevices = response.data.filter(device => {
+                    // Events.Registered is a parameter like VirtualParameters.RXPower
+                    // So it might be accessed as:
+                    // 1. device.Events.Registered (nested object)
+                    // 2. device['Events.Registered'] (flat key)
+                    // 3. device.Events.Registered._value (parameter format with _value wrapper)
+                    
+                    let registeredDate = null;
+                    
+                    // Try different access methods (like we do for modemType - multiple methods)
+                    // Method 1: Nested object access
+                    if (device.Events && device.Events.Registered !== undefined && device.Events.Registered !== null) {
+                        registeredDate = device.Events.Registered;
+                    } 
+                    // Method 2: Flat key access
+                    else if (device['Events.Registered'] !== undefined && device['Events.Registered'] !== null) {
+                        registeredDate = device['Events.Registered'];
+                    }
+                    // Method 3: Bracket notation on Events object
+                    else if (device.Events && device.Events['Registered'] !== undefined && device.Events['Registered'] !== null) {
+                        registeredDate = device.Events['Registered'];
+                    }
+                    // Method 4: Use getNestedValue helper (like modemType does)
+                    else {
+                        // Try using getNestedValue helper function (if available) or manual traversal
+                        const parts = 'Events.Registered'.split('.');
+                        let current = device;
+                        for (const part of parts) {
+                            if (current && typeof current === 'object' && current.hasOwnProperty(part)) {
+                                current = current[part];
+                            } else {
+                                current = undefined;
+                                break;
+                            }
+                        }
+                        if (current !== undefined && current !== null) {
+                            registeredDate = current;
+                        } else {
+                            // Device doesn't have Events.Registered
+                            return false;
+                        }
+                    }
+                    
+                    // Handle parameter format with _value wrapper (like VirtualParameters.getSerialNumber or modemType)
+                    // Based on test: VirtualParameters.getSerialNumber has structure {_value, _type, _timestamp, _writable}
+                    // So Events.Registered might have the same structure
+                    if (registeredDate && typeof registeredDate === 'object' && registeredDate.hasOwnProperty('_value')) {
+                        // Extract _value
+                        const rawValue = registeredDate._value;
+                        // Check _type to determine if it's a date/time
+                        if (registeredDate._type && (registeredDate._type.includes('date') || registeredDate._type.includes('time'))) {
+                            // _value might be string (ISO) or number (timestamp)
+                            if (typeof rawValue === 'string') {
+                                registeredDate = new Date(rawValue).getTime();
+                            } else if (typeof rawValue === 'number') {
+                                // Timestamp in milliseconds or seconds
+                                registeredDate = rawValue > 1000000000000 ? rawValue : rawValue * 1000;
+                            } else {
+                                registeredDate = rawValue;
+                            }
+                        } else {
+                            // Even if _type doesn't indicate date, if _value is a string that looks like ISO date, parse it
+                            if (typeof rawValue === 'string' && /^\d{4}-\d{2}-\d{2}/.test(rawValue)) {
+                                registeredDate = new Date(rawValue).getTime();
+                            } else {
+                                // Not a date, use _value directly
+                                registeredDate = rawValue;
+                            }
+                        }
+                    }
+                    
+                    // Convert to timestamp (milliseconds)
+                    let registeredTimestamp = null;
+                    if (typeof registeredDate === 'number') {
+                        // Timestamp: check if milliseconds or seconds
+                        registeredTimestamp = registeredDate > 1000000000000 ? registeredDate : registeredDate * 1000;
+                    } else if (typeof registeredDate === 'string') {
+                        // ISO string or date string: parse it
+                        registeredTimestamp = new Date(registeredDate).getTime();
+                    } else if (registeredDate instanceof Date) {
+                        // Date object: get time
+                        registeredTimestamp = registeredDate.getTime();
+                    } else {
+                        // Try to parse as date
+                        registeredTimestamp = new Date(registeredDate).getTime();
+                    }
+                    
+                    // Validate timestamp
+                    if (isNaN(registeredTimestamp) || registeredTimestamp <= 0) {
+                        console.warn(`[PSB_LIST_DEVICES] Invalid Events.Registered for device ${device._id}:`, registeredDate, `(type: ${typeof registeredDate})`);
+                        return false;
+                    }
+                    
+                    // Check if registered within last 24 hours
+                    const isNew = registeredTimestamp > oneDayAgo;
+                    
+                    if (isNew) {
+                        const regDateStr = new Date(registeredTimestamp).toISOString();
+                        const hoursAgo = Math.round((Date.now() - registeredTimestamp) / 1000 / 60 / 60 * 10) / 10;
+                        console.log(`[PSB_LIST_DEVICES] ✓ New device found: ${device._id}, Events.Registered: ${regDateStr} (${hoursAgo} hours ago)`);
+                    }
+                    
+                    return isNew;
+                });
+                
+                console.log(`[PSB_LIST_DEVICES] After new filter: ${filteredDevices.length} new devices found (from ${response.data.length} total)`);
+                
+                // Log all new devices for debugging
+                if (filteredDevices.length > 0) {
+                    console.log(`[PSB_LIST_DEVICES] ✓ New devices list:`);
+                    filteredDevices.forEach(dev => {
+                        const regDate = dev.Events?.Registered;
+                        const regDateStr = regDate ? new Date(regDate).toISOString() : 'N/A';
+                        const hoursAgo = regDate ? Math.round((Date.now() - new Date(regDate).getTime()) / 1000 / 60 / 60 * 10) / 10 : 'N/A';
+                        console.log(`  - ${dev._id}: Events.Registered = ${regDateStr} (${hoursAgo} hours ago)`);
+                    });
+                } else {
+                    console.warn(`[PSB_LIST_DEVICES] ⚠️ No new devices found. Checking sample devices with Events...`);
+                    // Log first 5 devices with Events to see their Events.Registered
+                    const devicesWithEvents = response.data.filter(d => d.Events && d.Events.Registered).slice(0, 5);
+                    if (devicesWithEvents.length > 0) {
+                        devicesWithEvents.forEach(dev => {
+                            const regDate = dev.Events.Registered;
+                            const regDateStr = new Date(regDate).toISOString();
+                            const hoursAgo = Math.round((Date.now() - new Date(regDate).getTime()) / 1000 / 60 / 60 * 10) / 10;
+                            console.log(`  Sample device ${dev._id}: Events.Registered = ${regDateStr} (${hoursAgo} hours ago)`);
+                        });
+                    } else {
+                        console.warn(`[PSB_LIST_DEVICES] ⚠️ No devices found with Events.Registered in response!`);
+                    }
+                }
+            }
+            // Apply Serial Number filter if provided (for any filter type)
+            // For 'by-sn' filter, Serial Number filter is required and will be applied
+            if (serialNumberFilter) {
+                const beforeSNFilter = filteredDevices.length;
+                filteredDevices = filteredDevices.filter(device => {
+                    // Extract Serial Number (same logic as in mapping below)
+                    const ddInfo = device.Device?.DeviceInfo;
+                    const igdInfo = device.InternetGatewayDevice?.DeviceInfo;
+                    
+                    let serialNumber = null;
+                    
+                    // Try Device.DeviceInfo first
+                    if (ddInfo) {
+                        serialNumber = ddInfo.SerialNumber?._value || null;
+                    }
+                    
+                    // Try InternetGatewayDevice.DeviceInfo (fill in if not found)
+                    if (igdInfo && !serialNumber) {
+                        serialNumber = igdInfo.SerialNumber?._value || null;
+                    }
+                    
+                    // Try alternative paths if still not found
+                    if (!serialNumber) {
+                        const configSerialNumber = extractParameterValue(device, 'serialNumber');
+                        if (configSerialNumber && typeof configSerialNumber === 'string') {
+                            serialNumber = configSerialNumber;
+                        } else {
+                            // Fallback to direct access without _value wrapper
+                            serialNumber = device.Device?.DeviceInfo?.SerialNumber || 
+                                          device.InternetGatewayDevice?.DeviceInfo?.SerialNumber || 
+                                          null;
+                            // If it's an object, try to get _value
+                            if (serialNumber && typeof serialNumber === 'object') {
+                                serialNumber = serialNumber._value || serialNumber.value || serialNumber;
+                            }
+                            // If still not a string, try other possible paths
+                            if (typeof serialNumber !== 'string' || !serialNumber) {
+                                // Try VirtualParameters (some devices store SN here)
+                                serialNumber = device.VirtualParameters?.serialNumber?._value || 
+                                              device.VirtualParameters?.serialNumber ||
+                                              null;
+                                // Try _serialNumber at root level
+                                if (!serialNumber) {
+                                    serialNumber = device._serialNumber?._value || device._serialNumber || null;
+                                }
+                                // Final check - if still not string, set to null
+                                if (serialNumber && typeof serialNumber === 'object') {
+                                    serialNumber = serialNumber._value || serialNumber.value || null;
+                                }
+                                if (typeof serialNumber !== 'string') {
+                                    serialNumber = null;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Case-insensitive search
+                    if (serialNumber && typeof serialNumber === 'string') {
+                        return serialNumber.toLowerCase().includes(serialNumberFilter.toLowerCase());
+                    }
+                    
+                    return false; // Exclude devices without serial number or non-matching
+                });
+                
+                console.log(`[PSB_LIST_DEVICES] Serial Number filter "${serialNumberFilter}": ${filteredDevices.length} devices (from ${beforeSNFilter} before filter)`);
+            }
+            
+            const mappedDevices = filteredDevices.map(device => {
+                const currentPPPUsername = device.InternetGatewayDevice?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                          device.Device?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                          'tes@hw'; // Default jika tidak ada
+                
+                // Handle Events.Registered - accessed like VirtualParameters.RXPower
+                // Try different access methods
+                let registeredDate = null;
+                if (device.Events && device.Events.Registered !== undefined && device.Events.Registered !== null) {
+                    registeredDate = device.Events.Registered;
+                } else if (device['Events.Registered'] !== undefined && device['Events.Registered'] !== null) {
+                    registeredDate = device['Events.Registered'];
+                }
+                
+                // Handle parameter format with _value wrapper
+                if (registeredDate && typeof registeredDate === 'object' && registeredDate._value !== undefined) {
+                    registeredDate = registeredDate._value;
+                }
+                
+                let registeredTimestamp = null;
+                if (registeredDate !== undefined && registeredDate !== null) {
+                    if (typeof registeredDate === 'number') {
+                        registeredTimestamp = registeredDate;
+                    } else {
+                        registeredTimestamp = new Date(registeredDate).getTime();
+                        if (isNaN(registeredTimestamp)) {
+                            registeredTimestamp = null;
+                        }
+                    }
+                }
+                
+                // Ensure deviceId is the _id from GenieACS (this is what will be used for registration)
+                const deviceId = device._id;
+                
+                // Extract Serial Number with multiple path attempts (similar to lib/wifi.js)
+                const ddInfo = device.Device?.DeviceInfo;
+                const igdInfo = device.InternetGatewayDevice?.DeviceInfo;
+                
+                let serialNumber = null;
+                let model = null;
+                let manufacturer = null;
+                
+                // Try Device.DeviceInfo first
+                if (ddInfo) {
+                    serialNumber = ddInfo.SerialNumber?._value || serialNumber;
+                    model = ddInfo.ModelName?._value || model;
+                    manufacturer = ddInfo.Manufacturer?._value || manufacturer;
+                }
+                
+                // Try InternetGatewayDevice.DeviceInfo (fill in if not found)
+                if (igdInfo) {
+                    serialNumber = serialNumber || igdInfo.SerialNumber?._value || null;
+                    model = model || igdInfo.ModelName?._value || null;
+                    manufacturer = manufacturer || igdInfo.Manufacturer?._value || null;
+                }
+                
+                // Try alternative paths if still not found
+                if (!serialNumber) {
+                    // Try using parameter configuration (customizable paths)
+                    const configSerialNumber = extractParameterValue(device, 'serialNumber');
+                    if (configSerialNumber && typeof configSerialNumber === 'string') {
+                        serialNumber = configSerialNumber;
+                    } else {
+                        // Fallback to direct access without _value wrapper
+                        serialNumber = device.Device?.DeviceInfo?.SerialNumber || 
+                                      device.InternetGatewayDevice?.DeviceInfo?.SerialNumber || 
+                                      null;
+                        // If it's an object, try to get _value
+                        if (serialNumber && typeof serialNumber === 'object') {
+                            serialNumber = serialNumber._value || serialNumber.value || serialNumber;
+                        }
+                        // If still not a string, try other possible paths
+                        if (typeof serialNumber !== 'string' || !serialNumber) {
+                            // Try VirtualParameters (some devices store SN here)
+                            serialNumber = device.VirtualParameters?.serialNumber?._value || 
+                                          device.VirtualParameters?.serialNumber ||
+                                          null;
+                            // Try _serialNumber at root level
+                            if (!serialNumber) {
+                                serialNumber = device._serialNumber?._value || device._serialNumber || null;
+                            }
+                            // Final check - if still not string, set to null
+                            if (serialNumber && typeof serialNumber === 'object') {
+                                serialNumber = serialNumber._value || serialNumber.value || null;
+                            }
+                            if (typeof serialNumber !== 'string') {
+                                serialNumber = null;
+                            }
+                        }
+                    }
+                }
+                
+                if (!manufacturer) {
+                    manufacturer = device.Device?.DeviceInfo?.Manufacturer || 
+                                 device.InternetGatewayDevice?.DeviceInfo?.Manufacturer || 
+                                 null;
+                    if (manufacturer && typeof manufacturer === 'object' && manufacturer._value) {
+                        manufacturer = manufacturer._value;
+                    } else if (typeof manufacturer !== 'string') {
+                        manufacturer = null;
+                    }
+                }
+                
+                // Log warning if Serial Number is still missing (it's important!)
+                if (!serialNumber) {
+                    console.warn(`[PSB_LIST_DEVICES] Serial Number not found for device ${deviceId}.`);
+                    console.warn(`[PSB_LIST_DEVICES] Device structure:`, JSON.stringify({
+                        hasDevice: !!device.Device,
+                        hasDeviceInfo: !!device.Device?.DeviceInfo,
+                        hasIGD: !!device.InternetGatewayDevice,
+                        hasIGDInfo: !!device.InternetGatewayDevice?.DeviceInfo,
+                        deviceKeys: device.Device ? Object.keys(device.Device) : [],
+                        igdKeys: device.InternetGatewayDevice ? Object.keys(device.InternetGatewayDevice) : []
+                    }, null, 2));
+                }
+                
+                return {
+                    deviceId: deviceId, // This is the _id from GenieACS - used for device registration
+                    serialNumber: serialNumber || 'N/A', // Serial Number is important, show N/A if not found
+                    model: model || 'N/A',
+                    manufacturer: manufacturer || 'N/A',
+                    currentPPPUsername: currentPPPUsername,
+                    lastInform: device._lastInform ? new Date(device._lastInform).toISOString() : null,
+                    registeredDate: registeredDate || null,
+                    registeredTimestamp: registeredTimestamp
+                };
+            });
+            
+            return res.json({
+                status: 200,
+                message: `Devices berhasil diambil (filter: ${filterType})`,
+                data: mappedDevices,
+                filter: filterType,
+                count: mappedDevices.length
+            });
+        } else {
+            return res.status(404).json({
+                status: 404,
+                message: 'Tidak ada device ditemukan di GenieACS'
+            });
+        }
+    } catch (error) {
+        console.error('[PSB_LIST_DEVICES_ERROR]', error);
+        console.error('[PSB_LIST_DEVICES_ERROR] Stack:', error.stack);
+        
+        // Handle specific error cases
+        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+            return res.status(503).json({
+                status: 503,
+                message: 'GenieACS tidak dapat dijangkau. Pastikan server GenieACS berjalan.',
+                error: error.message
+            });
+        }
+        
+        if (error.response) {
+            return res.status(error.response.status || 500).json({
+                status: error.response.status || 500,
+                message: 'Error dari GenieACS',
+                error: error.response.data || error.message
+            });
+        }
+        
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil list devices dari GenieACS',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/update-device-config - Update konfigurasi device di GenieACS (PPP & WiFi)
+router.post('/psb/update-device-config', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { deviceId, pppUsername, pppPassword, wifiSSID, wifiPassword, ssidIndex = 1 } = req.body;
+        
+        if (!deviceId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Device ID harus diisi'
+            });
+        }
+        
+        const parameterValues = [];
+        
+        // 1. Update PPP Username (jika diisi)
+        if (pppUsername) {
+            // Try multiple possible paths untuk compatibility dengan berbagai device
+            parameterValues.push([
+                `InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username`,
+                pppUsername,
+                "xsd:string"
+            ]);
+            // Also try Device path as fallback
+            parameterValues.push([
+                `Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username`,
+                pppUsername,
+                "xsd:string"
+            ]);
+        }
+        
+        // 2. Update PPP Password (jika diisi)
+        if (pppPassword) {
+            parameterValues.push([
+                `InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password`,
+                pppPassword,
+                "xsd:string"
+            ]);
+            parameterValues.push([
+                `Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password`,
+                pppPassword,
+                "xsd:string"
+            ]);
+        }
+        
+        // 3. Update WiFi SSID (jika diisi)
+        if (wifiSSID) {
+            parameterValues.push([
+                `InternetGatewayDevice.LANDevice.1.WLANConfiguration.${ssidIndex}.SSID`,
+                wifiSSID,
+                "xsd:string"
+            ]);
+        }
+        
+        // 4. Update WiFi Password (jika diisi)
+        if (wifiPassword) {
+            parameterValues.push([
+                `InternetGatewayDevice.LANDevice.1.WLANConfiguration.${ssidIndex}.PreSharedKey.1.PreSharedKey`,
+                wifiPassword,
+                "xsd:string"
+            ]);
+        }
+        
+        if (parameterValues.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tidak ada parameter yang perlu diupdate. Minimal harus ada salah satu: pppUsername, pppPassword, wifiSSID, atau wifiPassword'
+            });
+        }
+        
+        // Send update request to GenieACS
+        const response = await axios.post(
+            `${global.config.genieacsBaseUrl}/devices/${encodeURIComponent(deviceId)}/tasks?connection_request`,
+            {
+                name: 'setParameterValues',
+                parameterValues: parameterValues
+            },
+            { timeout: 30000 }
+        );
+        
+        if (response.status === 200 || response.status === 202) {
+            return res.json({
+                status: 200,
+                message: 'Konfigurasi device berhasil diupdate',
+                data: {
+                    deviceId: deviceId,
+                    updatedParameters: parameterValues.length,
+                    parameters: parameterValues.map(p => p[0])
+                }
+            });
+        } else {
+            throw new Error(`GenieACS returned status ${response.status}`);
+        }
+        
+    } catch (error) {
+        console.error('[UPDATE_DEVICE_CONFIG_ERROR]', error);
+        
+        // Handle specific error cases
+        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+            return res.status(503).json({
+                status: 503,
+                message: 'GenieACS tidak dapat dijangkau. Pastikan server GenieACS berjalan.',
+                error: error.message
+            });
+        }
+        
+        if (error.response) {
+            return res.status(error.response.status || 500).json({
+                status: error.response.status || 500,
+                message: 'Error dari GenieACS saat update konfigurasi',
+                error: error.response.data || error.message
+            });
+        }
+        
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal update konfigurasi device',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/update-status - Update status PSB (untuk teknisi meluncur, dll)
+router.post('/psb/update-status', ensureAuthenticatedStaff, rateLimit('psb-update-status', 10, 60000), async (req, res) => {
+    try {
+        const { customerId, status } = req.body;
+        
+        if (!customerId || !status) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Customer ID dan status harus diisi'
+            });
+        }
+        
+        // Use lock to prevent race condition when updating same PSB record
+        return await withLock(`psb-update-status-${customerId}`, async () => {
+            // Validasi status yang diizinkan
+            const allowedStatuses = ['teknisi_meluncur', 'phase1_completed', 'phase2_completed'];
+            if (!allowedStatuses.includes(status)) {
+                return res.status(400).json({
+                    status: 400,
+                    message: `Status tidak valid. Status yang diizinkan: ${allowedStatuses.join(', ')}`
+                });
+            }
+            
+            // Cari PSB record
+            const psbRecordIndex = (global.psbRecords || []).findIndex(r => String(r.id) === String(customerId));
+            if (psbRecordIndex === -1) {
+                return res.status(404).json({
+                    status: 404,
+                    message: 'Customer tidak ditemukan di database PSB'
+                });
+            }
+            
+            const psbRecord = global.psbRecords[psbRecordIndex];
+            
+            // Simpan status lama untuk log
+            const oldStatus = psbRecord.psb_status;
+            
+            // Validasi transisi status
+            if (status === 'teknisi_meluncur' && psbRecord.psb_status !== 'phase1_completed') {
+                return res.status(400).json({
+                    status: 400,
+                    message: `Status tidak dapat diubah ke 'teknisi_meluncur'. Status saat ini harus 'phase1_completed'. Status saat ini: ${psbRecord.psb_status}`
+                });
+            }
+            
+            // Update status
+            await updatePSBRecord(customerId, {
+                psb_status: status
+            });
+            
+            // Update in memory
+            psbRecord.psb_status = status;
+            global.psbRecords[psbRecordIndex] = psbRecord;
+            
+            // Jika status adalah teknisi_meluncur, kirim notifikasi
+            if (status === 'teknisi_meluncur') {
+                try {
+                    // Get teknisi info
+                    const teknisiInfo = {
+                        name: req.user.name || req.user.username || 'Teknisi',
+                        phone_number: req.user.phone_number || null
+                    };
+                    
+                    await sendPSBTeknisiMeluncurNotification(psbRecord, teknisiInfo);
+                } catch (notifErr) {
+                    console.error('[PSB_UPDATE_STATUS] Notification error:', notifErr);
+                    // Continue even if notification fails
+                }
+            }
+            
+            // Log activity
+            try {
+                await logActivity({
+                    userId: req.user.id,
+                    username: req.user.username,
+                    role: req.user.role,
+                    actionType: 'UPDATE',
+                    resourceType: 'psb',
+                    resourceId: customerId.toString(),
+                    resourceName: psbRecord.name,
+                    description: `PSB status updated to ${status} for ${psbRecord.name}`,
+                    oldValue: { psb_status: oldStatus },
+                    newValue: { psb_status: status },
+                    ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                    userAgent: req.headers['user-agent']
+                });
+            } catch (logErr) {
+                console.error('[PSB_UPDATE_STATUS] Activity log error:', logErr);
+            }
+            
+            return res.json({
+                status: 200,
+                message: `Status berhasil diupdate menjadi '${status}'`,
+                data: {
+                    customerId: customerId,
+                    status: status
+                }
+            });
+        });
+    } catch (error) {
+        console.error('[PSB_UPDATE_STATUS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: error.message === `Could not acquire lock for psb-update-status-${req.body.customerId}`
+                ? 'Status sedang diproses. Silakan coba lagi.'
+                : 'Gagal update status',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/psb/validate-pppoe-username - Pre-validate PPPoE username sebelum submit Phase 3
+router.get('/psb/validate-pppoe-username', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { username } = req.query;
+        
+        if (!username || typeof username !== 'string' || username.trim() === '') {
+            return res.status(400).json({
+                status: 400,
+                message: 'Username tidak boleh kosong',
+                available: false
+            });
+        }
+        
+        const usernameTrimmed = username.trim();
+        
+        // Check if username already exists in MikroTik
+        try {
+            const exists = await checkPPPoEUserExists(usernameTrimmed);
+            
+            return res.status(200).json({
+                status: 200,
+                available: !exists,
+                message: exists 
+                    ? `Username "${usernameTrimmed}" sudah ada di MikroTik. Silakan gunakan username lain.`
+                    : `Username "${usernameTrimmed}" tersedia.`
+            });
+        } catch (mikrotikError) {
+            // If MikroTik connection error, still allow but warn
+            console.warn('[PSB_VALIDATE_USERNAME] MikroTik check failed:', mikrotikError.message);
+            return res.status(200).json({
+                status: 200,
+                available: true, // Allow if check fails (MikroTik might be down)
+                message: `Tidak dapat mengecek username (${mikrotikError.message}). Silakan coba lagi.`,
+                warning: true
+            });
+        }
+    } catch (error) {
+        console.error('[PSB_VALIDATE_USERNAME_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengecek username',
+            available: false,
+            error: error.message
+        });
+    }
+});
+
+// GET /api/psb/test-connections - Test koneksi ke GenieACS dan MikroTik
+router.get('/psb/test-connections', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const results = {
+            genieacs: { connected: false, message: '' },
+            mikrotik: { connected: false, message: '' },
+            device: { online: false, message: '', deviceId: req.query.deviceId || null }
+        };
+        
+        // Test GenieACS connection
+        if (global.config?.genieacsBaseUrl) {
+            try {
+                const response = await axios.get(`${global.config.genieacsBaseUrl}/devices`, { timeout: 5000 });
+                results.genieacs.connected = response.status === 200 || response.status === 404; // 404 means server is up but no devices
+                results.genieacs.message = results.genieacs.connected 
+                    ? 'Koneksi GenieACS OK'
+                    : `GenieACS returned status ${response.status}`;
+            } catch (error) {
+                results.genieacs.message = `GenieACS tidak dapat dijangkau: ${error.message}`;
+            }
+        } else {
+            results.genieacs.message = 'GenieACS URL tidak dikonfigurasi';
+        }
+        
+        // Test MikroTik connection (try to get PPP profiles)
+        try {
+            const { getPPPProfiles } = require('../lib/mikrotik');
+            await getPPPProfiles();
+            results.mikrotik.connected = true;
+            results.mikrotik.message = 'Koneksi MikroTik OK';
+        } catch (error) {
+            results.mikrotik.message = `MikroTik tidak dapat dijangkau: ${error.message}`;
+        }
+        
+        // Test device online (if deviceId provided)
+        if (req.query.deviceId && global.config?.genieacsBaseUrl) {
+            try {
+                const deviceResponse = await axios.get(
+                    `${global.config.genieacsBaseUrl}/devices/${encodeURIComponent(req.query.deviceId)}`,
+                    { timeout: 5000 }
+                );
+                results.device.online = deviceResponse.status === 200;
+                results.device.message = results.device.online 
+                    ? 'Device masih online'
+                    : `Device tidak ditemukan (status ${deviceResponse.status})`;
+            } catch (error) {
+                results.device.message = `Device tidak dapat dijangkau: ${error.message}`;
+            }
+        } else if (req.query.deviceId) {
+            results.device.message = 'Device ID tidak valid atau GenieACS URL tidak dikonfigurasi';
+        }
+        
+        const allOk = results.genieacs.connected && results.mikrotik.connected && 
+                     (!req.query.deviceId || results.device.online);
+        
+        return res.status(200).json({
+            status: 200,
+            allOk: allOk,
+            results: results,
+            message: allOk 
+                ? 'Semua koneksi OK'
+                : 'Beberapa koneksi bermasalah. Periksa detail di bawah.'
+        });
+    } catch (error) {
+        console.error('[PSB_TEST_CONNECTIONS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengetes koneksi',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/submit-phase2 - Submit proses pemasangan PSB
+router.post('/psb/submit-phase2', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { 
+            customerId, 
+            installed_odc_id,
+            installed_odp_id, 
+            port_number,
+            installation_notes
+        } = req.body;
+        
+        // Validasi required fields (ODC dan ODP sekarang optional)
+        if (!customerId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Customer ID harus diisi'
+            });
+        }
+        
+        // ODC dan ODP sekarang optional - set to null if not provided
+        const installed_odc_id_final = installed_odc_id || null;
+        const installed_odp_id_final = installed_odp_id || null;
+        
+        // Cari PSB record di memory (global.psbRecords)
+        const psbRecordIndex = (global.psbRecords || []).findIndex(r => String(r.id) === String(customerId));
+        if (psbRecordIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Customer tidak ditemukan di database PSB'
+            });
+        }
+        
+        const psbRecord = global.psbRecords[psbRecordIndex];
+        
+        // Validasi status harus phase1_completed atau teknisi_meluncur
+        if (psbRecord.psb_status !== 'phase1_completed' && psbRecord.psb_status !== 'teknisi_meluncur') {
+            return res.status(400).json({
+                status: 400,
+                message: `Customer belum siap untuk instalasi. Status saat ini: ${psbRecord.psb_status || 'unknown'}. Status harus 'phase1_completed' atau 'teknisi_meluncur'.`
+            });
+        }
+        
+        // Update PSB record
+        const psbData = psbRecord.psb_data || {};
+        psbData.phase2_completed_at = new Date().toISOString();
+        psbData.installed_odc_id = installed_odc_id_final;
+        psbData.installed_odp_id = installed_odp_id_final;
+        psbData.port_number = port_number || null;
+        psbData.installation_notes = installation_notes || null;
+        
+        // Update in PSB database
+        await updatePSBRecord(customerId, {
+            psb_status: 'phase2_completed',
+            installed_odc_id: installed_odc_id_final,
+            installed_odp_id: installed_odp_id_final,
+            port_number: port_number || null,
+            installation_notes: installation_notes || null,
+            phase2_completed_at: new Date().toISOString(),
+            psb_data: psbData
+        });
+        
+        // Update in memory
+        psbRecord.psb_status = 'phase2_completed';
+        psbRecord.installed_odc_id = installed_odc_id_final;
+        psbRecord.installed_odp_id = installed_odp_id_final;
+        psbRecord.port_number = port_number || null;
+        psbRecord.installation_notes = installation_notes || null;
+        psbRecord.phase2_completed_at = new Date().toISOString();
+        psbRecord.psb_data = psbData;
+        global.psbRecords[psbRecordIndex] = psbRecord;
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'psb',
+                resourceId: customerId.toString(),
+                resourceName: psbRecord.name,
+                description: `PSB Phase 2 (Pemasangan) completed for ${psbRecord.name}`,
+                oldValue: {
+                    psb_status: psbRecord.psb_status,
+                    installed_odc_id: psbRecord.installed_odc_id || null,
+                    installed_odp_id: psbRecord.installed_odp_id || null
+                },
+                newValue: {
+                    psb_status: 'phase2_completed',
+                    installed_odc_id: installed_odc_id_final,
+                    installed_odp_id: installed_odp_id_final,
+                    port_number: port_number
+                },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[PSB_PHASE2] Activity log error:', logErr);
+        }
+        
+        return res.json({
+            status: 200,
+            message: 'Data pemasangan berhasil disimpan',
+            data: {
+                customerId: customerId,
+                name: psbRecord.name,
+                phone_number: psbRecord.phone_number,
+                installed_odc_id: installed_odc_id_final,
+                installed_odp_id: installed_odp_id_final,
+                port_number: port_number
+            }
+        });
+        
+    } catch (error) {
+        console.error('[PSB_PHASE2_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal menyimpan data pemasangan',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/submit-phase3 - Submit setup awal pelanggan PSB (konfigurasi modem)
+router.post('/psb/submit-phase3', ensureAuthenticatedStaff, async (req, res) => {
+    const transaction = {
+        customerId: null,
+        pppoeCreated: false,
+        deviceUpdated: false
+    };
+    
+    try {
+        const { 
+            customerId, 
+            pppoe_username, 
+            pppoe_password, 
+            subscription, 
+            device_id, 
+            wifi_ssid, 
+            wifi_password, 
+            ssid_index = 1, // Legacy support
+            ssid_indices = [] // New: array of SSID indices to update
+        } = req.body;
+        
+        // Use ssid_indices if provided, otherwise fallback to ssid_index
+        const ssidIndicesToUpdate = Array.isArray(ssid_indices) && ssid_indices.length > 0 
+            ? ssid_indices 
+            : [ssid_index];
+        
+        // Validasi required fields
+        if (!customerId || !pppoe_username || !subscription || !device_id || !wifi_ssid || !wifi_password) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Customer ID, PPPoE username, subscription, device ID, WiFi SSID, dan WiFi password harus diisi'
+            });
+        }
+        
+        // Cari PSB record di memory (global.psbRecords)
+        const psbRecordIndex = (global.psbRecords || []).findIndex(r => String(r.id) === String(customerId));
+        if (psbRecordIndex === -1) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Customer tidak ditemukan di database PSB'
+            });
+        }
+        
+        const psbRecord = global.psbRecords[psbRecordIndex];
+        
+        // Validasi status harus phase2_completed
+        if (psbRecord.psb_status !== 'phase2_completed') {
+            return res.status(400).json({
+                status: 400,
+                message: `Customer belum menyelesaikan Fase 2 (Pemasangan). Status saat ini: ${psbRecord.psb_status || 'unknown'}`
+            });
+        }
+        
+        transaction.customerId = customerId;
+        
+        // Dapatkan Password PPPoE
+        const finalPPPoEPassword = pppoe_password || global.config.defaultPPPoEPassword || generateRandomPassword();
+        
+        // Dapatkan Profile MikroTik
+        const profile = getProfileBySubscription(subscription);
+        if (!profile) {
+            return res.status(400).json({
+                status: 400,
+                message: `Profile tidak ditemukan untuk subscription: ${subscription}`
+            });
+        }
+        
+        // Registrasi ke MikroTik (PPP Secret)
+        // IMPORTANT: Check if user already exists BEFORE adding to MikroTik
+        try {
+            // The addPPPoEUser function already checks for duplicates in the PHP script
+            // but we catch the error here to show user-friendly message
+            await addPPPoEUser(pppoe_username, finalPPPoEPassword, profile);
+            transaction.pppoeCreated = true;
+            console.log(`[PSB_PHASE3] PPPoE user created in MikroTik: ${pppoe_username}`);
+        } catch (mikrotikError) {
+            console.error('[PSB_PHASE3] MikroTik registration error:', mikrotikError);
+            
+            // Check if error is about duplicate username (in Indonesian or English)
+            const errorMessage = mikrotikError.message || '';
+            const isDuplicateError = errorMessage.includes('sudah ada') || 
+                errorMessage.includes('already') || 
+                errorMessage.includes('Akun PPPoE dengan nama yang sama');
+            
+            if (isDuplicateError) {
+                // CRITICAL: Return error immediately - process STOPS here
+                // NO GenieACS update, NO database save, NO user creation
+                // This ensures data integrity: if PPPoE already exists in MikroTik, nothing else should be done
+                console.error(`[PSB_PHASE3] DUPLICATE PPPoE USER DETECTED - PROCESS STOPPED: ${pppoe_username}`);
+                return res.status(400).json({
+                    status: 400,
+                    message: `PPPoE username "${pppoe_username}" sudah ada di MikroTik. Silakan gunakan username lain.`,
+                    error: errorMessage,
+                    errorType: 'duplicate_username',
+                    stoppedAt: 'mikrotik_registration' // Indicate where process stopped
+                });
+            }
+            
+            // Other MikroTik errors - also STOP process (no partial updates)
+            console.error(`[PSB_PHASE3] MIKROTIK ERROR - PROCESS STOPPED: ${errorMessage}`);
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal registrasi ke MikroTik. Pastikan koneksi ke MikroTik berjalan dan username tidak duplikat.',
+                error: errorMessage,
+                errorType: 'mikrotik_error',
+                stoppedAt: 'mikrotik_registration' // Indicate where process stopped
+            });
+        }
+        
+        // If we reach here, MikroTik registration was successful
+        // Continue with GenieACS update and database save
+        
+        // Update Device di GenieACS
+        try {
+            const updateResponse = await axios.post(
+                `${global.config.genieacsBaseUrl}/devices/${encodeURIComponent(device_id)}/tasks?connection_request`,
+                {
+                    name: 'setParameterValues',
+                    parameterValues: [
+                        // Update PPP Username
+                        [`InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username`, pppoe_username, "xsd:string"],
+                        [`Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username`, pppoe_username, "xsd:string"],
+                        // Update PPP Password
+                        [`InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password`, finalPPPoEPassword, "xsd:string"],
+                        [`Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password`, finalPPPoEPassword, "xsd:string"],
+                        // Update WiFi SSID and Password for each selected SSID index
+                        ...ssidIndicesToUpdate.flatMap(idx => [
+                            [`InternetGatewayDevice.LANDevice.1.WLANConfiguration.${idx}.SSID`, wifi_ssid, "xsd:string"],
+                            [`InternetGatewayDevice.LANDevice.1.WLANConfiguration.${idx}.PreSharedKey.1.PreSharedKey`, wifi_password, "xsd:string"]
+                        ])
+                    ]
+                },
+                { timeout: 30000 }
+            );
+            
+            if (updateResponse.status === 200 || updateResponse.status === 202) {
+                transaction.deviceUpdated = true;
+                console.log(`[PSB_PHASE2] GenieACS device updated: ${device_id}`);
+            } else {
+                throw new Error(`GenieACS returned status ${updateResponse.status}`);
+            }
+        } catch (genieError) {
+            console.warn('[PSB_PHASE2] GenieACS update failed, but continuing:', genieError.message);
+            // Continue even if GenieACS update fails - teknisi bisa retry manual
+            // Tapi tetap log warning
+        }
+        
+        // Update PSB record
+        const psbData = psbRecord.psb_data || {};
+        psbData.phase3_completed_at = new Date().toISOString();
+        // IMPORTANT: Save SSID indices yang dipilih untuk monitoring dan tracking
+        psbData.ssid_indices = ssidIndicesToUpdate; // Array of SSID indices yang diupdate
+        psbData.wifi_config = {
+            ssid: wifi_ssid,
+            password: wifi_password,
+            ssid_indices: ssidIndicesToUpdate // SSID indices yang dikonfigurasi
+        };
+        
+        // Update in PSB database
+        await updatePSBRecord(customerId, {
+            pppoe_username: pppoe_username,
+            pppoe_password: finalPPPoEPassword,
+            device_id: device_id,
+            subscription: subscription,
+            psb_status: 'completed',
+            psb_wifi_ssid: wifi_ssid,
+            psb_wifi_password: wifi_password,
+            phase3_completed_at: new Date().toISOString(),
+            psb_data: psbData
+        });
+        
+        // Update in memory
+        psbRecord.pppoe_username = pppoe_username;
+        psbRecord.pppoe_password = finalPPPoEPassword;
+        psbRecord.device_id = device_id;
+        psbRecord.subscription = subscription;
+        psbRecord.psb_status = 'completed';
+        psbRecord.psb_wifi_ssid = wifi_ssid;
+        psbRecord.psb_wifi_password = wifi_password;
+        psbRecord.phase3_completed_at = new Date().toISOString();
+        psbRecord.psb_data = psbData;
+        global.psbRecords[psbRecordIndex] = psbRecord;
+        
+        // Move completed PSB record to users table
+        // PSB ID is temporary, will get new sequential ID from users.sqlite
+        const newUserId = await movePSBToUsers(psbRecord);
+        
+        // Add to global.users with new ID (not PSB ID)
+        // IMPORTANT: Save SSID indices to bulk field (same as other user creation)
+        // CRITICAL: Format bulk sebagai ARRAY (bukan string JSON) agar konsisten dengan format dari database
+        // Database menyimpan sebagai JSON string, tapi saat load di lib/database.js di-parse menjadi array
+        // Jadi di memory, bulk harus selalu array agar konsisten
+        const bulkSSIDs = ssidIndicesToUpdate.map(idx => String(idx)); // Convert to string array for bulk field
+        
+        const newUser = {
+            id: newUserId, // Use new ID from database, not PSB ID
+            name: psbRecord.name,
+            phone_number: psbRecord.phone_number,
+            address: psbRecord.address,
+            latitude: psbRecord.latitude,
+            longitude: psbRecord.longitude,
+            location_url: psbRecord.location_url,
+            subscription: subscription,
+            device_id: device_id,
+            paid: false,
+            pppoe_username: pppoe_username,
+            pppoe_password: finalPPPoEPassword,
+            connected_odp_id: psbRecord.installed_odp_id || psbRecord.odp_id,
+            bulk: bulkSSIDs, // IMPORTANT: Array, bukan string JSON (konsisten dengan format dari database setelah di-parse)
+            send_invoice: 0,
+            is_corporate: 0,
+            created_at: psbRecord.created_at,
+            updated_at: new Date().toISOString()
+        };
+        
+        // Add new user to memory (with new ID)
+        global.users.push(newUser);
+        console.log(`[PSB_PHASE3] Added user with new ID ${newUserId} to global.users (PSB temporary ID was ${psbRecord.id})`);
+        console.log(`[PSB_PHASE3] User bulk SSIDs: ${JSON.stringify(bulkSSIDs)}`);
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'user',
+                resourceId: customerId.toString(),
+                resourceName: psbRecord.name,
+                description: `PSB Phase 3 (Setup Awal Pelanggan) completed for ${psbRecord.name}`,
+                oldValue: {
+                    psb_status: 'phase2_completed',
+                    subscription: null,
+                    device_id: null,
+                    pppoe_username: null
+                },
+                newValue: {
+                    psb_status: 'completed',
+                    subscription: subscription,
+                    device_id: device_id,
+                    pppoe_username: pppoe_username,
+                    wifi_ssid: wifi_ssid
+                },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[PSB_PHASE3] Activity log error:', logErr);
+        }
+        
+        // Log WiFi configuration to WiFi logs for monitoring
+        try {
+            await logWifiChange({
+                userId: newUserId.toString(), // Use final user ID
+                deviceId: device_id,
+                changeType: 'both', // Both SSID name and password
+                changes: {
+                    oldSsidName: null, // First time setup, no old value
+                    newSsidName: wifi_ssid,
+                    oldPassword: null, // First time setup, no old value
+                    newPassword: wifi_password,
+                    passwordChanged: true,
+                    ssidNameChanged: true
+                },
+                changedBy: req.user.username || req.user.name || 'System',
+                changeSource: 'web_technician',
+                customerName: psbRecord.name,
+                customerPhone: psbRecord.phone_number,
+                reason: 'PSB Setup - Konfigurasi WiFi awal pelanggan',
+                notes: `PSB Phase 3 setup. Paket: ${subscription}`,
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+            console.log(`[PSB_PHASE3] WiFi configuration logged for user ${newUserId}, device ${device_id}`);
+        } catch (wifiLogErr) {
+            console.error('[PSB_PHASE3] WiFi log error:', wifiLogErr);
+            // Continue even if WiFi logging fails
+        }
+        
+        // Send WhatsApp notification
+        try {
+            // Prepare user object with subscription for notification
+            const userForNotification = {
+                ...psbRecord,
+                subscription: subscription // Use subscription from request
+            };
+            await sendPSBPhase2Notification(userForNotification, {
+                pppoe_username: pppoe_username,
+                wifi_ssid: wifi_ssid,
+                wifi_password: wifi_password
+            });
+        } catch (notifErr) {
+            console.error('[PSB_PHASE3] Notification error:', notifErr);
+            // Continue even if notification fails
+        }
+        
+        return res.json({
+            status: 200,
+            message: 'PSB Phase 3 (Setup Awal Pelanggan) berhasil diselesaikan',
+            data: {
+                psbCustomerId: customerId, // Temporary PSB ID (antrian)
+                finalUserId: newUserId, // Final user ID from users.sqlite (sequential)
+                name: psbRecord.name,
+                pppoe_username: pppoe_username,
+                pppoe_password: finalPPPoEPassword, // Include password untuk summary modal
+                wifi_ssid: wifi_ssid,
+                wifi_password: wifi_password, // Include password untuk summary modal
+                device_id: device_id,
+                mikrotikRegistered: transaction.pppoeCreated,
+                genieacsUpdated: transaction.deviceUpdated
+            }
+        });
+        
+    } catch (error) {
+        console.error('[PSB_PHASE3_ERROR]', error);
+        
+        // Rollback logic
+        if (transaction.pppoeCreated) {
+            // Optionally delete PPPoE user from MikroTik
+            // Tapi karena user sudah dibuat, mungkin lebih baik keep it
+            console.warn('[PSB_PHASE3_ROLLBACK] PPPoE user created but process failed:', error.message);
+        }
+        
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal menyelesaikan PSB Phase 3',
             error: error.message
         });
     }

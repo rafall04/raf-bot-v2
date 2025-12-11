@@ -2,6 +2,10 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const convertRupiah = require('rupiah-format');
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 
 // Local dependencies that were used by these routes in index.js
 const pay = require("../lib/ipaymu");
@@ -10,11 +14,30 @@ const { addKoinUser, addATM, checkATMuser } = require('../lib/saldo');
 const { updateStatusPayment, checkStatusPayment, delPayment, addPayBuy, addPayment, updateKetPayment } = require('../lib/payment');
 const { checkprofvc, checkdurasivc, checkhargavc } = require('../lib/voucher');
 const { saveReports, saveSpeedRequests, savePackageChangeRequests, loadJSON } = require('../lib/database');
+const { authCache } = require('../lib/auth-cache');
 const { comparePassword, hashPassword } = require('../lib/password');
 const { apiAuth } = require('../lib/auth');
 const { normalizePhoneNumber } = require('../lib/utils');
 const { generateSecureOTP, checkOTPRequestLimit, checkOTPVerifyLimit, resetOTPAttempts, isOTPValid } = require('../lib/otp');
 const { asyncHandler, createError, ErrorTypes, validateRequired, dbOperation } = require('../lib/error-handler');
+const { renderTemplate } = require('../lib/templating');
+const { sendSuccess, sendError } = require('../lib/response-helper');
+const CustomerService = require('../lib/services/customer-service');
+const ReportService = require('../lib/services/report-service');
+const SpeedRequestService = require('../lib/services/speed-request-service');
+const PublicService = require('../lib/services/public-service');
+const WifiService = require('../lib/services/wifi-service');
+const {
+    loginValidation,
+    customerLoginValidation,
+    otpRequestValidation,
+    otpVerifyValidation,
+    updateAccountValidation,
+    submitReportValidation,
+    requestSpeedValidation,
+    cancelSpeedRequestValidation,
+    requestPackageChangeValidation
+} = require('../lib/middleware/validation');
 
 const router = express.Router();
 
@@ -25,41 +48,135 @@ function ensureCustomerAuthenticated(req, res, next) {
     apiAuth(req, res, next);
 }
 
-function mapReportStatus(internalStatus) {
-    switch (internalStatus) {
-        case 'baru': return 'Submitted';
-        case 'diproses teknisi': return 'In Progress';
-        case 'selesai': return 'Resolved';
-        case 'dibatalkan admin':
-        case 'dibatalkan pelanggan': return 'Cancelled';
-        default: return internalStatus;
-    }
-}
+// Helper functions moved to service layer:
+// - mapReportStatus() -> ReportService.mapReportStatus()
+// - generateAdminTicketId() -> ReportService.generateTicketId()
 
-function generateAdminTicketId(length = 7) {
-    const characters = 'ABCDEFGHJKLMNOPQRSTUVWXYZ23456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-        result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    return `${result}`;
-}
+// --- Rate Limiters ---
 
+// Rate limiter untuk WiFi endpoints (resource-intensive operations)
+// CATATAN: Endpoint ini memerlukan customer authentication, jadi semua request sudah memiliki req.customer
+const wifiRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 menit
+    max: 30, // 30 requests per 15 menit per customer
+    message: {
+        status: 429,
+        message: 'Terlalu banyak permintaan WiFi. Silakan coba lagi dalam 15 menit.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Gunakan customer ID sebagai key (semua request sudah authenticated via ensureCustomerAuthenticated)
+    keyGenerator: (req) => {
+        // Karena endpoint ini memerlukan authentication, req.customer selalu ada
+        // Tidak perlu fallback ke IP, sehingga tidak perlu handle IPv6
+        return `wifi_customer_${req.customer?.id || 'unknown'}`;
+    },
+    skip: (req) => {
+        // Skip rate limiting untuk static files (tidak perlu)
+        return req.path.match(/\.(jpg|jpeg|png|gif|svg|css|js|ico|woff|woff2|ttf|eot)$/i);
+    }
+});
+
+// Stricter rate limiter untuk WiFi write operations (update name/password)
+// CATATAN: Endpoint ini memerlukan customer authentication, jadi semua request sudah memiliki req.customer
+const wifiWriteRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 menit
+    max: 10, // 10 requests per 15 menit per customer (lebih strict untuk write operations)
+    message: {
+        status: 429,
+        message: 'Terlalu banyak perubahan WiFi. Silakan coba lagi dalam 15 menit.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Gunakan customer ID sebagai key (semua request sudah authenticated via ensureCustomerAuthenticated)
+    keyGenerator: (req) => {
+        // Karena endpoint ini memerlukan authentication, req.customer selalu ada
+        // Tidak perlu fallback ke IP, sehingga tidak perlu handle IPv6
+        return `wifi_write_customer_${req.customer?.id || 'unknown'}`;
+    },
+    skip: (req) => {
+        // Skip rate limiting untuk static files (tidak perlu)
+        return req.path.match(/\.(jpg|jpeg|png|gif|svg|css|js|ico|woff|woff2|ttf|eot)$/i);
+    }
+});
 
 // --- Router Setup ---
 
 // Middleware is now applied globally in index.js
 
-router.post('/api/login', asyncHandler(async (req, res) => {
+router.post('/api/login', loginValidation, asyncHandler(async (req, res) => {
+    const loginStartTime = Date.now();
     const { username, password } = req.body;
     
     // Validate required fields
+    const validateStart = Date.now();
     validateRequired(req.body, ['username', 'password']);
+    console.log(`[LOGIN_TIMING] Validation: ${Date.now() - validateStart}ms`);
 
-    const account = global.accounts.find(acc => acc.username === username);
+    // Get client info for logging
+    const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+    const userAgent = req.headers['user-agent'] || 'unknown';
+    
+    // Import activity logger and rate limiter
+    const importStart = Date.now();
+    const { logLogin } = require('../lib/activity-logger');
+    const { checkRateLimit } = require('../lib/security');
+    console.log(`[LOGIN_TIMING] Import modules: ${Date.now() - importStart}ms`);
+    
+    // Rate limiting: max 5 attempts per 15 minutes per IP
+    const rateLimitStart = Date.now();
+    const rateLimitResult = checkRateLimit('login', 5, 15 * 60 * 1000, ipAddress);
+    console.log(`[LOGIN_TIMING] Rate limit check: ${Date.now() - rateLimitStart}ms`);
+    
+    // Check rate limit
+    if (!rateLimitResult.allowed) {
+        // Log failed attempt due to rate limit (fire-and-forget, tidak blocking)
+        logLogin({
+            userId: null,
+            username: username || 'unknown',
+            role: 'unknown',
+            ipAddress,
+            userAgent,
+            success: false,
+            failureReason: 'Rate limit exceeded'
+        }).catch(logErr => {
+            // Ignore logging errors
+        });
+        
+        throw createError(
+            ErrorTypes.RATE_LIMIT_ERROR || 'RATE_LIMIT_ERROR',
+            'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.',
+            429
+        );
+    }
+
+    // Gunakan cache untuk account lookup
+    const accountLookupStart = Date.now();
+    const account = authCache.getAccountByUsername(username, () => {
+        return global.accounts.find(acc => acc.username === username);
+    });
+    console.log(`[LOGIN_TIMING] Account lookup: ${Date.now() - accountLookupStart}ms`);
+    
+    // Password verification - ini yang paling mungkin lambat
+    const passwordStart = Date.now();
     const isValid = account && await comparePassword(password, account.password);
+    console.log(`[LOGIN_TIMING] Password verification: ${Date.now() - passwordStart}ms`);
 
     if (!isValid) {
+        // Log failed login attempt (fire-and-forget, tidak blocking)
+        logLogin({
+            userId: account ? account.id : null,
+            username: username,
+            role: account ? account.role : 'unknown',
+            ipAddress,
+            userAgent,
+            success: false,
+            failureReason: 'Invalid username or password',
+            actionType: 'login'
+        }).catch(logErr => {
+            console.error(`[AUTH_LOG] ❌ Failed to log login: ${username} - ${logErr.message}`);
+        });
+        
         throw createError(
             ErrorTypes.AUTHENTICATION_ERROR,
             'Username atau password salah.',
@@ -70,34 +187,63 @@ router.post('/api/login', asyncHandler(async (req, res) => {
     const payload = {
         id: account.id,
         username: account.username,
-        name: account.name || account.username, // ✅ ADD name
-        photo: account.photo || null, // ✅ ADD photo
+        name: account.name || account.username,
+        photo: account.photo || null,
         role: account.role
     };
 
-    const token = jwt.sign(payload, global.config.jwt, { expiresIn: '1d' });
+    // Shorten token expiry for production: 8 hours instead of 1 day
+    const tokenStart = Date.now();
+    const tokenExpiry = process.env.NODE_ENV === 'production' ? '8h' : '1d';
+    // SECURITY: Sign token dengan explicit algorithm untuk prevent algorithm confusion attacks
+    const token = jwt.sign(payload, global.config.jwt, { 
+        expiresIn: tokenExpiry,
+        algorithm: 'HS256'
+    });
+    console.log(`[LOGIN_TIMING] Token generation: ${Date.now() - tokenStart}ms`);
 
+    const cookieStart = Date.now();
+    // PENTING: Set secure: false untuk semua kasus agar API bisa berkomunikasi dengan baik di frontend
+    // Cloudflare Tunnel akan handle HTTPS di level reverse proxy, tapi aplikasi tetap HTTP
+    // Cookie dengan secure: false akan bekerja di HTTP dan HTTPS
     res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000, // 1 day
+        secure: false, // Selalu false - Cloudflare Tunnel handle HTTPS, aplikasi HTTP
+        sameSite: 'Lax', // Allow cookies untuk same-site requests (termasuk akses via IP)
+        maxAge: process.env.NODE_ENV === 'production' ? 8 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000,
         path: '/'
     });
+    console.log(`[LOGIN_TIMING] Cookie set: ${Date.now() - cookieStart}ms`);
+
+    // Log successful login attempt (fire-and-forget, tidak blocking response)
+    logLogin({
+        userId: account.id,
+        username: username,
+        role: account.role,
+        ipAddress,
+        userAgent,
+        success: true,
+        failureReason: null,
+        actionType: 'login'
+    }).catch(logErr => {
+        console.error(`[AUTH_LOG] ❌ Failed to log login: ${username} - ${logErr.message}`);
+    });
+
+    const totalTime = Date.now() - loginStartTime;
+    console.log(`[LOGIN_TIMING] ⏱️ TOTAL LOGIN TIME: ${totalTime}ms`);
 
     // Check if request wants JSON response (API call)
     if (req.headers.accept && req.headers.accept.includes('application/json')) {
-        return res.json({
-            status: 200,
-            message: 'Login berhasil',
+        return sendSuccess(res, {
             token: token,
             user: {
                 id: account.id,
                 username: account.username,
-                name: account.name || account.username, // ✅ ADD name
-                photo: account.photo || null, // ✅ ADD photo
+                name: account.name || account.username,
+                photo: account.photo || null,
                 role: account.role
             }
-        });
+        }, 'Login berhasil');
     }
 
     // Redirect based on role
@@ -114,409 +260,239 @@ router.post('/api/login', asyncHandler(async (req, res) => {
 const customerApiRouter = express.Router();
 customerApiRouter.use(ensureCustomerAuthenticated);
 
-customerApiRouter.get('/profile', async (req, res) => {
-    try {
-        const customer = req.customer;
-        const userPackage = global.packages.find(p => p.name === customer.subscription);
-        if (!userPackage) {
-            // This case might happen if a package is deleted but a user still has it.
-            console.warn(`[API_CUSTOMER_PROFILE] Configuration for customer's package (${customer.subscription}) not found for user ID ${customer.id}.`);
-            return res.status(404).json({ status: 404, message: `Konfigurasi untuk paket Anda (${customer.subscription}) tidak ditemukan.` });
-        }
+customerApiRouter.get('/profile', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const profileData = await CustomerService.getProfile(customer, req);
+    return sendSuccess(res, profileData, "Profile berhasil diambil");
+}));
 
-        const monthlyBill = parseFloat(userPackage.price);
-        if (isNaN(monthlyBill)) {
-            console.error(`[API_CUSTOMER_PROFILE] Invalid price format for package '${userPackage.name}'.`);
-            return res.status(500).json({ status: 500, message: `Format harga tidak valid untuk paket '${userPackage.name}'.` });
-        }
+customerApiRouter.get('/reports/history', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const reportHistory = await ReportService.getReportHistory(customer, req);
+    return sendSuccess(res, reportHistory, "Riwayat laporan berhasil diambil");
+}));
 
-        const dueDay = (global.config && parseInt(global.config.tanggal_batas_bayar)) || 10;
-        const now = new Date();
-        let dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay, 23, 59, 59, 999);
-        // If the due date for this month has already passed, show next month's due date
-        if (now > dueDate) {
-            dueDate.setMonth(dueDate.getMonth() + 1);
-        }
-
-        return res.status(200).json({
-            name: customer.name,
-            username: customer.username,
-            packageName: userPackage.name,
-            monthlyBill,
-            dueDate: dueDate.toISOString(),
-            paymentStatus: customer.paid ? "PAID" : "UNPAID",
-            address: customer.address || null,
-            phone_number: customer.phone_number,
-            allowed_ssids: customer.bulk || []
-        });
-    } catch (error) {
-        console.error(`[API_CUSTOMER_PROFILE_ERROR] Error for user ID ${req.customer?.id}:`, error);
-        return res.status(500).json({ status: 500, message: "Internal Server Error." });
-    }
-});
-
-customerApiRouter.get('/reports/history', async (req, res) => {
-    try {
-        const customer = req.customer;
-        const customerJids = customer.phone_number.split('|').map(n => normalizePhoneNumber(n) + '@s.whatsapp.net');
-        const reportHistory = global.reports.filter(r => customerJids.includes(r.pelangganId));
-        const responseData = reportHistory.map(report => ({
-            id: report.ticketId,
-            category: report.category,
-            status: mapReportStatus(report.status),
-            submittedAt: report.createdAt
-        })).sort((a, b) => new Date(b.submittedAt) - new Date(a.createdAt));
-        return res.status(200).json(responseData);
-    } catch (error) {
-        console.error('[API_REPORTS_HISTORY_ERROR]', error);
-        return res.status(500).json({ status: 500, message: "Internal Server Error." });
-    }
-});
-
-customerApiRouter.post('/request-package-change', async (req, res) => {
+customerApiRouter.post('/request-package-change', asyncHandler(async (req, res) => {
     const { targetPackageName } = req.body;
     const customer = req.customer;
+    
+    const result = await CustomerService.requestPackageChange(customer, targetPackageName, req);
+    
+    return sendSuccess(res, null, result.message, 201);
+}));
 
-    if (!targetPackageName) {
-        return res.status(400).json({ status: 400, message: "Parameter 'targetPackageName' wajib diisi." });
-    }
+customerApiRouter.get('/package-change-requests/history', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const history = await CustomerService.getPackageChangeHistory(customer, req);
+    return sendSuccess(res, history, "Riwayat permintaan perubahan paket berhasil diambil");
+}));
 
-    try {
-        // Use global.packageChangeRequests which is loaded at startup
-        const existingRequest = global.packageChangeRequests.find(r => r.userId === customer.id && r.status === 'pending');
-        if (existingRequest) {
-            return res.status(409).json({ status: 409, message: `Anda sudah memiliki permintaan perubahan paket yang sedang diproses. Mohon tunggu hingga selesai.` });
-        }
+customerApiRouter.get('/packages', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const packages = await CustomerService.getAvailablePackages(customer, req);
+    return sendSuccess(res, packages, "Daftar paket bulanan berhasil diambil");
+}));
 
-        const requestedPackage = global.packages.find(p => p.name === targetPackageName);
-        if (!requestedPackage) {
-            return res.status(404).json({ status: 404, message: `Paket tujuan "${targetPackageName}" tidak ditemukan.` });
-        }
-
-        if (customer.subscription === targetPackageName) {
-            return res.status(400).json({ status: 400, message: `Anda sudah menggunakan paket "${targetPackageName}".` });
-        }
-
-        const newRequest = {
-            id: `pkgchange_${Date.now()}_${customer.id}`,
-            userId: customer.id,
-            userName: customer.name,
-            currentPackageName: customer.subscription,
-            requestedPackageName: targetPackageName,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: null,
-            approvedBy: null
-        };
-
-        global.packageChangeRequests.unshift(newRequest);
-        savePackageChangeRequests(); // This function saves the global.packageChangeRequests array
-
-        if (global.raf && global.config.ownerNumber && Array.isArray(global.config.ownerNumber)) {
-            const notifMessage = `🔄 *Permintaan Perubahan Paket Baru* 🔄\n\nPelanggan telah mengajukan permintaan perubahan paket.\n\n*Pelanggan:* ${customer.name}\n*Paket Saat Ini:* ${customer.subscription}\n*Paket Diminta:* ${targetPackageName}\n\nMohon segera ditinjau di panel admin.`;
-            for (const ownerNum of global.config.ownerNumber) {
-                const { delay } = await import('@whiskeysockets/baileys');
-                const ownerJid = ownerNum.endsWith('@s.whatsapp.net') ? ownerNum : `${ownerNum}@s.whatsapp.net`;
-                try {
-                    await delay(500);
-                    await global.raf.sendMessage(ownerJid, { text: notifMessage });
-                } catch (e) {
-                    console.error(`[PACKAGE_CHANGE_NOTIF_ERROR] Gagal mengirim notifikasi ke owner ${ownerJid}:`, e.message);
-                }
-            }
-        }
-
-        return res.status(201).json({ status: 201, message: "Permintaan perubahan paket Anda telah berhasil dikirim dan menunggu persetujuan admin." });
-
-    } catch (error) {
-        console.error('[API_PACKAGE_CHANGE_FATAL_ERROR]', error);
-        return res.status(500).json({ status: 500, message: "Terjadi kesalahan pada server." });
-    }
-});
-
-customerApiRouter.post('/account/update', async (req, res) => {
+customerApiRouter.post('/account/update', asyncHandler(async (req, res) => {
     const { currentPassword, newUsername, newPassword } = req.body;
-    const customer = req.customer; // Authenticated customer from middleware
+    const customer = req.customer;
+    
+    const result = await CustomerService.updateAccount(customer, {
+        currentPassword,
+        newUsername,
+        newPassword
+    }, req);
+    
+    return sendSuccess(res, null, result.message);
+}));
 
-    if (!currentPassword) {
-        return res.status(400).json({ status: 400, message: "Password saat ini diperlukan untuk verifikasi." });
+// Phone Number Management Endpoints untuk Customer
+customerApiRouter.get('/phone-numbers', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const phoneNumbers = await CustomerService.getPhoneNumbers(customer, req);
+    return sendSuccess(res, phoneNumbers, "Daftar nomor HP berhasil diambil");
+}));
+
+customerApiRouter.post('/phone-numbers/add', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { phoneNumber } = req.body;
+    
+    // Validation
+    if (!phoneNumber || typeof phoneNumber !== 'string' || phoneNumber.trim() === '') {
+        return sendError(res, "Nomor HP tidak boleh kosong.", 400);
     }
-    if (!newUsername && !newPassword) {
-        return res.status(400).json({ status: 400, message: "Tidak ada data untuk diubah. Harap berikan username baru atau password baru." });
+    
+    const result = await CustomerService.addPhoneNumber(customer, phoneNumber, req);
+    return sendSuccess(res, result, result.message);
+}));
+
+customerApiRouter.delete('/phone-numbers/:phoneNumber', asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { phoneNumber } = req.params;
+    
+    // Validation
+    if (!phoneNumber || phoneNumber.trim() === '') {
+        return sendError(res, "Nomor HP tidak boleh kosong.", 400);
     }
+    
+    // Decode URL-encoded phone number
+    const decodedPhoneNumber = decodeURIComponent(phoneNumber);
+    
+    const result = await CustomerService.removePhoneNumber(customer, decodedPhoneNumber, req);
+    return sendSuccess(res, result, result.message);
+}));
 
-    try {
-        // 1. Verify current password
-        const isPasswordValid = await comparePassword(currentPassword, customer.password);
-        if (!isPasswordValid) {
-            return res.status(403).json({ status: 403, message: "Password saat ini yang Anda masukkan salah." });
-        }
+// WiFi Management Endpoints untuk Customer
+customerApiRouter.get('/wifi/info', wifiRateLimiter, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const skipRefresh = req.query.skipRefresh === 'true'; // Optional: skip refresh untuk performa
+    
+    const wifiInfo = await WifiService.getCustomerWifiInfo(customer, req, skipRefresh);
+    return sendSuccess(res, wifiInfo, "Info WiFi berhasil diambil");
+}));
 
-        let updates = [];
-        let params = [];
-        let cacheUpdates = {};
+customerApiRouter.get('/wifi/connected-devices', wifiRateLimiter, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const skipRefresh = req.query.skipRefresh === 'true'; // Optional: skip refresh untuk performa
+    
+    const connectedDevices = await WifiService.getConnectedDevices(customer, req, skipRefresh);
+    return sendSuccess(res, connectedDevices, "Data device terkoneksi berhasil diambil");
+}));
 
-        // 2. Handle username change
-        if (newUsername && newUsername !== customer.username) {
-            // Check if new username is already taken
-            const existingUser = global.users.find(u => u.username && u.username.toLowerCase() === newUsername.toLowerCase() && u.id !== customer.id);
-            if (existingUser) {
-                return res.status(409).json({ status: 409, message: `Username '${newUsername}' sudah digunakan. Silakan pilih yang lain.` });
-            }
-            updates.push("username = ?");
-            params.push(newUsername);
-            cacheUpdates.username = newUsername;
-        }
-
-        // 3. Handle password change
-        if (newPassword) {
-            const hashedPassword = await hashPassword(newPassword);
-            updates.push("password = ?");
-            params.push(hashedPassword);
-            cacheUpdates.password = hashedPassword; // We update the cache with the hash
-        }
-
-        if (updates.length === 0) {
-            return res.status(200).json({ status: 200, message: "Tidak ada perubahan yang dilakukan." });
-        }
-
-        // 4. Update database
-        const sql = `UPDATE users SET ${updates.join(', ')} WHERE id = ?`;
-        params.push(customer.id);
-
-        await new Promise((resolve, reject) => {
-            global.db.run(sql, params, function(err) {
-                if (err) {
-                    console.error("[CUSTOMER_UPDATE_ERROR] Gagal memperbarui data di DB:", err.message);
-                    return reject(new Error("Gagal memperbarui akun Anda."));
-                }
-                if (this.changes === 0) {
-                    return reject(new Error("User tidak ditemukan di database saat pembaruan."));
-                }
-                resolve();
-            });
-        });
-
-        // 5. Update in-memory cache on success
-        Object.assign(customer, cacheUpdates);
-
-        return res.status(200).json({ status: 200, message: "Akun Anda telah berhasil diperbarui." });
-
-    } catch (error) {
-        console.error("[API_CUSTOMER_UPDATE_ERROR]", error);
-        return res.status(500).json({ status: 500, message: error.message || "Terjadi kesalahan pada server." });
+customerApiRouter.post('/wifi/update-name', wifiWriteRateLimiter, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { ssidIndex = 1, newName } = req.body;
+    
+    // Validation
+    if (!newName || typeof newName !== 'string' || newName.trim() === '') {
+        return sendError(res, "Nama WiFi tidak boleh kosong.", 400);
     }
-});
+    
+    if (newName.length < 3 || newName.length > 32) {
+        return sendError(res, "Nama WiFi harus antara 3-32 karakter.", 400);
+    }
+    
+    // Validasi SSID index (1-8 untuk dual band)
+    const parsedIndex = parseInt(ssidIndex);
+    if (isNaN(parsedIndex) || parsedIndex < 1 || parsedIndex > 8) {
+        return sendError(res, "SSID index harus antara 1-8 (4 untuk 2.4GHz dan 4 untuk 5GHz).", 400);
+    }
+    
+    const result = await WifiService.updateCustomerWifiName(customer, ssidIndex, newName, req);
+    return sendSuccess(res, result, "Nama WiFi berhasil diubah");
+}));
+
+customerApiRouter.post('/wifi/update-password', wifiWriteRateLimiter, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { ssidIndex = 1, newPassword } = req.body;
+    
+    // Validation
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.trim() === '') {
+        return sendError(res, "Password WiFi harus diisi.", 400);
+    }
+    
+    if (newPassword.length < 8 || newPassword.length > 63) {
+        return sendError(res, "Password WiFi harus antara 8-63 karakter.", 400);
+    }
+    
+    // Validasi SSID index (1-8 untuk dual band)
+    const parsedIndex = parseInt(ssidIndex);
+    if (isNaN(parsedIndex) || parsedIndex < 1 || parsedIndex > 8) {
+        return sendError(res, "SSID index harus antara 1-8 (4 untuk 2.4GHz dan 4 untuk 5GHz).", 400);
+    }
+    
+    const result = await WifiService.updateCustomerWifiPassword(customer, ssidIndex, newPassword, req);
+    return sendSuccess(res, result, "Password WiFi berhasil diubah");
+}));
+
+customerApiRouter.put('/wifi/update', wifiWriteRateLimiter, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { ssidIndex = 1, newName, newPassword } = req.body;
+    
+    // Validation
+    if (!newName && !newPassword) {
+        return sendError(res, "Minimal harus ada nama WiFi atau password yang diubah.", 400);
+    }
+    
+    if (newName && (newName.length < 3 || newName.length > 32)) {
+        return sendError(res, "Nama WiFi harus antara 3-32 karakter.", 400);
+    }
+    
+    if (newPassword && (newPassword.length < 8 || newPassword.length > 63)) {
+        return sendError(res, "Password WiFi harus antara 8-63 karakter.", 400);
+    }
+    
+    // Validasi SSID index (1-8 untuk dual band)
+    const parsedIndex = parseInt(ssidIndex);
+    if (isNaN(parsedIndex) || parsedIndex < 1 || parsedIndex > 8) {
+        return sendError(res, "SSID index harus antara 1-8 (4 untuk 2.4GHz dan 4 untuk 5GHz).", 400);
+    }
+    
+    const result = await WifiService.updateCustomerWifi(customer, ssidIndex, { newName, newPassword }, req);
+    return sendSuccess(res, result, "WiFi berhasil diupdate");
+}));
+
+customerApiRouter.post('/wifi/reboot', wifiWriteRateLimiter, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    
+    const result = await WifiService.rebootCustomerRouter(customer, req);
+    return sendSuccess(res, result, result.message || "Perintah reboot berhasil dikirim");
+}));
 
 router.use('/api/customer', customerApiRouter);
 
 // Additional customer endpoints for NextJS frontend
-router.get('/api/customer/speed-requests/active', ensureCustomerAuthenticated, async (req, res) => {
-    try {
-        const speedHelper = require('../lib/speed-request-helper');
-        const customer = req.customer;
-        
-        // Find active speed request
-        const activeRequest = global.speed_requests.find(r => 
-            r.userId === customer.id && r.status === 'active'
-        );
-        
-        if (!activeRequest) {
-            return res.status(200).json({ 
-                status: 200, 
-                data: null,
-                message: "Tidak ada speed boost yang aktif." 
-            });
-        }
-        
-        // Format response using helper
-        const formattedRequest = speedHelper.formatSpeedRequest(activeRequest, global.packages);
-        
-        return res.status(200).json({ 
-            status: 200, 
-            data: formattedRequest 
-        });
-    } catch (error) {
-        console.error('[API_CUSTOMER_SPEED_ACTIVE_ERROR]', error);
-        return res.status(500).json({ 
-            status: 500, 
-            message: "Terjadi kesalahan pada server." 
-        });
+router.get('/api/customer/speed-requests/active', ensureCustomerAuthenticated, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const activeRequest = await SpeedRequestService.getActiveRequest(customer, req);
+    
+    if (!activeRequest) {
+        return sendSuccess(res, null, "Tidak ada speed boost yang aktif.");
     }
-});
+    
+    return sendSuccess(res, activeRequest, "Speed boost aktif berhasil diambil");
+}));
 
-router.get('/api/customer/speed-requests/history', ensureCustomerAuthenticated, async (req, res) => {
-    try {
-        const speedHelper = require('../lib/speed-request-helper');
-        const customer = req.customer;
-        
-        // Get all speed requests for this customer
-        const customerRequests = global.speed_requests.filter(r => r.userId === customer.id);
-        
-        // Sort by created date (newest first)
-        const sortedRequests = customerRequests.sort((a, b) => 
-            new Date(b.createdAt) - new Date(a.createdAt)
-        );
-        
-        // Format all requests
-        const formattedRequests = sortedRequests.map(request => 
-            speedHelper.formatSpeedRequest(request, global.packages)
-        );
-        
-        return res.status(200).json({ 
-            status: 200, 
-            data: formattedRequests 
-        });
-    } catch (error) {
-        console.error('[API_CUSTOMER_SPEED_HISTORY_ERROR]', error);
-        return res.status(500).json({ 
-            status: 500, 
-            message: "Terjadi kesalahan pada server." 
-        });
-    }
-});
+router.get('/api/customer/speed-requests/history', ensureCustomerAuthenticated, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const requestHistory = await SpeedRequestService.getRequestHistory(customer, req);
+    return sendSuccess(res, requestHistory, "Riwayat speed boost berhasil diambil");
+}));
 
-router.post('/api/customer/speed-requests/cancel', ensureCustomerAuthenticated, async (req, res) => {
-    try {
-        const customer = req.customer;
-        const { requestId } = req.body;
-        
-        if (!requestId) {
-            return res.status(400).json({ 
-                status: 400, 
-                message: "ID permintaan diperlukan." 
-            });
-        }
-        
-        // Find the request
-        const requestIndex = global.speed_requests.findIndex(r => 
-            r.id === requestId && r.userId === customer.id
-        );
-        
-        if (requestIndex === -1) {
-            return res.status(404).json({ 
-                status: 404, 
-                message: "Permintaan tidak ditemukan." 
-            });
-        }
-        
-        const request = global.speed_requests[requestIndex];
-        
-        // Only allow cancellation of pending requests
-        if (request.status !== 'pending') {
-            return res.status(400).json({ 
-                status: 400, 
-                message: `Permintaan dengan status '${request.status}' tidak dapat dibatalkan.` 
-            });
-        }
-        
-        // Update status
-        request.status = 'cancelled';
-        request.updatedAt = new Date().toISOString();
-        request.notes = 'Dibatalkan oleh pelanggan';
-        
-        // Save changes
-        saveSpeedRequests();
-        
-        return res.status(200).json({ 
-            status: 200, 
-            message: "Permintaan speed boost berhasil dibatalkan." 
-        });
-    } catch (error) {
-        console.error('[API_CUSTOMER_SPEED_CANCEL_ERROR]', error);
-        return res.status(500).json({ 
-            status: 500, 
-            message: "Terjadi kesalahan pada server." 
-        });
-    }
-});
+router.post('/api/customer/speed-requests/cancel', ensureCustomerAuthenticated, cancelSpeedRequestValidation, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { requestId } = req.body;
+    
+    const result = await SpeedRequestService.cancelRequest(customer, requestId, req);
+    return sendSuccess(res, null, result.message);
+}));
 
-router.get('/api/customer/speed-boost/available', ensureCustomerAuthenticated, async (req, res) => {
-    try {
-        const speedHelper = require('../lib/speed-request-helper');
-        const customer = req.customer;
-        
-        // Validate customer eligibility
-        const validation = speedHelper.validateSpeedRequest(customer, global.packages);
-        if (!validation.valid) {
-            return res.status(200).json({ 
-                status: 200, 
-                data: [],
-                message: validation.errors[0] 
-            });
-        }
-        
-        // Get available speed boost packages
-        const availablePackages = speedHelper.getAvailableSpeedBoosts(customer, global.packages);
-        
-        // Format response with pricing for each duration
-        const formattedPackages = availablePackages.map(pkg => {
-            const durations = {};
-            
-            // Calculate price for each available duration
-            Object.keys(speedHelper.DURATION_MAP).forEach(durationKey => {
-                if (durationKey.includes('_')) { // Use standard format only
-                    const price = speedHelper.calculateBoostPrice(
-                        global.packages.find(p => p.name === customer.subscription),
-                        pkg,
-                        durationKey
-                    );
-                    if (price) {
-                        const durationInfo = speedHelper.getDurationInfo(durationKey);
-                        durations[durationKey] = {
-                            label: durationInfo.label,
-                            hours: durationInfo.hours,
-                            price: price
-                        };
-                    }
-                }
-            });
-            
-            return {
-                name: pkg.name,
-                profile: pkg.profile,
-                basePrice: pkg.price,
-                durations: durations
-            };
-        });
-        
-        return res.status(200).json({ 
-            status: 200, 
-            data: formattedPackages 
-        });
-    } catch (error) {
-        console.error('[API_CUSTOMER_SPEED_AVAILABLE_ERROR]', error);
-        return res.status(500).json({ 
-            status: 500, 
-            message: "Terjadi kesalahan pada server." 
-        });
-    }
-});
+// GET /api/customer/speed-boost/status - Check if Speed On Demand is enabled
+router.get('/api/customer/speed-boost/status', ensureCustomerAuthenticated, asyncHandler(async (req, res) => {
+    const isEnabled = SpeedRequestService.isFeatureEnabled();
+    return sendSuccess(res, { enabled: isEnabled }, isEnabled ? "Speed On Demand tersedia" : "Speed On Demand tidak tersedia");
+}));
 
-router.get('/api/dashboard-status', ensureCustomerAuthenticated, async (req, res) => {
-    try {
-        const customer = req.customer;
-        const activeBoost = global.speed_requests.find(r => r.userId === customer.id && r.status === 'active');
-        let boostResponse = null;
-        if (activeBoost) {
-            const boostPackage = global.packages.find(p => p.name === activeBoost.requestedPackageName);
-            boostResponse = {
-                profile: boostPackage ? boostPackage.name : activeBoost.requestedPackageName,
-                expiresAt: activeBoost.expirationDate
-            };
+router.get('/api/customer/speed-boost/available', ensureCustomerAuthenticated, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const availablePackages = await SpeedRequestService.getAvailableSpeedBoosts(customer);
+    
+    if (availablePackages.length === 0) {
+        // Check if feature is disabled
+        if (!SpeedRequestService.isFeatureEnabled()) {
+            return sendSuccess(res, [], "Speed Boost sedang tidak tersedia saat ini");
         }
-        const customerJids = customer.phone_number.split('|').map(n => normalizePhoneNumber(n) + '@s.whatsapp.net');
-        const activeReport = global.reports.find(r => customerJids.includes(r.pelangganId) && (r.status === 'baru' || r.status === 'diproses teknisi'));
-        let reportResponse = null;
-        if (activeReport) {
-            reportResponse = { id: activeReport.ticketId, category: activeReport.category, status: mapReportStatus(activeReport.status) };
-        }
-        return res.status(200).json({ activeBoost: boostResponse, activeReport: reportResponse });
-    } catch (error) {
-        console.error('[API_DASHBOARD_STATUS_ERROR]', error);
-        return res.status(500).json({ status: 500, message: "Internal Server Error." });
+        return sendSuccess(res, [], "Tidak ada paket speed boost yang tersedia untuk paket Anda saat ini");
     }
-});
+    
+    return sendSuccess(res, availablePackages, "Daftar paket speed boost berhasil diambil");
+}));
+
+router.get('/api/dashboard-status', ensureCustomerAuthenticated, asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const dashboardData = await PublicService.getDashboardStatus(customer);
+    return sendSuccess(res, dashboardData, "Status dashboard berhasil diambil");
+}));
 
 // --- Public Unauthenticated Routes ---
 
@@ -569,17 +545,43 @@ router.post('/callback/payment', async (req, res) => {
                 await getvoucher(prof, pay.sender).then(async result => {
                     updateKetPayment(reference_id, `Voucher: ${result}`);
                     updateStatusPayment(reference_id, true);
-                    if (pay.sender != "buynow" && global.raf) {
-                        await global.raf.sendMessage(pay.sender, { text: `\n=============================\nPaket                    : *${durasivc}*\nHarga                    : *${convertRupiah.convert(hargavc)}*\nKode Voucher     : *${result}*\n=============================\nStatus Transaksi : *Berhasil*\n=============================\n_Terima Kasih Atas Pembelian Anda_` });
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                    if (pay.sender != "buynow" && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            const message = renderTemplate('voucher_purchase_success', {
+                                nama_paket: durasivc,
+                                harga: convertRupiah.convert(hargavc),
+                                kode_voucher: result
+                            });
+                            await global.raf.sendMessage(pay.sender, { text: message });
+                        } catch (error) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                sender: pay.sender,
+                                error: error.message
+                            });
+                            // Jangan throw - notification tidak critical
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', pay.sender);
                     }
                     throw !0;
                 }).catch(async err => {
                     if (typeof err === "string") {
-                        if (pay.sender != "buynow" && global.raf) {
-                            updateStatusPayment(reference_id, true);
-                            await global.raf.sendMessage(pay.sender, { text: err });
-                            throw !0;
+                        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk command response
+                        if (pay.sender != "buynow" && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                            try {
+                                updateStatusPayment(reference_id, true);
+                                await global.raf.sendMessage(pay.sender, { text: err }, { skipDuplicateCheck: true });
+                            } catch (error) {
+                                console.error('[SEND_MESSAGE_ERROR]', {
+                                    sender: pay.sender,
+                                    error: error.message
+                                });
+                            }
+                        } else {
+                            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', pay.sender);
                         }
+                        throw !0;
                     } else throw !1;
                 });
             } else if (pay.tag == 'buynowweb') {
@@ -598,10 +600,27 @@ router.post('/callback/payment', async (req, res) => {
             } else if (pay.tag == 'topup') {
                 const checkATM = checkATMuser(pay.sender);
                 if (checkATM == undefined) addATM(pay.sender);
-                addKoinUser(pay.sender, pay.amount);
+                await addKoinUser(pay.sender, pay.amount);
                 updateStatusPayment(reference_id, true);
-                if (global.raf) await global.raf.sendMessage(pay.sender, { text: `Topup saldo masuk!\n- Terbaca: ${convertRupiah.convert(pay.amount)}\n- Total saldo: ${convertRupiah.convert(checkATMuser(pay.sender))}` });
-                else console.warn(`[TOPUP_NOTIFICATION_SKIP] WhatsApp connection is not open. User: ${pay.sender}`);
+                // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                    try {
+                        const currentSaldo = await checkATMuser(pay.sender);
+                        const message = renderTemplate('topup_saldo_masuk', {
+                            harga: convertRupiah.convert(pay.amount),
+                            formattedSaldo: convertRupiah.convert(currentSaldo)
+                        });
+                        await global.raf.sendMessage(pay.sender, { text: message });
+                    } catch (error) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            sender: pay.sender,
+                            error: error.message
+                        });
+                        // Jangan throw - notification tidak critical
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', pay.sender);
+                }
                 throw !0;
             }
         }
@@ -613,90 +632,169 @@ router.post('/callback/payment', async (req, res) => {
 // This route is obsolete and insecure. It is replaced by GET /api/customer/profile
 // router.get('/api/user/:phoneNumber', apiAuth, async (req, res) => { ... });
 
-router.post('/api/lapor', apiAuth, async (req, res) => {
-    // Refactored: User is identified by token, not by phone number in the body.
+router.post('/api/lapor', apiAuth, asyncHandler(async (req, res) => {
     const { category, reportText } = req.body;
-    const user = req.customer; // Use authenticated user from middleware
+    const user = req.customer;
+    
+    const result = await ReportService.submitReport(user, { category, reportText }, req.ip, req);
+    
+    return sendSuccess(res, { ticketId: result.ticketId }, "Laporan berhasil dibuat. Tim kami akan segera menghubungi Anda.", 201);
+}));
 
-    if (!category || !reportText) {
-        return res.status(400).json({ status: 400, message: "Kategori dan isi laporan wajib diisi." });
-    }
+// POST /api/customer/reports/upload-photo - Upload photo untuk report (customer)
+const { getReportsUploadsPath } = require('../lib/path-helper');
 
-    try {
-        // Use the first phone number as the primary JID for notifications
-        const primaryPhoneNumber = user.phone_number.split('|')[0];
-        const customerJid = `${normalizePhoneNumber(primaryPhoneNumber)}@s.whatsapp.net`;
-
-        const existingActiveReport = global.reports.find(r => r.pelangganId === customerJid && (r.status === 'baru' || r.status === 'diproses teknisi'));
-        if (existingActiveReport) {
-            return res.status(409).json({ status: 409, message: `Anda sudah memiliki laporan aktif dengan ID Tiket: ${existingActiveReport.ticketId}. Mohon tunggu hingga laporan tersebut diselesaikan.`, ticketId: existingActiveReport.ticketId });
+const reportPhotoStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const { ticketId } = req.body;
+        
+        if (!ticketId) {
+            return cb(new Error('Ticket ID harus diisi'), null);
         }
-
-        const ticketId = generateAdminTicketId(7);
-        const now = new Date();
-        // Refactored: Use user object from token for all user-related data
-        const newReport = {
-            ticketId,
-            pelangganId: customerJid,
-            pelangganPushName: user.name,
-            pelangganDataSystem: { id: user.id, name: user.name, address: user.address, subscription: user.subscription, pppoe_username: user.pppoe_username },
-            category,
-            laporanText: reportText,
-            status: "baru",
-            createdAt: now.toISOString(),
-            createdBy: { type: 'customer_panel', ip: req.ip, userId: user.id },
-            assignedTeknisiId: null,
-            processingStartedAt: null,
-            processedByTeknisiId: null,
-            processedByTeknisiName: null,
-            resolvedAt: null,
-            resolvedByTeknisiId: null,
-            resolvedByTeknisiName: null
-        };
-
-        global.reports.unshift(newReport);
-        saveReports();
-
-        if (global.raf) {
-            const confirmationMessage = `✅ *Laporan Anda Telah Diterima*\n\nHalo *${user.name}*,\n\nTerima kasih, laporan Anda telah berhasil kami terima dan akan segera diproses oleh tim kami.\n\n*Detail Laporan Anda:*\n- *Nomor Tiket:* *${ticketId}*\n- *Kategori:* ${category}\n- *Isi Laporan:* ${reportText}\n\nMohon simpan Nomor Tiket ini untuk referensi Anda. Tim teknisi kami akan segera menghubungi Anda.\n\nTerima kasih,\nTim Layanan ${global.config.nama || 'Kami'}`;
-            try {
-                await global.raf.sendMessage(customerJid, { text: confirmationMessage });
-            } catch (e) {
-                console.error(`[API_LAPOR_ERROR] Gagal mengirim konfirmasi ke pelanggan ${customerJid}:`, e.message);
-            }
-
-            const teknisiAccounts = global.accounts.filter(acc => acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== "");
-            if (teknisiAccounts.length > 0) {
-                const linkWaPelanggan = `https://wa.me/${normalizePhoneNumber(primaryPhoneNumber)}`;
-                const waktuLaporFormatted = now.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' });
-                let detailPelangganUntukTeknisi = `*Dari:* ${user.name} (${linkWaPelanggan})\n*Nama Sistem:* ${user.name}\n*Alamat:* ${user.address || 'N/A'}\n*Paket:* ${user.subscription || 'N/A'}\n`;
-                if(user.pppoe_username) detailPelangganUntukTeknisi += `*PPPoE:* ${user.pppoe_username}`;
-                const messageToTeknisi = `🔔 *LAPORAN BARU DARI PELANGGAN* 🔔\n\n*ID TIKET: ${ticketId}*\n\n*Waktu Lapor:* ${waktuLaporFormatted}\n\n*Data Pelanggan:*\n${detailPelangganUntukTeknisi}\n\n*Kategori Laporan: ${category}*\n*Isi Laporan:*\n${reportText}\n\n-----------------------------------\nMohon segera ditindaklanjuti. Periksa dashboard teknisi untuk memproses tiket ini.`;
-                for (const teknisi of teknisiAccounts) {
-                    let teknisiJid = normalizePhoneNumber(teknisi.phone_number);
-                    if (teknisiJid) {
-                        teknisiJid += '@s.whatsapp.net';
-                        try {
-                            const { delay } = await import('@whiskeysockets/baileys');
-                            await delay(500);
-                            await global.raf.sendMessage(teknisiJid, { text: messageToTeknisi });
-                        } catch (e) {
-                            console.error(`[API_LAPOR_ERROR] Gagal mengirim notifikasi ke teknisi ${teknisi.username} (${teknisiJid}):`, e.message);
-                        }
-                    }
-                }
-            }
+        
+        // Find report to get creation date
+        const report = global.reports.find(r => r.ticketId === ticketId || r.id === ticketId);
+        let year, month;
+        
+        if (report && report.createdAt) {
+            const reportDate = new Date(report.createdAt);
+            year = reportDate.getFullYear();
+            month = String(reportDate.getMonth() + 1).padStart(2, '0');
         } else {
-            console.warn("[API_LAPOR_WARN] Koneksi WhatsApp tidak aktif, notifikasi tidak dikirim.");
+            // Fallback to current date
+            const now = new Date();
+            year = now.getFullYear();
+            month = String(now.getMonth() + 1).padStart(2, '0');
         }
-        return res.status(201).json({ status: 201, message: "Laporan berhasil dibuat. Tim kami akan segera menghubungi Anda.", ticketId });
-    } catch (error) {
-        console.error('[API_LAPOR_FATAL_ERROR] Kesalahan tidak terduga di endpoint /api/lapor:', error);
-        return res.status(500).json({ status: 500, message: "Terjadi kesalahan pada server." });
+        
+        const uploadDir = getReportsUploadsPath(year, month, ticketId, __dirname);
+        
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(7);
+        const ext = path.extname(file.originalname);
+        cb(null, `customer_${req.body.ticketId}_${timestamp}_${random}${ext}`);
     }
 });
 
-router.post('/api/request-speed', apiAuth, async (req, res) => {
+const reportPhotoUpload = multer({
+    storage: reportPhotoStorage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: function (req, file, cb) {
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('Hanya file gambar yang diperbolehkan'), false);
+        }
+        cb(null, true);
+    }
+});
+
+router.post('/api/customer/reports/upload-photo', apiAuth, reportPhotoUpload.single('photo'), asyncHandler(async (req, res) => {
+    const customer = req.customer;
+    const { ticketId } = req.body;
+    
+    if (!ticketId) {
+        return sendError(res, "Ticket ID harus diisi", 400);
+    }
+    
+    if (!req.file) {
+        return sendError(res, "File foto harus diupload", 400);
+    }
+    
+    // Get all customer JIDs (customer bisa punya multiple phone numbers)
+    const BaseService = require('../lib/services/base-service');
+    const customerJids = BaseService.getCustomerJids(customer.phone_number);
+    
+    // Find report - check by ticketId and customer JIDs
+    const reportIndex = global.reports.findIndex(r => 
+        (r.ticketId === ticketId || r.id === ticketId) &&
+        customerJids.includes(r.pelangganId)
+    );
+    
+    if (reportIndex === -1) {
+        // Clean up uploaded file
+        if (req.file && req.file.path) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (err) {
+                console.error('[REPORT_UPLOAD_PHOTO] Failed to delete file:', err);
+            }
+        }
+        return sendError(res, "Tiket tidak ditemukan atau tidak memiliki akses", 404);
+    }
+    
+    const report = global.reports[reportIndex];
+    
+    // Check status - only allow upload for new or in-progress reports
+    if (report.status !== 'baru' && report.status !== 'diproses teknisi') {
+        // Clean up uploaded file
+        if (req.file && req.file.path) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (err) {
+                console.error('[REPORT_UPLOAD_PHOTO] Failed to delete file:', err);
+            }
+        }
+        return sendError(res, `Tidak bisa upload foto. Status tiket: ${report.status}`, 400);
+    }
+    
+    // Initialize customerPhotos array
+    if (!report.customerPhotos) {
+        report.customerPhotos = [];
+    }
+    
+    // Check max photos (3 photos max)
+    if (report.customerPhotos.length >= 3) {
+        // Clean up uploaded file
+        if (req.file && req.file.path) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (err) {
+                console.error('[REPORT_UPLOAD_PHOTO] Failed to delete file:', err);
+            }
+        }
+        return sendError(res, "Maksimal 3 foto per laporan", 400);
+    }
+    
+    // Add photo info
+    const photoInfo = {
+        fileName: req.file.filename,
+        path: req.file.path,
+        uploadedAt: new Date().toISOString(),
+        size: req.file.size,
+        uploadedBy: 'customer',
+        uploadedVia: 'customer_panel'
+    };
+    
+    report.customerPhotos.push(photoInfo);
+    report.hasCustomerPhotos = true;
+    report.photoCount = report.customerPhotos.length;
+    
+    // Save to database
+    const { saveReports } = require('../lib/database');
+    saveReports(global.reports);
+    
+    return sendSuccess(res, {
+        ticketId: report.ticketId || report.id,
+        photoCount: report.customerPhotos.length,
+        totalPhotos: report.customerPhotos.length,
+        maxPhotos: 3,
+        photo: {
+            fileName: photoInfo.fileName,
+            uploadedAt: photoInfo.uploadedAt,
+            size: photoInfo.size
+        }
+    }, `Foto berhasil diupload (${report.customerPhotos.length}/3)`, 200);
+}));
+
+router.post('/api/request-speed', apiAuth, requestSpeedValidation, asyncHandler(async (req, res) => {
     // Import helper functions
     const speedHelper = require('../lib/speed-request-helper');
     
@@ -705,57 +803,48 @@ router.post('/api/request-speed', apiAuth, async (req, res) => {
     const user = req.customer; // Use authenticated user from middleware
 
     if (!targetPackageName || !duration) {
-        return res.status(400).json({ status: 400, message: "Parameter tidak lengkap. targetPackageName, dan duration wajib diisi." });
+        return sendError(res, "Parameter tidak lengkap. targetPackageName, dan duration wajib diisi.", 400);
     }
     
     // Validate payment method
     const validPaymentMethods = ['cash', 'transfer', 'double_billing'];
     if (!validPaymentMethods.includes(paymentMethod)) {
-        return res.status(400).json({ 
-            status: 400, 
-            message: `Metode pembayaran tidak valid. Gunakan: ${validPaymentMethods.join(', ')}` 
-        });
+        return sendError(res, `Metode pembayaran tidak valid. Gunakan: ${validPaymentMethods.join(', ')}`, 400);
     }
     
     try {
         // Step 1: Validate user eligibility for speed request
         const validation = speedHelper.validateSpeedRequest(user, global.packages);
         if (!validation.valid) {
-            return res.status(400).json({ 
-                status: 400, 
-                message: validation.errors[0] || "Anda tidak memenuhi syarat untuk request speed boost." 
-            });
+            return sendError(res, validation.errors[0] || "Anda tidak memenuhi syarat untuk request speed boost.", 400);
         }
 
         // Step 2: Validate requested package
         const requestedPackage = global.packages.find(p => p.name === targetPackageName);
         if (!requestedPackage) {
-            return res.status(404).json({ status: 404, message: `Paket tujuan "${targetPackageName}" tidak ditemukan.` });
+            return sendError(res, `Paket tujuan "${targetPackageName}" tidak ditemukan.`, 404);
         }
         
         // Check if it's a valid speed boost package
         if (!requestedPackage.isSpeedBoost) {
-            return res.status(400).json({ status: 400, message: `Paket "${targetPackageName}" bukan paket speed boost.` });
+            return sendError(res, `Paket "${targetPackageName}" bukan paket speed boost.`, 400);
         }
         
         // Check if target package is higher than current
         const currentPackage = global.packages.find(p => p.name === user.subscription);
         if (currentPackage && Number(requestedPackage.price) <= Number(currentPackage.price)) {
-            return res.status(400).json({ 
-                status: 400, 
-                message: "Paket speed boost harus memiliki kecepatan lebih tinggi dari paket Anda saat ini." 
-            });
+            return sendError(res, "Paket speed boost harus memiliki kecepatan lebih tinggi dari paket Anda saat ini.", 400);
         }
 
         // Step 3: Normalize duration and calculate price
         const normalizedDuration = speedHelper.normalizeDurationKey(duration);
         if (!normalizedDuration) {
-            return res.status(400).json({ status: 400, message: `Durasi '${duration}' tidak valid. Gunakan: 1_day, 3_days, atau 7_days.` });
+            return sendError(res, `Durasi '${duration}' tidak valid. Gunakan: 1_day, 3_days, atau 7_days.`, 400);
         }
         
         const price = speedHelper.calculateBoostPrice(currentPackage, requestedPackage, normalizedDuration);
         if (!price) {
-            return res.status(400).json({ status: 400, message: `Harga untuk durasi '${duration}' pada paket '${targetPackageName}' tidak tersedia.` });
+            return sendError(res, `Harga untuk durasi '${duration}' pada paket '${targetPackageName}' tidak tersedia.`, 400);
         }
 
         // Step 4: Create standardized speed request with payment method
@@ -791,17 +880,28 @@ router.post('/api/request-speed', apiAuth, async (req, res) => {
                 `${paymentMethod === 'double_billing' ? '📝 Akan ditagihkan pada invoice bulan depan\n\n' : '⏳ Menunggu bukti pembayaran dari pelanggan\n\n'}` +
                 `Mohon segera ditinjau di halaman admin "Speed Requests".`;
             
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
             for (const ownerNum of global.config.ownerNumber) {
                 const { delay } = await import('@whiskeysockets/baileys');
                 const ownerJid = ownerNum.endsWith('@s.whatsapp.net') ? ownerNum : `${ownerNum}@s.whatsapp.net`;
-                try {
-                    await delay(500);
-                    await global.raf.sendMessage(ownerJid, { text: notifMessage });
-                } catch (e) {
-                    console.error(`[SPEED_REQUEST_NOTIF_ERROR] Gagal mengirim notifikasi ke owner ${ownerJid}:`, e.message);
+                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                    try {
+                        await delay(500);
+                        await global.raf.sendMessage(ownerJid, { text: notifMessage });
+                    } catch (e) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            ownerJid,
+                            error: e.message
+                        });
+                        console.error(`[SPEED_REQUEST_NOTIF_ERROR] Gagal mengirim notifikasi ke owner ${ownerJid}:`, e.message);
+                        // Continue to next owner
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to owner', ownerJid);
                 }
             }
         }
+        
         // Prepare response message based on payment method
         let responseMessage = "Permintaan penambahan kecepatan Anda telah berhasil dikirim.";
         
@@ -811,313 +911,638 @@ router.post('/api/request-speed', apiAuth, async (req, res) => {
             responseMessage += " Biaya akan ditambahkan ke tagihan bulan depan. Menunggu persetujuan admin.";
         }
         
-        return res.status(201).json({ 
-            status: 201, 
-            message: responseMessage,
-            data: {
-                requestId: newRequest.id,
-                paymentMethod: paymentMethod,
-                amount: price,
-                needsPaymentProof: ['cash', 'transfer'].includes(paymentMethod)
-            }
-        });
+        return sendSuccess(res, {
+            requestId: newRequest.id,
+            paymentMethod: paymentMethod,
+            amount: price,
+            needsPaymentProof: ['cash', 'transfer'].includes(paymentMethod)
+        }, responseMessage, 201);
     } catch (error) {
         console.error('[API_SPEED_REQUEST_FATAL_ERROR]', error);
-        return res.status(500).json({ status: 500, message: "Terjadi kesalahan pada server." });
+        return sendError(res, "Terjadi kesalahan pada server.", 500);
     }
-});
+}));
 
-router.get('/api/speed-boost/packages', (req, res) => {
-    try {
-        const speedHelper = require('../lib/speed-request-helper');
-        const availableBoosts = global.packages.filter(p => p.isSpeedBoost === true);
-        
-        // Standardize the response format
-        const responseData = availableBoosts.map(p => {
-            const durations = {};
-            
-            // Normalize speed boost prices to use standard duration keys
-            if (p.speedBoostPrices) {
-                Object.keys(p.speedBoostPrices).forEach(key => {
-                    const normalizedKey = speedHelper.normalizeDurationKey(key);
-                    if (normalizedKey && p.speedBoostPrices[key]) {
-                        const durationInfo = speedHelper.getDurationInfo(normalizedKey);
-                        durations[normalizedKey] = {
-                            label: durationInfo.label,
-                            hours: durationInfo.hours,
-                            price: Number(p.speedBoostPrices[key]) || 0
-                        };
-                    }
-                });
-            }
-            
-            // Add default durations if not present
-            ['1_day', '3_days', '7_days'].forEach(key => {
-                if (!durations[key]) {
-                    const durationInfo = speedHelper.getDurationInfo(key);
-                    durations[key] = {
-                        label: durationInfo.label,
-                        hours: durationInfo.hours,
-                        price: 0
-                    };
-                }
-            });
-            
-            return {
-                name: p.name,
-                price: p.price,
-                profile: p.profile,
-                speedBoostPrices: durations
-            };
-        });
-        return res.status(200).json({ data: responseData });
-    } catch (error) {
-        console.error('[API_SPEED_BOOST_PACKAGES_ERROR]', error);
-        return res.status(500).json({ status: 500, message: "Internal Server Error." });
+router.get('/api/speed-boost/packages', asyncHandler(async (req, res) => {
+    const packages = await SpeedRequestService.getSpeedBoostPackages();
+    return sendSuccess(res, packages, "Daftar paket speed boost berhasil diambil");
+}));
+
+router.post('/api/otp', asyncHandler(async (req, res) => {
+    const { phoneNumber } = req.body;
+    
+    console.log(`[API_OTP_REQUEST] OTP request received - PhoneNumber: "${phoneNumber}"`);
+    
+    if (!phoneNumber) {
+        console.log(`[API_OTP_REQUEST] Validation failed - PhoneNumber is empty`);
+        return sendError(res, "Nomor telepon diperlukan", 400);
     }
-});
-
-router.post('/api/otp', async (req, res) => {
-    if (!req.body.phoneNumber) return res.status(400).json({ message: "Nomor telepon diperlukan" });
-    if (!global.raf) return res.status(500).json({ message: "Bot is offline" });
+    
+    if (!global.raf) {
+        console.log(`[API_OTP_REQUEST] Bot offline - Cannot send OTP`);
+        return sendError(res, "Bot sedang offline", 503);
+    }
     
     // Check rate limiting
-    const rateLimitCheck = checkOTPRequestLimit(req.body.phoneNumber);
+    const rateLimitCheck = checkOTPRequestLimit(phoneNumber);
     if (!rateLimitCheck.allowed) {
-        return res.status(429).json({ 
-            message: `Terlalu banyak permintaan OTP. Coba lagi dalam ${rateLimitCheck.remainingTime} menit.` 
-        });
+        console.log(`[API_OTP_REQUEST] Rate limit exceeded - PhoneNumber: "${phoneNumber}", RemainingTime: ${rateLimitCheck.remainingTime} menit`);
+        return sendError(res, `Terlalu banyak permintaan OTP. Coba lagi dalam ${rateLimitCheck.remainingTime} menit.`, 429);
     }
     
     const otp = generateSecureOTP(6);
-    const userToUpdate = global.users.find(v => v.phone_number.split('|').includes(req.body.phoneNumber));
-    if (!userToUpdate) return res.status(404).json({ message: "User tidak ditemukan" });
+    console.log(`[API_OTP_REQUEST] OTP generated: "${otp}" for PhoneNumber: "${phoneNumber}"`);
+    
+    const userToUpdate = global.users.find(v => v.phone_number.split('|').includes(phoneNumber));
+    if (!userToUpdate) {
+        console.log(`[API_OTP_REQUEST] User not found - PhoneNumber: "${phoneNumber}"`);
+        return sendError(res, "User tidak ditemukan", 404);
+    }
+    
+    console.log(`[API_OTP_REQUEST] User found - ID: ${userToUpdate.id}, Username: ${userToUpdate.username}, Name: ${userToUpdate.name}`);
 
     const otpTimestamp = Date.now();
-    global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [otp, otpTimestamp, userToUpdate.id], async function(err) {
-        if (err) {
-            console.error("[API_OTP_ERROR] Gagal update OTP di database:", err.message);
-            return res.status(500).json({ message: "Gagal menyimpan OTP." });
-        }
-        userToUpdate.otp = otp;
-        userToUpdate.otpTimestamp = otpTimestamp;
-        await global.raf.sendMessage(req.body.phoneNumber + "@s.whatsapp.net", { text: `Kode OTP Anda: \n${otp}\n\nBerlaku Hanya 5 Menit.` });
-        return res.json({ message: "OTP berhasil dikirim" });
+    
+    // Update OTP di database
+    await new Promise((resolve, reject) => {
+        global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [otp, otpTimestamp, userToUpdate.id], function(err) {
+            if (err) {
+                console.error("[API_OTP_ERROR] Gagal update OTP di database:", err.message);
+                reject(err);
+            } else {
+                console.log(`[API_OTP_REQUEST] OTP saved to database - User ID: ${userToUpdate.id}, OTP: "${otp}"`);
+                resolve();
+            }
+        });
     });
-});
+    
+    // Update in-memory user object
+    userToUpdate.otp = otp;
+    userToUpdate.otpTimestamp = otpTimestamp;
+    
+    const otpMessage = renderTemplate('otp_code', { otp });
+    const phoneJid = phoneNumber + "@s.whatsapp.net";
+    
+    console.log(`[API_OTP_REQUEST] Preparing to send OTP - PhoneJID: "${phoneJid}", Message length: ${otpMessage.length} chars`);
+    
+    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+        try {
+            console.log(`[API_OTP_REQUEST] Sending OTP via WhatsApp - PhoneJID: "${phoneJid}"`);
+            await global.raf.sendMessage(phoneJid, { text: otpMessage }, { skipDuplicateCheck: true });
+            console.log(`[API_OTP_REQUEST] ✅ OTP successfully sent - PhoneJID: "${phoneJid}", OTP: "${otp}"`);
+            return sendSuccess(res, null, "OTP berhasil dikirim");
+        } catch (error) {
+            console.error('[API_OTP_REQUEST] ❌ Failed to send OTP', {
+                phoneJid,
+                otp,
+                error: error.message,
+                stack: error.stack
+            });
+            return sendError(res, "Gagal mengirim OTP. Silakan coba lagi.", 500);
+        }
+    } else {
+        console.warn(`[API_OTP_REQUEST] ⚠️ WhatsApp not connected - ConnectionState: "${global.whatsappConnectionState}", RAF available: ${!!global.raf}`);
+        return sendError(res, "Layanan WhatsApp sedang tidak tersedia. Silakan coba lagi nanti.", 503);
+    }
+}));
 
-router.post('/api/otpverify', async (req, res) => {
+router.post('/api/otpverify', asyncHandler(async (req, res) => {
     const { phoneNumber: otpPhone, otp } = req.body;
-    if (!otpPhone || !otp) return res.status(400).json({ message: "Nomor telepon dan OTP diperlukan" });
+    
+    if (!otpPhone || !otp) {
+        return sendError(res, "Nomor telepon dan OTP diperlukan", 400);
+    }
 
     // Check verification rate limiting
     const verifyLimitCheck = checkOTPVerifyLimit(otpPhone);
     if (!verifyLimitCheck.allowed) {
-        return res.status(429).json({ 
-            message: "Terlalu banyak percobaan verifikasi. Silakan minta OTP baru." 
-        });
+        return sendError(res, "Terlalu banyak percobaan verifikasi. Silakan minta OTP baru.", 429);
     }
 
     const userToVerify = global.users.find(v => v.phone_number.split('|').includes(otpPhone));
-    if (!userToVerify) return res.status(404).json({ status: 404, message: "Pengguna tidak ditemukan." });
+    if (!userToVerify) {
+        return sendError(res, "Pengguna tidak ditemukan.", 404);
+    }
     
     // Check if OTP is still valid using utility function
     if (!isOTPValid(userToVerify.otpTimestamp)) {
+        // Clean up expired OTP
+        await new Promise((resolve) => {
+            global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
+                if (err) console.error("[API_OTP_EXPIRED_ERROR] Gagal membersihkan OTP kedaluwarsa di DB:", err.message);
+                userToVerify.otp = null;
+                userToVerify.otpTimestamp = null;
+                resolve();
+            });
+        });
+        return sendError(res, "OTP sudah kedaluwarsa. Silakan minta OTP baru.", 400);
+    }
+
+    // Verify OTP
+    if (userToVerify.otp !== otp) {
+        return sendError(res, "OTP tidak valid.", 400);
+    }
+
+    // Clean up OTP after successful verification
+    await new Promise((resolve) => {
         global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
-            if (err) console.error("[API_OTP_EXPIRED_ERROR] Gagal membersihkan OTP kedaluwarsa di DB:", err.message);
+            if (err) {
+                console.error("[API_OTP_VERIFY_ERROR] Gagal membersihkan OTP di DB:", err.message);
+            }
             userToVerify.otp = null;
             userToVerify.otpTimestamp = null;
+            resolve();
         });
-        return res.status(400).json({ status: 400, message: "OTP sudah kedaluwarsa. Silakan minta OTP baru." });
-    }
-
-    global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
-        if (err) {
-            console.error("[API_OTP_VERIFY_ERROR] Gagal membersihkan OTP di DB:", err.message);
-        }
-        userToVerify.otp = null;
-        userToVerify.otpTimestamp = null;
-        const payload = { id: userToVerify.id, name: userToVerify.name };
-        const token = jwt.sign(payload, global.config.jwt, { expiresIn: '7d' });
-        return res.json({ status: 200, message: "OTP berhasil diverifikasi.", token, user: { name: userToVerify.name, deviceId: userToVerify.device_id, phoneNumber: userToVerify.phone_number } });
     });
-});
 
-router.post('/api/customer/login', async (req, res) => {
+    // SECURITY: Generate JWT token dengan minimal payload
+    const payload = { 
+        id: userToVerify.id, 
+        name: userToVerify.name,
+        iat: Math.floor(Date.now() / 1000)
+    };
+    
+    // SECURITY: Sign token dengan explicit algorithm
+    const token = jwt.sign(payload, global.config.jwt, { 
+        expiresIn: '7d',
+        algorithm: 'HS256'
+    });
+    
+    return sendSuccess(res, {
+        token: token,
+        user: {
+            id: userToVerify.id,
+            name: userToVerify.name
+            // Removed: deviceId, phoneNumber (sensitive data)
+            // Frontend bisa fetch full profile via /api/customer/profile jika diperlukan
+        }
+    }, "OTP berhasil diverifikasi.");
+}));
+
+router.post('/api/customer/login', customerLoginValidation, asyncHandler(async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ message: "Username dan password diperlukan." });
-    }
 
-    try {
-        const sql = `SELECT * FROM users WHERE username = ?`;
-        global.db.get(sql, [username], async (err, user) => {
-            if (err) {
-                console.error("[API_CUSTOMER_LOGIN_ERROR] Database error:", err.message);
-                return res.status(500).json({ message: "Terjadi kesalahan pada server." });
-            }
-
-            const isValid = user && await comparePassword(password, user.password);
-
-            if (!isValid) {
-                return res.status(401).json({ message: "Username atau password salah." });
-            }
-
-            // Create a payload for the JWT
-            const payload = {
-                id: user.id,
-                name: user.name
-            };
-
-            // Sign the token
-            const token = jwt.sign(payload, global.config.jwt, { expiresIn: '7d' });
-
-            // Return the token to the client
-            res.status(200).json({
-                status: 200,
-                message: "Login berhasil.",
-                token: token,
-                user: {
-                    name: user.name,
-                    deviceId: user.device_id,
-                    phoneNumber: user.phone_number
+    // Deteksi apakah input adalah username atau nomor HP
+    const isPhoneNumber = !/^[a-zA-Z0-9_]+$/.test(username);
+    
+    console.log(`[API_CUSTOMER_LOGIN] Login attempt - Input: "${username}", IsPhoneNumber: ${isPhoneNumber}`);
+    
+    let user = null;
+    
+    if (isPhoneNumber) {
+        // Login dengan nomor HP: normalize dan cari di phone_number
+        const { normalizePhone } = require('../lib/phone-validator');
+        const normalizedPhone = normalizePhone(username);
+        console.log(`[API_CUSTOMER_LOGIN] Phone login - Original: "${username}", Normalized: "${normalizedPhone}"`);
+        
+        // Cari user berdasarkan nomor HP (format: "phone1|phone2|phone3")
+        // Query: cari di semua phone numbers dengan split di JavaScript (lebih reliable)
+        const allUsers = await new Promise((resolve, reject) => {
+            global.db.all('SELECT * FROM users WHERE phone_number IS NOT NULL AND phone_number != ""', [], (err, rows) => {
+                if (err) {
+                    console.error("[API_CUSTOMER_LOGIN_ERROR] Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve(rows || []);
                 }
             });
         });
-
-    } catch (error) {
-        console.error("[API_CUSTOMER_LOGIN_ERROR] Unexpected error:", error);
-        return res.status(500).json({ message: "Terjadi kesalahan pada server." });
+        
+        console.log(`[API_CUSTOMER_LOGIN] Found ${allUsers.length} users with phone numbers`);
+        
+        // Cari user yang memiliki nomor HP yang cocok (setelah normalize)
+        user = allUsers.find(u => {
+            if (!u.phone_number) return false;
+            const phones = u.phone_number.split('|').map(p => p.trim()).filter(p => p);
+            const found = phones.some(p => {
+                const normalized = normalizePhone(p);
+                const match = normalized === normalizedPhone;
+                if (match) {
+                    console.log(`[API_CUSTOMER_LOGIN] Match found! User ID: ${u.id}, Username: ${u.username}, Phone: "${p}" (normalized: "${normalized}")`);
+                }
+                return match;
+            });
+            if (!found && phones.length > 0) {
+                console.log(`[API_CUSTOMER_LOGIN] No match for user ID ${u.id} - Phones: [${phones.join(', ')}], Normalized: [${phones.map(p => normalizePhone(p)).join(', ')}]`);
+            }
+            return found;
+        });
+        
+        if (!user) {
+            console.log(`[API_CUSTOMER_LOGIN] No user found with phone number: "${normalizedPhone}"`);
+        }
+    } else {
+        // Login dengan username: cari di kolom username
+        console.log(`[API_CUSTOMER_LOGIN] Username login - Username: "${username}"`);
+        const sql = `SELECT * FROM users WHERE username = ?`;
+        
+        user = await new Promise((resolve, reject) => {
+            global.db.get(sql, [username], (err, row) => {
+                if (err) {
+                    console.error("[API_CUSTOMER_LOGIN_ERROR] Database error:", err.message);
+                    reject(err);
+                } else {
+                    if (row) {
+                        console.log(`[API_CUSTOMER_LOGIN] Found user: ID=${row.id}, Username=${row.username}`);
+                    } else {
+                        console.log(`[API_CUSTOMER_LOGIN] No user found with username: "${username}"`);
+                    }
+                    resolve(row);
+                }
+            });
+        });
     }
-});
+
+    if (!user) {
+        console.log(`[API_CUSTOMER_LOGIN] User not found - returning 401`);
+        return sendError(res, "Username atau password salah.", 401);
+    }
+
+    const isValid = await comparePassword(password, user.password);
+    if (!isValid) {
+        return sendError(res, "Username atau password salah.", 401);
+    }
+
+    // SECURITY: Create minimal payload untuk JWT (tidak include sensitive data)
+    const payload = {
+        id: user.id,
+        name: user.name,
+        // Add issued at time untuk token management
+        iat: Math.floor(Date.now() / 1000)
+    };
+
+    // SECURITY: Sign token dengan expiration yang reasonable (7 days)
+    // Consider: Token refresh mechanism untuk better security
+    const token = jwt.sign(payload, global.config.jwt, { 
+        expiresIn: '7d',
+        // Add algorithm explicitly untuk prevent algorithm confusion attacks
+        algorithm: 'HS256'
+    });
+
+    // Return the token to the client
+    // SECURITY: Minimal data exposure - hanya return data yang diperlukan
+    // Note: deviceId tidak perlu dikirim ke frontend karena:
+    // - Frontend tidak perlu langsung akses GenieACS
+    // - Backend sudah handle semua WiFi operations menggunakan device_id dari database
+    // - Backend akan ambil device_id dari database berdasarkan JWT token
+    return sendSuccess(res, {
+        token: token,
+        user: {
+            id: user.id,
+            name: user.name
+        }
+    }, "Login berhasil.");
+}));
 
 // --- ALIASES FOR FRONTEND ---
 
 // Alias for /api/customer/login
-router.post('/api/auth/login', async (req, res) => {
+router.post('/api/auth/login', customerLoginValidation, asyncHandler(async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ message: "Username dan password diperlukan." });
-    }
 
-    try {
-        const sql = `SELECT * FROM users WHERE username = ?`;
-        global.db.get(sql, [username], async (err, user) => {
-            if (err) {
-                console.error("[API_CUSTOMER_LOGIN_ERROR] Database error:", err.message);
-                return res.status(500).json({ message: "Terjadi kesalahan pada server." });
-            }
-
-            const isValid = user && await comparePassword(password, user.password);
-
-            if (!isValid) {
-                return res.status(401).json({ message: "Username atau password salah." });
-            }
-
-            const payload = {
-                id: user.id,
-                name: user.name
-            };
-
-            const token = jwt.sign(payload, global.config.jwt, { expiresIn: '7d' });
-
-            res.status(200).json({
-                status: 200,
-                message: "Login berhasil.",
-                token: token,
-                user: {
-                    name: user.name,
-                    deviceId: user.device_id,
-                    phoneNumber: user.phone_number
+    // Deteksi apakah input adalah username atau nomor HP
+    const isPhoneNumber = !/^[a-zA-Z0-9_]+$/.test(username);
+    
+    console.log(`[API_AUTH_LOGIN] Login attempt - Input: "${username}", IsPhoneNumber: ${isPhoneNumber}`);
+    
+    let user = null;
+    
+    if (isPhoneNumber) {
+        // Login dengan nomor HP: normalize dan cari di phone_number
+        const { normalizePhone } = require('../lib/phone-validator');
+        const normalizedPhone = normalizePhone(username);
+        console.log(`[API_AUTH_LOGIN] Phone login - Original: "${username}", Normalized: "${normalizedPhone}"`);
+        
+        // Cari user berdasarkan nomor HP (format: "phone1|phone2|phone3")
+        // Query: cari di semua phone numbers dengan split di JavaScript (lebih reliable)
+        const allUsers = await new Promise((resolve, reject) => {
+            global.db.all('SELECT * FROM users WHERE phone_number IS NOT NULL AND phone_number != ""', [], (err, rows) => {
+                if (err) {
+                    console.error("[API_AUTH_LOGIN_ERROR] Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve(rows || []);
                 }
             });
         });
-
-    } catch (error) {
-        console.error("[API_CUSTOMER_LOGIN_ERROR] Unexpected error:", error);
-        return res.status(500).json({ message: "Terjadi kesalahan pada server." });
+        
+        console.log(`[API_AUTH_LOGIN] Found ${allUsers.length} users with phone numbers`);
+        
+        // Cari user yang memiliki nomor HP yang cocok (setelah normalize)
+        user = allUsers.find(u => {
+            if (!u.phone_number) return false;
+            const phones = u.phone_number.split('|').map(p => p.trim()).filter(p => p);
+            const found = phones.some(p => {
+                const normalized = normalizePhone(p);
+                const match = normalized === normalizedPhone;
+                if (match) {
+                    console.log(`[API_AUTH_LOGIN] Match found! User ID: ${u.id}, Username: ${u.username}, Phone: "${p}" (normalized: "${normalized}")`);
+                }
+                return match;
+            });
+            if (!found && phones.length > 0) {
+                console.log(`[API_AUTH_LOGIN] No match for user ID ${u.id} - Phones: [${phones.join(', ')}], Normalized: [${phones.map(p => normalizePhone(p)).join(', ')}]`);
+            }
+            return found;
+        });
+        
+        if (!user) {
+            console.log(`[API_AUTH_LOGIN] No user found with phone number: "${normalizedPhone}"`);
+        }
+    } else {
+        // Login dengan username: cari di kolom username
+        console.log(`[API_AUTH_LOGIN] Username login - Username: "${username}"`);
+        const sql = `SELECT * FROM users WHERE username = ?`;
+        
+        user = await new Promise((resolve, reject) => {
+            global.db.get(sql, [username], (err, row) => {
+                if (err) {
+                    console.error("[API_AUTH_LOGIN_ERROR] Database error:", err.message);
+                    reject(err);
+                } else {
+                    if (row) {
+                        console.log(`[API_AUTH_LOGIN] Found user: ID=${row.id}, Username=${row.username}`);
+                    } else {
+                        console.log(`[API_AUTH_LOGIN] No user found with username: "${username}"`);
+                    }
+                    resolve(row);
+                }
+            });
+        });
     }
-});
+
+    if (!user) {
+        console.log(`[API_AUTH_LOGIN] User not found - returning 401`);
+        return sendError(res, "Username atau password salah.", 401);
+    }
+
+    console.log(`[API_AUTH_LOGIN] User found: ID=${user.id}, Username=${user.username}, Verifying password...`);
+    const isValid = await comparePassword(password, user.password);
+    if (!isValid) {
+        console.log(`[API_AUTH_LOGIN] Password verification failed for user ID: ${user.id}`);
+        return sendError(res, "Username atau password salah.", 401);
+    }
+    console.log(`[API_AUTH_LOGIN] Password verified successfully for user ID: ${user.id}`);
+
+    // SECURITY: Create minimal payload untuk JWT (tidak include sensitive data)
+    const payload = {
+        id: user.id,
+        name: user.name,
+        // Add issued at time untuk token management
+        iat: Math.floor(Date.now() / 1000)
+    };
+
+    // SECURITY: Sign token dengan expiration yang reasonable (7 days)
+    // Consider: Token refresh mechanism untuk better security
+    const token = jwt.sign(payload, global.config.jwt, { 
+        expiresIn: '7d',
+        // Add algorithm explicitly untuk prevent algorithm confusion attacks
+        algorithm: 'HS256'
+    });
+
+    // SECURITY: Minimal data exposure - hanya return data yang diperlukan
+    // Note: deviceId tidak perlu dikirim ke frontend karena:
+    // - Frontend tidak perlu langsung akses GenieACS
+    // - Backend sudah handle semua WiFi operations menggunakan device_id dari database
+    // - Backend akan ambil device_id dari database berdasarkan JWT token
+    return sendSuccess(res, {
+        token: token,
+        user: {
+            id: user.id,
+            name: user.name
+        }
+    }, "Login berhasil.");
+}));
 
 // Alias for /api/otp
-router.post('/api/auth/otp/request', async (req, res) => {
-    if (!req.body.phoneNumber) return res.status(400).json({ message: "Nomor telepon diperlukan" });
-    if (!global.raf) return res.status(500).json({ message: "Bot is offline" });
+router.post('/api/auth/otp/request', otpRequestValidation, asyncHandler(async (req, res) => {
+    const { phoneNumber } = req.body;
+    
+    console.log(`[API_AUTH_OTP_REQUEST] OTP request received - PhoneNumber: "${phoneNumber}"`);
+    
+    if (!global.raf) {
+        console.log(`[API_AUTH_OTP_REQUEST] Bot offline - Cannot send OTP`);
+        return sendError(res, "Bot sedang offline", 503);
+    }
     
     // Check rate limiting
-    const rateLimitCheck = checkOTPRequestLimit(req.body.phoneNumber);
+    const rateLimitCheck = checkOTPRequestLimit(phoneNumber);
     if (!rateLimitCheck.allowed) {
-        return res.status(429).json({ 
-            message: `Terlalu banyak permintaan OTP. Coba lagi dalam ${rateLimitCheck.remainingTime} menit.` 
-        });
+        console.log(`[API_AUTH_OTP_REQUEST] Rate limit exceeded - PhoneNumber: "${phoneNumber}", RemainingTime: ${rateLimitCheck.remainingTime} menit`);
+        return sendError(res, `Terlalu banyak permintaan OTP. Coba lagi dalam ${rateLimitCheck.remainingTime} menit.`, 429);
     }
     
     const otp = generateSecureOTP(6);
-    const userToUpdate = global.users.find(v => v.phone_number.split('|').includes(req.body.phoneNumber));
-    if (!userToUpdate) return res.status(404).json({ message: "User tidak ditemukan" });
+    console.log(`[API_AUTH_OTP_REQUEST] OTP generated: "${otp}" for PhoneNumber: "${phoneNumber}"`);
+    
+    const userToUpdate = global.users.find(v => v.phone_number.split('|').includes(phoneNumber));
+    if (!userToUpdate) {
+        console.log(`[API_AUTH_OTP_REQUEST] User not found - PhoneNumber: "${phoneNumber}"`);
+        return sendError(res, "User tidak ditemukan", 404);
+    }
+    
+    console.log(`[API_AUTH_OTP_REQUEST] User found - ID: ${userToUpdate.id}, Username: ${userToUpdate.username}, Name: ${userToUpdate.name}`);
 
     const otpTimestamp = Date.now();
-    global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [otp, otpTimestamp, userToUpdate.id], async function(err) {
-        if (err) {
-            console.error("[API_OTP_ERROR] Gagal update OTP di database:", err.message);
-            return res.status(500).json({ message: "Gagal menyimpan OTP." });
-        }
-        userToUpdate.otp = otp;
-        userToUpdate.otpTimestamp = otpTimestamp;
-        await global.raf.sendMessage(req.body.phoneNumber + "@s.whatsapp.net", { text: `Kode OTP Anda: \n${otp}\n\nBerlaku Hanya 5 Menit.` });
-        return res.json({ message: "OTP berhasil dikirim" });
+    
+    // Update OTP di database
+    await new Promise((resolve, reject) => {
+        global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [otp, otpTimestamp, userToUpdate.id], function(err) {
+            if (err) {
+                console.error("[API_AUTH_OTP_ERROR] Gagal update OTP di database:", err.message);
+                reject(err);
+            } else {
+                console.log(`[API_AUTH_OTP_REQUEST] OTP saved to database - User ID: ${userToUpdate.id}, OTP: "${otp}"`);
+                resolve();
+            }
+        });
     });
-});
+    
+    // Update in-memory user object
+    userToUpdate.otp = otp;
+    userToUpdate.otpTimestamp = otpTimestamp;
+    
+    const otpMessage = renderTemplate('otp_code', { otp });
+    const phoneJid = phoneNumber + "@s.whatsapp.net";
+    
+    console.log(`[API_AUTH_OTP_REQUEST] Preparing to send OTP - PhoneJID: "${phoneJid}", Message length: ${otpMessage.length} chars`);
+    
+    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+        try {
+            console.log(`[API_AUTH_OTP_REQUEST] Sending OTP via WhatsApp - PhoneJID: "${phoneJid}"`);
+            await global.raf.sendMessage(phoneJid, { text: otpMessage }, { skipDuplicateCheck: true });
+            console.log(`[API_AUTH_OTP_REQUEST] ✅ OTP successfully sent - PhoneJID: "${phoneJid}", OTP: "${otp}"`);
+            return sendSuccess(res, null, "OTP berhasil dikirim");
+        } catch (error) {
+            console.error('[API_AUTH_OTP_REQUEST] ❌ Failed to send OTP', {
+                phoneJid,
+                otp,
+                error: error.message,
+                stack: error.stack
+            });
+            return sendError(res, "Gagal mengirim OTP. Silakan coba lagi.", 500);
+        }
+    } else {
+        console.warn(`[API_AUTH_OTP_REQUEST] ⚠️ WhatsApp not connected - ConnectionState: "${global.whatsappConnectionState}", RAF available: ${!!global.raf}`);
+        return sendError(res, "Layanan WhatsApp sedang tidak tersedia. Silakan coba lagi nanti.", 503);
+    }
+}));
 
 // Alias for /api/otpverify
-router.post('/api/auth/otp/verify', async (req, res) => {
+router.post('/api/auth/otp/verify', otpVerifyValidation, asyncHandler(async (req, res) => {
     const { phoneNumber: otpPhone, otp } = req.body;
-    if (!otpPhone || !otp) return res.status(400).json({ message: "Nomor telepon dan OTP diperlukan" });
 
     const userToVerify = global.users.find(v => v.phone_number.split('|').includes(otpPhone));
-    if (!userToVerify) return res.status(404).json({ status: 404, message: "Pengguna tidak ditemukan." });
-    if (userToVerify.otp !== otp) return res.status(400).json({ status: 400, message: "OTP tidak valid." });
-
-    const otpTimestamp = userToVerify.otpTimestamp;
-    const now = Date.now();
-    const fiveMinutesInMillis = 5 * 60 * 1000;
-
-    if (!otpTimestamp || (now - otpTimestamp > fiveMinutesInMillis)) {
-        global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
-            if (err) console.error("[API_OTP_EXPIRED_ERROR] Gagal membersihkan OTP kedaluwarsa di DB:", err.message);
-            userToVerify.otp = null;
-            userToVerify.otpTimestamp = null;
-        });
-        return res.status(400).json({ status: 400, message: "OTP sudah kedaluwarsa. Silakan minta OTP baru." });
+    if (!userToVerify) {
+        return sendError(res, "Pengguna tidak ditemukan.", 404);
+    }
+    
+    if (userToVerify.otp !== otp) {
+        return sendError(res, "OTP tidak valid.", 400);
     }
 
-    global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
-        if (err) {
-            console.error("[API_OTP_VERIFY_ERROR] Gagal membersihkan OTP di DB:", err.message);
+    // Check if OTP is still valid using utility function
+    if (!isOTPValid(userToVerify.otpTimestamp)) {
+        // Clean up expired OTP
+        await new Promise((resolve) => {
+            global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
+                if (err) console.error("[API_OTP_EXPIRED_ERROR] Gagal membersihkan OTP kedaluwarsa di DB:", err.message);
+                userToVerify.otp = null;
+                userToVerify.otpTimestamp = null;
+                resolve();
+            });
+        });
+        return sendError(res, "OTP sudah kedaluwarsa. Silakan minta OTP baru.", 400);
+    }
+
+    // Clean up OTP after successful verification
+    await new Promise((resolve) => {
+        global.db.run(`UPDATE users SET otp = ?, otpTimestamp = ? WHERE id = ?`, [null, null, userToVerify.id], (err) => {
+            if (err) {
+                console.error("[API_OTP_VERIFY_ERROR] Gagal membersihkan OTP di DB:", err.message);
+            }
+            userToVerify.otp = null;
+            userToVerify.otpTimestamp = null;
+            resolve();
+        });
+    });
+
+    // SECURITY: Generate JWT token dengan minimal payload
+    const payload = { 
+        id: userToVerify.id, 
+        name: userToVerify.name,
+        iat: Math.floor(Date.now() / 1000)
+    };
+    
+    // SECURITY: Sign token dengan explicit algorithm
+    const token = jwt.sign(payload, global.config.jwt, { 
+        expiresIn: '7d',
+        algorithm: 'HS256'
+    });
+    
+    return sendSuccess(res, {
+        token: token,
+        user: {
+            id: userToVerify.id,
+            name: userToVerify.name
+            // Note: deviceId tidak perlu dikirim ke frontend karena:
+            // - Frontend tidak perlu langsung akses GenieACS
+            // - Backend sudah handle semua WiFi operations menggunakan device_id dari database
+            // - Backend akan ambil device_id dari database berdasarkan JWT token
         }
-        userToVerify.otp = null;
-        userToVerify.otpTimestamp = null;
-        const payload = { id: userToVerify.id, name: userToVerify.name };
-        const token = jwt.sign(payload, global.config.jwt, { expiresIn: '7d' });
-        return res.json({ status: 200, message: "OTP berhasil diverifikasi.", token, user: { name: userToVerify.name, deviceId: userToVerify.device_id, phoneNumber: userToVerify.phone_number } });
+    }, "OTP berhasil diverifikasi.");
+}));
+
+
+router.get('/api/wifi-name', asyncHandler(async (req, res) => {
+    const wifiData = await PublicService.getWifiName();
+    return sendSuccess(res, wifiData, "Nama WiFi berhasil diambil");
+}));
+
+// GET /api/announcements - Get all announcements
+router.get('/api/announcements', asyncHandler(async (req, res) => {
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const announcements = await PublicService.getAnnouncements({ limit });
+    
+    // Set cache-control headers untuk mencegah browser caching (real-time updates)
+    res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
     });
-});
-
-
-router.get('/api/wifi-name', (req, res) => {
-    res.json({
-        wifiName: global.config.nama || "Default WiFi Name"
+    
+    // Response format dengan compatibility: tambahkan success field untuk admin panel
+    return res.status(200).json({
+        status: 200,
+        success: true, // Compatibility field untuk admin panel
+        message: "Daftar pengumuman berhasil diambil",
+        data: announcements
     });
-});
+}));
 
-router.get('/api/announcements', (req, res) => {
-    const sortedAnnouncements = [...(global.announcements || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    res.json(sortedAnnouncements);
-});
+// GET /api/announcements/recent - Get recent announcements (alias untuk compatibility)
+router.get('/api/announcements/recent', asyncHandler(async (req, res) => {
+    const limit = req.query.limit ? parseInt(req.query.limit) : 5;
+    const announcements = await PublicService.getAnnouncements({ limit });
+    
+    // Set cache-control headers untuk mencegah browser caching (real-time updates)
+    res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    
+    // Response format dengan compatibility: tambahkan success field untuk admin panel
+    return res.status(200).json({
+        status: 200,
+        success: true, // Compatibility field untuk admin panel
+        message: "Daftar pengumuman terbaru berhasil diambil",
+        data: announcements
+    });
+}));
 
-router.get('/api/news', (req, res) => {
-    const sortedNews = [...(global.news || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    res.json(sortedNews);
-});
+// GET /api/news - Get all news
+router.get('/api/news', asyncHandler(async (req, res) => {
+    const limit = req.query.limit ? parseInt(req.query.limit) : null;
+    const news = await PublicService.getNews({ limit });
+    
+    // Set cache-control headers untuk mencegah browser caching (real-time updates)
+    res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    
+    // Response format dengan compatibility: tambahkan success field untuk admin panel
+    return res.status(200).json({
+        status: 200,
+        success: true, // Compatibility field untuk admin panel
+        message: "Daftar berita berhasil diambil",
+        data: news
+    });
+}));
+
+// GET /api/news/recent - Get recent news (alias untuk compatibility)
+router.get('/api/news/recent', asyncHandler(async (req, res) => {
+    const limit = req.query.limit ? parseInt(req.query.limit) : 5;
+    const news = await PublicService.getNews({ limit });
+    
+    // Set cache-control headers untuk mencegah browser caching (real-time updates)
+    res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    
+    // Response format dengan compatibility: tambahkan success field untuk admin panel
+    return res.status(200).json({
+        status: 200,
+        success: true, // Compatibility field untuk admin panel
+        message: "Daftar berita terbaru berhasil diambil",
+        data: news
+    });
+}));
 
 module.exports = router;

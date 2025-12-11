@@ -17,7 +17,9 @@ const config = {
     excludePaths: [
         'node_modules',
         '.git',
-        'database.sqlite',
+        'database/database.sqlite', // All databases in database/ folder
+        'database/psb_database.sqlite',
+        'database/*.sqlite',
         'config.json',
         'session',
         'raf_session',

@@ -80,6 +80,7 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
             width: 100%;
             height: 100%;
             border-radius: .35rem;
+            background-color: #f0f0f0;
         }
 
         #mapContainer:-webkit-full-screen { width: 100vw; height: 100vh; padding: 0; margin: 0; background-color: #fff; }
@@ -263,7 +264,822 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
         .icon-customer-online i { color: #28a745 !important; }
         .icon-customer-offline i { color: #dc3545 !important; }
         .icon-customer-unknown i { color: #007bff !important; }
+        
+        /* Connection Monitoring Dashboard Styles */
+        .border-left-success { border-left: 0.25rem solid #28a745 !important; }
+        .border-left-danger { border-left: 0.25rem solid #dc3545 !important; }
+        .border-left-info { border-left: 0.25rem solid #17a2b8 !important; }
+        .border-left-warning { border-left: 0.25rem solid #ffc107 !important; }
+        
+        /* Monitoring Chart Styles */
+        .monitoring-chart {
+            width: 100% !important;
+            max-height: 40px;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 768px) {
+            .monitoring-chart {
+                max-height: 30px;
+            }
+        }
+        
+        /* Connection Line Styles - Elegant depth effect */
+        .connection-line-base,
+        .connection-line-glow,
+        .connection-line-shadow {
+            pointer-events: none;
+        }
+        
+        .connection-line-base {
+            filter: blur(2px);
+        }
+        
+        .connection-line-glow {
+            filter: blur(3px);
+        }
+        
+        .connection-line-shadow {
+            filter: blur(2px);
+        }
+        
+        /* Waypoint Editor Styles */
+        .waypoint-marker {
+            background: transparent;
+            border: none;
+        }
+        
+        .waypoint-marker-inner {
+            position: relative;
+            width: 30px;
+            height: 40px;
+            background: #ffc107;
+            border: 3px solid #fff;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: move;
+        }
+        
+        .waypoint-marker-inner i {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(45deg);
+            color: #fff;
+            font-size: 16px;
+        }
+        
+        .waypoint-index {
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%) rotate(45deg);
+            background: #ffc107;
+            color: #000;
+            font-weight: bold;
+            font-size: 10px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            border: 1px solid #fff;
+        }
+        
+        .waypoint-marker:hover .waypoint-marker-inner {
+            background: #ff9800;
+            transform: rotate(-45deg) scale(1.2);
+        }
+        
+        /* Map Sidebar Styles */
+        .map-sidebar {
+            position: fixed;
+            top: 0;
+            right: -320px;
+            width: 320px;
+            height: 100vh;
+            background: #fff;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1050;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .map-sidebar.open {
+            right: 0;
+        }
+        
+        .map-sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .map-sidebar-header h6 {
+            margin: 0;
+            font-weight: 600;
+        }
+        
+        .map-sidebar-content {
+            padding: 1rem;
+        }
+        
+        .sidebar-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #e3e6f0;
+        }
+        
+        .sidebar-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .sidebar-section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #5a5c69;
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .quick-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: #f8f9fc;
+            border-radius: 0.35rem;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #5a5c69;
+        }
+        
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #4e73df;
+        }
+        
+        .search-results {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e3e6f0;
+            border-radius: 0.35rem;
+            background: #fff;
+        }
+        
+        .search-result-item {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e3e6f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .search-result-item:hover {
+            background: #f8f9fc;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .quick-filters {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .quick-filters .form-check {
+            margin-bottom: 0;
+        }
+        
+        .quick-filters .form-check-label {
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .alerts-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .alert-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.35rem;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .alert-item.alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 3px solid #17a2b8;
+        }
+        
+        .alert-item.alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 3px solid #ffc107;
+        }
+        
+        .alert-item.alert-danger {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 3px solid #dc3545;
+        }
+        
+        .alert-item.alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 3px solid #28a745;
+        }
+        
+        .export-buttons {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .map-sidebar-toggle {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1040;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease;
+        }
+        
+        .map-sidebar-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .map-sidebar.open ~ .map-sidebar-toggle {
+            display: none;
+        }
+        
+        /* Responsive: Mobile - Sidebar jadi bottom sheet */
+        @media (max-width: 768px) {
+            .map-sidebar {
+                width: 100%;
+                height: 70vh;
+                right: 0;
+                bottom: -70vh;
+                top: auto;
+                border-radius: 1rem 1rem 0 0;
+                transition: bottom 0.3s ease;
+            }
+            
+            .map-sidebar.open {
+                bottom: 0;
+            }
+            
+            .map-sidebar-toggle {
+                bottom: 1rem;
+                right: 1rem;
+                width: 48px;
+                height: 48px;
+            }
+        }
+        
+        /* Overlay saat sidebar open (mobile) */
+        .map-sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1049;
+            display: none;
+        }
+        
+        .map-sidebar.open ~ .map-sidebar-overlay,
+        .map-sidebar-overlay.active {
+            display: block;
+        }
+        
+        @media (min-width: 769px) {
+            .map-sidebar-overlay {
+                display: none !important;
+            }
+        }
+        
+        /* Toast Notifications Styles */
+        .toast-notifications-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1060;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 400px;
+            pointer-events: none;
+        }
+        
+        .toast-notification {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            pointer-events: auto;
+            animation: slideInRight 0.3s ease;
+            border-left: 4px solid;
+            min-width: 300px;
+        }
+        
+        .toast-notification.toast-info {
+            border-left-color: #17a2b8;
+        }
+        
+        .toast-notification.toast-warning {
+            border-left-color: #ffc107;
+        }
+        
+        .toast-notification.toast-danger {
+            border-left-color: #dc3545;
+        }
+        
+        .toast-notification.toast-success {
+            border-left-color: #28a745;
+        }
+        
+        .toast-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .toast-icon.toast-info {
+            color: #17a2b8;
+        }
+        
+        .toast-icon.toast-warning {
+            color: #ffc107;
+        }
+        
+        .toast-icon.toast-danger {
+            color: #dc3545;
+        }
+        
+        .toast-icon.toast-success {
+            color: #28a745;
+        }
+        
+        .toast-content {
+            flex: 1;
+        }
+        
+        .toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #5a5c69;
+        }
+        
+        .toast-message {
+            font-size: 13px;
+            color: #858796;
+            margin: 0;
+        }
+        
+        .toast-close {
+            background: none;
+            border: none;
+            color: #858796;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .toast-close:hover {
+            color: #5a5c69;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+        
+        .toast-notification.removing {
+            animation: slideOutRight 0.3s ease;
+        }
+        
+        /* Alert Panel Styles */
+        .alert-panel {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 380px;
+            max-height: 500px;
+            background: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            z-index: 1055;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .alert-panel.open {
+            display: flex;
+        }
+        
+        .alert-panel.minimized {
+            max-height: 50px;
+        }
+        
+        .alert-panel-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+        }
+        
+        .alert-panel-header h6 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .alert-panel-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .alert-panel-actions button {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        .alert-panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        
+        .alert-panel-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #858796;
+        }
+        
+        .alert-panel-empty i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            display: block;
+        }
+        
+        .alert-panel-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 4px solid;
+            background: #f8f9fc;
+            position: relative;
+        }
+        
+        .alert-panel-item.alert-critical {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+        
+        .alert-panel-item.alert-warning {
+            border-left-color: #ffc107;
+            background: #fffbf0;
+        }
+        
+        .alert-panel-item.alert-info {
+            border-left-color: #17a2b8;
+            background: #f0f9fa;
+        }
+        
+        .alert-panel-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        
+        .alert-panel-item-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #5a5c69;
+            flex: 1;
+        }
+        
+        .alert-panel-item-severity {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+        
+        .alert-panel-item-severity.severity-critical {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .alert-panel-item-severity.severity-warning {
+            background: #ffc107;
+            color: #856404;
+        }
+        
+        .alert-panel-item-severity.severity-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .alert-panel-item-message {
+            font-size: 13px;
+            color: #858796;
+            margin-bottom: 8px;
+        }
+        
+        .alert-panel-item-time {
+            font-size: 11px;
+            color: #b7b9cc;
+            margin-bottom: 8px;
+        }
+        
+        .alert-panel-item-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .alert-panel-item-actions button {
+            font-size: 12px;
+            padding: 4px 12px;
+        }
+        
+        .alert-panel-toggle {
+            position: fixed;
+            bottom: 80px;
+            right: 2rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1040;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+        
+        .alert-panel-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .alert-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            border: 2px solid white;
+        }
+        
+        @media (max-width: 768px) {
+            .toast-notifications-container {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+            }
+            
+            .toast-notification {
+                min-width: auto;
+            }
+            
+            .alert-panel {
+                width: calc(100% - 20px);
+                right: 10px;
+                left: 10px;
+                max-height: 60vh;
+            }
+            
+            .alert-panel-toggle {
+                bottom: 70px;
+                right: 1rem;
+                width: 48px;
+                height: 48px;
+            }
+        }
+        
+        /* Quick Filter Buttons Styles */
+        .quick-filter-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 12px;
+            background: #f8f9fc;
+            border: 1px solid #e3e6f0;
+            border-radius: 8px;
+        }
+        
+        .quick-filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-filter-label {
+            font-weight: 600;
+            color: #5a5c69;
+            font-size: 14px;
+            margin-right: 4px;
+        }
+        
+        .quick-filter-btn {
+            border: 1px solid #d1d3e2;
+            background: white;
+            color: #5a5c69;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .quick-filter-btn:hover {
+            background: #f8f9fc;
+            border-color: #bac8f3;
+            color: #4e73df;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .quick-filter-btn.active {
+            background: #4e73df;
+            border-color: #4e73df;
+            color: white;
+            box-shadow: 0 2px 8px rgba(78, 115, 223, 0.3);
+        }
+        
+        .quick-filter-btn.active:hover {
+            background: #375a7f;
+            border-color: #375a7f;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(78, 115, 223, 0.4);
+        }
+        
+        .quick-filter-btn i {
+            font-size: 12px;
+        }
+        
+        #resetQuickFilterBtn {
+            border: 1px solid #d1d3e2;
+            color: #858796;
+        }
+        
+        #resetQuickFilterBtn:hover {
+            background: #f8f9fc;
+            border-color: #bac8f3;
+            color: #4e73df;
+        }
+        
+        @media (max-width: 768px) {
+            .quick-filter-buttons {
+                padding: 8px;
+            }
+            
+            .quick-filter-group {
+                width: 100%;
+                margin-bottom: 8px;
+            }
+            
+            .quick-filter-label {
+                width: 100%;
+                margin-bottom: 4px;
+            }
+            
+            .quick-filter-btn {
+                flex: 1;
+                min-width: calc(50% - 4px);
+                justify-content: center;
+            }
+            
+            #resetQuickFilterBtn {
+                width: 100%;
+            }
+        }
+        
+        .badge-lg { font-size: 0.9rem; padding: 0.4rem 0.6rem; }
+        
+        /* Sembunyikan pesan error default Leaflet "map data not yet available" */
+        .leaflet-tile-container {
+            position: relative;
+            font-size: 0 !important; /* Sembunyikan semua text dengan font-size 0 */
+            line-height: 0 !important;
+            color: transparent !important;
+        }
+        /* Sembunyikan semua text node dan non-image elements */
+        .leaflet-tile-container *:not(img) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            font-size: 0 !important;
+            line-height: 0 !important;
+            color: transparent !important;
+        }
+        /* Pastikan hanya image tile yang terlihat */
+        .leaflet-tile-container img {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        /* Sembunyikan text node langsung di tile container */
+        .leaflet-tile-pane {
+            font-size: 0 !important;
+            line-height: 0 !important;
+            color: transparent !important;
+        }
+        /* Pastikan tile pane tidak menampilkan text */
+        .leaflet-tile-pane * {
+            font-size: 0 !important;
+            line-height: 0 !important;
+            color: transparent !important;
+        }
+        /* Pastikan image tile tetap terlihat */
+        .leaflet-tile-pane img {
+            font-size: initial !important;
+            line-height: initial !important;
+        }
 
+        
         .leaflet-control-custom-gps {
             background-color: white;
             border: 2px solid rgba(0,0,0,0.2);
@@ -329,7 +1145,154 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
             padding-left: 4px;
          }
         
-        /* Collapsible Legend Styling */
+        /* Advanced Legend Styling */
+        .advanced-legend {
+            background: white;
+            background: rgba(255,255,255,0.95);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            max-width: 280px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .advanced-legend-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e3e6f0;
+        }
+        
+        .advanced-legend-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #5a5c69;
+        }
+        
+        .advanced-legend-toggle-btn {
+            background: none;
+            border: none;
+            color: #5a5c69;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 14px;
+        }
+        
+        .advanced-legend-toggle-btn:hover {
+            color: #4e73df;
+        }
+        
+        .legend-category {
+            margin-bottom: 12px;
+            padding: 8px;
+            background: #f8f9fc;
+            border-radius: 6px;
+            border-left: 3px solid transparent;
+        }
+        
+        .legend-category.legend-category-odc {
+            border-left-color: #8A2BE2;
+        }
+        
+        .legend-category.legend-category-odp {
+            border-left-color: #FFA500;
+        }
+        
+        .legend-category.legend-category-online {
+            border-left-color: #28a745;
+        }
+        
+        .legend-category.legend-category-offline {
+            border-left-color: #dc3545;
+        }
+        
+        .legend-category.legend-category-unknown {
+            border-left-color: #007bff;
+        }
+        
+        .legend-category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        
+        .legend-category-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #5a5c69;
+        }
+        
+        .legend-category-icon {
+            font-size: 18px;
+        }
+        
+        .legend-category-counter {
+            background: #4e73df;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+        
+        .legend-category-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-category-toggle input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+        
+        .legend-category-toggle label {
+            cursor: pointer;
+            font-size: 12px;
+            color: #858796;
+            margin: 0;
+        }
+        
+        .legend-minimap-container {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e3e6f0;
+        }
+        
+        .legend-minimap {
+            height: 150px;
+            width: 100%;
+            border: 1px solid #e3e6f0;
+            border-radius: 4px;
+            background: #f8f9fc;
+        }
+        
+        .legend-tools {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e3e6f0;
+        }
+        
+        .legend-tools-btn {
+            width: 100%;
+            margin-bottom: 6px;
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+        
+        /* Collapsible Legend Styling (Legacy - keep for compatibility) */
         .legend-control {
             box-shadow: 0 1px 5px rgba(0,0,0,0.4);
             background: #fff;
@@ -608,7 +1571,256 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
                         </div>
                     </div>
                     <div id="globalMessageMap" class="mb-2"></div>
+                    
+                    <!-- Quick Filter Buttons -->
+                    <div id="quickFilterButtons" class="quick-filter-buttons mb-3">
+                        <div class="quick-filter-group">
+                            <span class="quick-filter-label"><i class="fas fa-filter"></i> Quick Filters:</span>
+                            <button class="btn btn-sm quick-filter-btn active" data-filter="all" title="Tampilkan Semua">
+                                <i class="fas fa-th"></i> Semua
+                            </button>
+                            <button class="btn btn-sm quick-filter-btn" data-filter="online" title="Hanya Pelanggan Online">
+                                <i class="fas fa-circle text-success"></i> Online
+                            </button>
+                            <button class="btn btn-sm quick-filter-btn" data-filter="offline" title="Hanya Pelanggan Offline">
+                                <i class="fas fa-circle text-danger"></i> Offline
+                            </button>
+                            <button class="btn btn-sm quick-filter-btn" data-filter="assets" title="Hanya Aset Jaringan">
+                                <i class="fas fa-network-wired"></i> Aset
+                            </button>
+                            <button class="btn btn-sm quick-filter-btn" data-filter="customers" title="Hanya Pelanggan">
+                                <i class="fas fa-users"></i> Pelanggan
+                            </button>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" id="resetQuickFilterBtn" title="Reset Filter">
+                            <i class="fas fa-redo"></i> Reset
+                        </button>
+                    </div>
+                    
+                    <!-- Connection Monitoring Dashboard -->
+                    <div id="connectionMonitoringDashboard" class="row mb-3" style="display: none;">
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Pelanggan Online</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-online-count">0</div>
+                                            <div class="text-xs text-muted">Aktif</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-circle text-success fa-2x"></i>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <canvas id="chart-online" class="monitoring-chart" style="height: 40px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-danger shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Pelanggan Offline</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-offline-count">0</div>
+                                            <div class="text-xs text-muted">Putus</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-circle text-danger fa-2x"></i>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <canvas id="chart-offline" class="monitoring-chart" style="height: 40px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Total Pelanggan</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-total-count">0</div>
+                                            <div class="text-xs text-muted">Terdaftar</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <canvas id="chart-total" class="monitoring-chart" style="height: 40px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6 mb-2">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Uptime Rate</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="monitoring-uptime-rate">0%</div>
+                                            <div class="text-xs text-muted">Ketersediaan</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <canvas id="chart-uptime" class="monitoring-chart" style="height: 40px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Map Sidebar Panel -->
+                    <div id="mapSidebar" class="map-sidebar">
+                        <div class="map-sidebar-header">
+                            <h6 class="mb-0"><i class="fas fa-tools"></i> Quick Tools</h6>
+                            <button id="toggleMapSidebar" class="btn btn-sm btn-link text-white" title="Tutup Sidebar">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="map-sidebar-content">
+                            <!-- Quick Stats Section -->
+                            <div class="sidebar-section">
+                                <h6 class="sidebar-section-title"><i class="fas fa-chart-bar"></i> Quick Stats</h6>
+                                <div class="quick-stats">
+                                    <div class="stat-item">
+                                        <span class="stat-label">ODC</span>
+                                        <span class="stat-value" id="sidebar-odc-count">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">ODP</span>
+                                        <span class="stat-value" id="sidebar-odp-count">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">Pelanggan</span>
+                                        <span class="stat-value" id="sidebar-customer-count">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quick Search Section -->
+                            <div class="sidebar-section">
+                                <h6 class="sidebar-section-title"><i class="fas fa-search"></i> Quick Search</h6>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="sidebarSearchInput" class="form-control" placeholder="Cari pelanggan/ODC/ODP...">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-outline-secondary" type="button" id="sidebarSearchBtn">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="sidebarSearchResults" class="search-results mt-2" style="display: none;"></div>
+                            </div>
+                            
+                            <!-- Quick Filters Section -->
+                            <div class="sidebar-section">
+                                <h6 class="sidebar-section-title"><i class="fas fa-filter"></i> Quick Filters</h6>
+                                <div class="quick-filters">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sidebarFilterOnline" checked>
+                                        <label class="form-check-label" for="sidebarFilterOnline">
+                                            <i class="fas fa-circle text-success"></i> Online
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sidebarFilterOffline" checked>
+                                        <label class="form-check-label" for="sidebarFilterOffline">
+                                            <i class="fas fa-circle text-danger"></i> Offline
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sidebarFilterOdc" checked>
+                                        <label class="form-check-label" for="sidebarFilterOdc">
+                                            <i class="fas fa-server text-purple"></i> ODC
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="sidebarFilterOdp" checked>
+                                        <label class="form-check-label" for="sidebarFilterOdp">
+                                            <i class="fas fa-network-wired text-orange"></i> ODP
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Recent Alerts Section -->
+                            <div class="sidebar-section">
+                                <h6 class="sidebar-section-title"><i class="fas fa-bell"></i> Recent Alerts</h6>
+                                <div id="sidebarAlertsList" class="alerts-list">
+                                    <div class="alert-item alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <span>Belum ada alert</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Export Options Section -->
+                            <div class="sidebar-section">
+                                <h6 class="sidebar-section-title"><i class="fas fa-download"></i> Export</h6>
+                                <div class="export-buttons">
+                                    <button class="btn btn-sm btn-outline-primary btn-block mb-2" id="exportCustomersBtn">
+                                        <i class="fas fa-file-csv"></i> Export Pelanggan
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary btn-block mb-2" id="exportAssetsBtn">
+                                        <i class="fas fa-file-excel"></i> Export Aset
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info btn-block" id="exportMapBtn">
+                                        <i class="fas fa-image"></i> Export Peta
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Overlay untuk mobile -->
+                    <div class="map-sidebar-overlay" id="mapSidebarOverlay"></div>
+                    
+                    <!-- Toast Notifications Container -->
+                    <div id="toastNotificationsContainer" class="toast-notifications-container"></div>
+                    
+                    <!-- Alert Panel (Floating) -->
+                    <div id="alertPanel" class="alert-panel">
+                        <div class="alert-panel-header">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Active Alerts</h6>
+                            <div class="alert-panel-actions">
+                                <button id="toggleAlertPanel" class="btn btn-sm btn-link text-white" title="Minimize">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <button id="closeAlertPanel" class="btn btn-sm btn-link text-white" title="Close">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="alert-panel-content" id="alertPanelContent">
+                            <div class="alert-panel-empty">
+                                <i class="fas fa-check-circle text-success"></i>
+                                <p>Tidak ada alert aktif</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alert Panel Toggle Button (Floating) -->
+                    <button id="openAlertPanelBtn" class="btn btn-warning alert-panel-toggle" title="Buka Alert Panel">
+                        <i class="fas fa-bell"></i>
+                        <span class="alert-badge" id="alertBadge" style="display: none;">0</span>
+                    </button>
+                    
+                    <!-- Toggle Sidebar Button (Floating) -->
+                    <button id="openMapSidebarBtn" class="btn btn-primary map-sidebar-toggle" title="Buka Quick Tools">
+                        <i class="fas fa-tools"></i>
+                    </button>
+                    
                     <div id="mapContainer">
+                        <button id="editWaypointBtn" class="btn btn-warning btn-sm" title="Edit Waypoint Manual">
+                            <i class="fas fa-route"></i> Edit Waypoint
+                        </button>
                         <button id="manualFullscreenBtn" class="btn btn-light btn-sm" title="Layar Penuh Peta (Kustom)">
                             <i class="fas fa-expand"></i>
                         </button>
@@ -849,9 +2061,12 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
     <script src="/js/sb-admin-2.js?v=<?php echo time(); ?>"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-ant-path@1.3.0/dist/leaflet-ant-path.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <!-- Re-enable plugin like in teknisi version which works -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Map Routing Helper -->
+    <script src="/js/map-routing-helper.js?v=<?php echo time(); ?>"></script>
 
     <script>
         // Version check - Plugin re-enabled to match teknisi version
@@ -868,6 +2083,9 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
         let networkMarkersLayer = L.layerGroup();
         let customerMarkersLayer = L.layerGroup();
         let linesLayer = L.layerGroup();
+        
+        // Global config untuk routing
+        let globalConfig = null;
 
         let allOdcData = [];
         let allNetworkAssetsData = [];
@@ -881,6 +2099,12 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
         let odpToOdcLines = [];
         let customerToOdpLines = [];
         
+        // Waypoint Editor State
+        let waypointEditorMode = false;
+        let currentEditingConnection = null; // { type: 'odc-odp'|'customer-odp', sourceId, targetId }
+        let waypointMarkers = []; // Array of waypoint markers
+        let waypointLayer = L.layerGroup();
+        
         let labelVisibility = {
             odc: true,
             odp: true,
@@ -893,6 +2117,28 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
         let isInitialLoad = true;
         let autoRefreshIntervalId = null;
         const AUTO_REFRESH_INTERVAL_MS = 30000; // 30 detik
+        
+        // Chart.js variables (lazy loaded)
+        let Chart = null;
+        let monitoringCharts = {
+            online: null,
+            offline: null,
+            total: null,
+            uptime: null
+        };
+        
+        // Data history untuk charts (24 jam terakhir, per jam)
+        let monitoringHistory = {
+            timestamps: [],
+            online: [],
+            offline: [],
+            total: [],
+            uptime: []
+        };
+        
+        // Debounce untuk chart updates
+        let chartUpdateTimeout = null;
+        const CHART_UPDATE_DEBOUNCE_MS = 5000; // 5 detik
 
         // Mini-map specific variables
         let assetModalMapInstance = null;
@@ -963,6 +2209,16 @@ const createCustomerStatusIcon = (status) => {
                 currentUser = data.data;
             }
         }).catch(err => console.error("[MainScript] Error fetching user data:", err));
+        
+        // Load config untuk routing
+        fetch('/api/config', { credentials: 'include' }).then(response => response.json()).then(data => {
+            if (data.status === 200 && data.config) {
+                globalConfig = data.config;
+                // Make config available globally for routing helper
+                window.globalConfig = globalConfig;
+                console.log("[MAP-VIEWER] Config loaded successfully for routing");
+            }
+        }).catch(err => console.warn("[MAP-VIEWER] Error loading config (routing will use defaults):", err));
 
         function displayGlobalMapMessage(message, type = 'info', duration = 7000) {
             const globalMessageDiv = $('#globalMessageMap');
@@ -1006,7 +2262,7 @@ const createCustomerStatusIcon = (status) => {
             console.log(`${contextMessage} - Coords: Lat=${userLat}, Lng=${userLng}, Accuracy=${accuracy}m`);
 
             if (mapInstanceToUpdate) {
-                mapInstanceToUpdate.setView([userLat, userLng], 17);
+                mapInstanceToUpdate.setView([userLat, userLng], 18);
                 if (myLocationMarker) {
                     myLocationMarker.setLatLng([userLat, userLng])
                                     .setTooltipContent(`Lokasi Saya (Akurasi: ${accuracy.toFixed(0)}m)`);
@@ -1188,7 +2444,10 @@ const createCustomerStatusIcon = (status) => {
                 if(myLocationMarker) myLocationMarker = null;
             }
             
-            const satelliteMaxZoom = 20;
+            // Esri World Imagery hanya support sampai zoom level 18 (native)
+            // maxZoom 19+ akan menyebabkan "map data not yet available" karena tile tidak tersedia
+            // Diperbaiki: Set ke 18 untuk memastikan tidak ada error
+            const satelliteMaxZoom = 18; // Diperbaiki: Esri hanya support sampai level 18
             const osmMaxZoom = 22;
             
             // Create map - simple like teknisi version
@@ -1201,10 +2460,130 @@ const createCustomerStatusIcon = (status) => {
                 maxZoom: osmMaxZoom, 
                 attribution: '&copy; OSM Contributors' 
             });
+            // Perbaikan: Gunakan maxNativeZoom untuk mencegah zoom melebihi kemampuan tile server
+            // maxNativeZoom: zoom maksimal yang didukung oleh tile server (18 untuk Esri)
+            // maxZoom: zoom maksimal yang diizinkan Leaflet (harus sama dengan maxNativeZoom untuk mencegah error)
             const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { 
-                maxZoom: satelliteMaxZoom, 
-                attribution: 'Tiles &copy; Esri' 
+                maxZoom: satelliteMaxZoom,
+                maxNativeZoom: 18, // Esri World Imagery hanya support sampai level 18
+                attribution: 'Tiles &copy; Esri',
+                // Tambahkan error handling untuk tile yang gagal load
+                errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Transparent 1x1 pixel
             }).addTo(map);
+            
+            // Fungsi untuk menghapus text node yang berisi pesan error
+            function removeErrorTextNodes() {
+                // Cari semua tile container
+                const tileContainers = document.querySelectorAll('.leaflet-tile-container');
+                tileContainers.forEach(container => {
+                    // Iterasi semua child nodes (termasuk text nodes)
+                    const walker = document.createTreeWalker(
+                        container,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+                    let node;
+                    const nodesToRemove = [];
+                    while (node = walker.nextNode()) {
+                        const text = node.textContent.trim();
+                        // Hapus text node yang berisi pesan error
+                        if (text.includes('not yet') || 
+                            text.includes('not available') || 
+                            text.includes('map data') ||
+                            text.toLowerCase().includes('error') ||
+                            text.length > 0 && !text.match(/^\s*$/)) {
+                            nodesToRemove.push(node);
+                        }
+                    }
+                    // Hapus text nodes yang ditemukan
+                    nodesToRemove.forEach(node => {
+                        try {
+                            node.parentNode.removeChild(node);
+                        } catch (e) {
+                            // Ignore jika node sudah dihapus
+                        }
+                    });
+                });
+            }
+            
+            // Handle tile loading errors untuk mencegah pesan "map data not yet available"
+            satelliteLayer.on('tileerror', function(error, tile) {
+                // Log error untuk debugging (hanya di development)
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    console.warn('[MAP] Tile error pada zoom level:', map.getZoom(), 'Tile:', tile);
+                }
+                // Hapus text node error setelah error terjadi
+                setTimeout(removeErrorTextNodes, 100);
+                // Jika zoom level melebihi maxNativeZoom, turunkan zoom level
+                if (map.getZoom() > 18) {
+                    console.warn('[MAP] Zoom level melebihi maxNativeZoom (18), menurunkan zoom...');
+                    map.setZoom(18);
+                }
+            });
+            
+            // Handle tile loading errors untuk OSM layer juga
+            osmLayer.on('tileerror', function(error, tile) {
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    console.warn('[MAP] OSM Tile error pada zoom level:', map.getZoom(), 'Tile:', tile);
+                }
+                setTimeout(removeErrorTextNodes, 100);
+            });
+            
+            // Gunakan MutationObserver untuk memantau dan menghapus text node error secara real-time
+            const errorTextObserver = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.addedNodes.length > 0) {
+                        // Cek setiap node yang ditambahkan
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.nodeType === Node.TEXT_NODE) {
+                                const text = node.textContent.trim();
+                                if (text.includes('not yet') || 
+                                    text.includes('not available') || 
+                                    text.includes('map data')) {
+                                    try {
+                                        node.parentNode.removeChild(node);
+                                    } catch (e) {
+                                        // Ignore jika node sudah dihapus
+                                    }
+                                }
+                            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Cek juga text content di dalam element
+                                const text = node.textContent || '';
+                                if (text.includes('not yet') || 
+                                    text.includes('not available') || 
+                                    text.includes('map data')) {
+                                    node.style.display = 'none';
+                                    node.style.visibility = 'hidden';
+                                    node.style.opacity = '0';
+                                    node.style.fontSize = '0';
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // Mulai observe tile pane untuk perubahan DOM
+            map.whenReady(function() {
+                const tilePane = document.querySelector('.leaflet-tile-pane');
+                if (tilePane) {
+                    errorTextObserver.observe(tilePane, {
+                        childList: true,
+                        subtree: true,
+                        characterData: true
+                    });
+                }
+            });
+            
+            // Juga observe saat map di-update
+            map.on('moveend', function() {
+                setTimeout(removeErrorTextNodes, 200);
+            });
+            
+            map.on('zoomend', function() {
+                setTimeout(removeErrorTextNodes, 200);
+            });
             
             // Add layers
             networkMarkersLayer.addTo(map); 
@@ -1254,17 +2633,36 @@ const createCustomerStatusIcon = (status) => {
             });
             if (map) new GpsMapControl().addTo(map);
 
+            // Setup Advanced Legend
+            setupAdvancedLegend();
             
             // Event listeners - exactly like teknisi
             map.on('baselayerchange', e => { 
-                map.options.maxZoom = e.name === "Satelit" ? satelliteMaxZoom : osmMaxZoom; 
-                if (map.getZoom() > map.options.maxZoom) map.setZoom(map.options.maxZoom); 
+                const newMaxZoom = e.name === "Satelit" ? satelliteMaxZoom : osmMaxZoom;
+                map.options.maxZoom = newMaxZoom;
+                // Pastikan zoom tidak melebihi maxZoom yang didukung
+                if (map.getZoom() > newMaxZoom) {
+                    map.setZoom(newMaxZoom);
+                }
+                // Update maxNativeZoom untuk layer yang aktif
+                const activeLayer = e.layer;
+                if (activeLayer && activeLayer.options) {
+                    if (e.name === "Satelit" && activeLayer.options.maxNativeZoom) {
+                        // Pastikan maxNativeZoom tidak melebihi kemampuan tile server
+                        activeLayer.options.maxNativeZoom = 18;
+                    }
+                }
             });
             
             map.on('fullscreenchange', () => { 
                 $('#manualFullscreenBtn i').toggleClass('fa-expand fa-compress'); 
                 if(map) map.invalidateSize(); 
+                // Hapus error text setelah fullscreen change
+                setTimeout(removeErrorTextNodes, 300);
             });
+            
+            // Hapus error text secara berkala untuk memastikan tidak ada yang terlewat
+            setInterval(removeErrorTextNodes, 1000); // Setiap 1 detik
             
             document.addEventListener('fullscreenchange', handleFullscreenGlobal);
             document.addEventListener('webkitfullscreenchange', handleFullscreenGlobal);
@@ -1638,8 +3036,351 @@ function redrawMarkers(markerType) {
                 }
             });
             console.log("[ApplyFilters] Filter diterapkan.");
+            updateLegendCounters();
         }
-
+        
+        // Apply Quick Filter
+        function applyQuickFilter(filter) {
+            if (!map) return;
+            
+            currentQuickFilter = filter;
+            
+            // Update button active state
+            updateFilterButtons();
+            
+            // Apply filter logic
+            switch(filter) {
+                case 'all':
+                    // Show all
+                    selectedOdcIds.clear();
+                    selectedOdpIds.clear();
+                    selectedCustomerIds.clear();
+                    allNetworkAssetsData.forEach(asset => {
+                        if (asset.type === 'ODC') selectedOdcIds.add(String(asset.id));
+                        else if (asset.type === 'ODP') selectedOdpIds.add(String(asset.id));
+                    });
+                    allCustomerData.forEach(customer => {
+                        selectedCustomerIds.add(String(customer.id));
+                    });
+                    break;
+                    
+                case 'online':
+                    // Show only online customers
+                    selectedOdcIds.clear();
+                    selectedOdpIds.clear();
+                    selectedCustomerIds.clear();
+                    customerMarkers.forEach(marker => {
+                        if (marker.customerOnlineStatus === 'online') {
+                            selectedCustomerIds.add(String(marker.customerData.id));
+                        }
+                    });
+                    break;
+                    
+                case 'offline':
+                    // Show only offline customers
+                    selectedOdcIds.clear();
+                    selectedOdpIds.clear();
+                    selectedCustomerIds.clear();
+                    customerMarkers.forEach(marker => {
+                        if (marker.customerOnlineStatus === 'offline') {
+                            selectedCustomerIds.add(String(marker.customerData.id));
+                        }
+                    });
+                    break;
+                    
+                case 'assets':
+                    // Show only network assets (ODC & ODP)
+                    selectedOdcIds.clear();
+                    selectedOdpIds.clear();
+                    selectedCustomerIds.clear();
+                    allNetworkAssetsData.forEach(asset => {
+                        if (asset.type === 'ODC') selectedOdcIds.add(String(asset.id));
+                        else if (asset.type === 'ODP') selectedOdpIds.add(String(asset.id));
+                    });
+                    break;
+                    
+                case 'customers':
+                    // Show only customers
+                    selectedOdcIds.clear();
+                    selectedOdpIds.clear();
+                    selectedCustomerIds.clear();
+                    allCustomerData.forEach(customer => {
+                        selectedCustomerIds.add(String(customer.id));
+                    });
+                    break;
+            }
+            
+            // Apply filters
+            applyFilters();
+            updateConnectionMonitoring();
+            
+            // Show message
+            const filterLabels = {
+                'all': 'Semua',
+                'online': 'Online',
+                'offline': 'Offline',
+                'assets': 'Aset Jaringan',
+                'customers': 'Pelanggan'
+            };
+            displayGlobalMapMessage(`Filter: ${filterLabels[filter]}`, 'info', 2000);
+        }
+        
+        function updateFilterButtons() {
+            $('.quick-filter-btn').removeClass('active');
+            $(`.quick-filter-btn[data-filter="${currentQuickFilter}"]`).addClass('active');
+        }
+        
+        // Setup Advanced Legend
+        function setupAdvancedLegend() {
+            if (!map) return;
+            
+            // Remove existing legend if any
+            if (advancedLegendControl) {
+                map.removeControl(advancedLegendControl);
+            }
+            
+            // Create advanced legend control
+            advancedLegendControl = L.control({ position: 'bottomright' });
+            
+            advancedLegendControl.onAdd = function(mapInstance) {
+                const div = L.DomUtil.create('div', 'advanced-legend');
+                
+                // Header
+                const header = L.DomUtil.create('div', 'advanced-legend-header', div);
+                const title = L.DomUtil.create('h4', '', header);
+                title.textContent = 'Legenda Peta';
+                const toggleBtn = L.DomUtil.create('button', 'advanced-legend-toggle-btn', header);
+                toggleBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+                toggleBtn.title = 'Sembunyikan/Tampilkan';
+                
+                // Content container
+                const content = L.DomUtil.create('div', 'advanced-legend-content', div);
+                content.style.display = 'block';
+                
+                // Categories
+                const categories = [
+                    { id: 'odc', name: 'ODC', icon: 'fa-server', color: '#8A2BE2', class: 'legend-category-odc' },
+                    { id: 'odp', name: 'ODP', icon: 'fa-network-wired', color: '#FFA500', class: 'legend-category-odp' },
+                    { id: 'online', name: 'Pelanggan Online', icon: 'fa-user-alt', color: '#28a745', class: 'legend-category-online' },
+                    { id: 'offline', name: 'Pelanggan Offline', icon: 'fa-user-alt', color: '#dc3545', class: 'legend-category-offline' },
+                    { id: 'unknown', name: 'Pelanggan (Status Lain)', icon: 'fa-user-alt', color: '#007bff', class: 'legend-category-unknown' }
+                ];
+                
+                categories.forEach(cat => {
+                    const categoryDiv = L.DomUtil.create('div', `legend-category ${cat.class}`, content);
+                    
+                    const categoryHeader = L.DomUtil.create('div', 'legend-category-header', categoryDiv);
+                    const label = L.DomUtil.create('div', 'legend-category-label', categoryHeader);
+                    const icon = L.DomUtil.create('i', `fas ${cat.icon} legend-category-icon`, label);
+                    icon.style.color = cat.color;
+                    const name = L.DomUtil.create('span', '', label);
+                    name.textContent = cat.name;
+                    
+                    const counter = L.DomUtil.create('span', 'legend-category-counter', categoryHeader);
+                    counter.id = `legend-counter-${cat.id}`;
+                    counter.textContent = '0';
+                    
+                    const toggle = L.DomUtil.create('div', 'legend-category-toggle', categoryDiv);
+                    const checkbox = L.DomUtil.create('input', '', toggle);
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `legend-toggle-${cat.id}`;
+                    checkbox.checked = true;
+                    checkbox.dataset.category = cat.id;
+                    
+                    const checkboxLabel = L.DomUtil.create('label', '', toggle);
+                    checkboxLabel.htmlFor = `legend-toggle-${cat.id}`;
+                    checkboxLabel.textContent = 'Tampilkan';
+                    
+                    // Event listener untuk toggle
+                    checkbox.addEventListener('change', function() {
+                        toggleLayerVisibility(cat.id, this.checked);
+                    });
+                });
+                
+                // Mini Map Container
+                const minimapContainer = L.DomUtil.create('div', 'legend-minimap-container', content);
+                const minimapLabel = L.DomUtil.create('div', 'text-xs font-weight-bold text-uppercase mb-2', minimapContainer);
+                minimapLabel.textContent = 'Overview';
+                const minimapDiv = L.DomUtil.create('div', 'legend-minimap', minimapContainer);
+                minimapDiv.id = 'legendMinimap';
+                
+                // Tools Section
+                const toolsContainer = L.DomUtil.create('div', 'legend-tools', content);
+                const toolsLabel = L.DomUtil.create('div', 'text-xs font-weight-bold text-uppercase mb-2', toolsContainer);
+                toolsLabel.textContent = 'Tools';
+                const resetViewBtn = L.DomUtil.create('button', 'btn btn-sm btn-outline-secondary legend-tools-btn', toolsContainer);
+                resetViewBtn.innerHTML = '<i class="fas fa-home"></i> Reset View';
+                resetViewBtn.title = 'Kembali ke view default';
+                resetViewBtn.addEventListener('click', function() {
+                    if (map) {
+                        map.setView([-7.2430309, 111.846867], 15);
+                    }
+                });
+                
+                // Toggle collapse/expand
+                let isCollapsed = false;
+                toggleBtn.addEventListener('click', function() {
+                    isCollapsed = !isCollapsed;
+                    content.style.display = isCollapsed ? 'none' : 'block';
+                    toggleBtn.innerHTML = isCollapsed ? '<i class="fas fa-chevron-down"></i>' : '<i class="fas fa-chevron-up"></i>';
+                });
+                
+                // Initialize mini map
+                setTimeout(() => {
+                    initLegendMinimap();
+                }, 500);
+                
+                // Prevent map clicks from propagating
+                L.DomEvent.disableClickPropagation(div);
+                L.DomEvent.disableScrollPropagation(div);
+                
+                return div;
+            };
+            
+            advancedLegendControl.addTo(map);
+            updateLegendCounters();
+        }
+        
+        function toggleLayerVisibility(category, visible) {
+            if (!map) return;
+            
+            switch(category) {
+                case 'odc':
+                    odcMarkers.forEach(marker => {
+                        if (visible) {
+                            if (selectedOdcIds.has(String(marker.assetData.id))) {
+                                networkMarkersLayer.addLayer(marker);
+                            }
+                        } else {
+                            networkMarkersLayer.removeLayer(marker);
+                        }
+                    });
+                    break;
+                case 'odp':
+                    odpMarkers.forEach(marker => {
+                        if (visible) {
+                            if (selectedOdpIds.has(String(marker.assetData.id))) {
+                                networkMarkersLayer.addLayer(marker);
+                            }
+                        } else {
+                            networkMarkersLayer.removeLayer(marker);
+                        }
+                    });
+                    break;
+                case 'online':
+                case 'offline':
+                case 'unknown':
+                    customerMarkers.forEach(marker => {
+                        const status = marker.customerOnlineStatus || 'unknown';
+                        const shouldShow = (category === 'online' && status === 'online') ||
+                                         (category === 'offline' && status === 'offline') ||
+                                         (category === 'unknown' && status === 'unknown');
+                        
+                        if (shouldShow) {
+                            if (visible) {
+                                if (selectedCustomerIds.has(String(marker.customerData.id))) {
+                                    customerMarkersLayer.addLayer(marker);
+                                }
+                            } else {
+                                customerMarkersLayer.removeLayer(marker);
+                            }
+                        }
+                    });
+                    break;
+            }
+        }
+        
+        function updateLegendCounters() {
+            legendCounters.odc = odcMarkers.length;
+            legendCounters.odp = odpMarkers.length;
+            
+            let online = 0, offline = 0, unknown = 0;
+            customerMarkers.forEach(marker => {
+                const status = marker.customerOnlineStatus || 'unknown';
+                if (status === 'online') online++;
+                else if (status === 'offline') offline++;
+                else unknown++;
+            });
+            legendCounters.online = online;
+            legendCounters.offline = offline;
+            legendCounters.unknown = unknown;
+            
+            // Update counter displays
+            const odcCounter = document.getElementById('legend-counter-odc');
+            const odpCounter = document.getElementById('legend-counter-odp');
+            const onlineCounter = document.getElementById('legend-counter-online');
+            const offlineCounter = document.getElementById('legend-counter-offline');
+            const unknownCounter = document.getElementById('legend-counter-unknown');
+            
+            if (odcCounter) odcCounter.textContent = legendCounters.odc;
+            if (odpCounter) odpCounter.textContent = legendCounters.odp;
+            if (onlineCounter) onlineCounter.textContent = legendCounters.online;
+            if (offlineCounter) offlineCounter.textContent = legendCounters.offline;
+            if (unknownCounter) unknownCounter.textContent = legendCounters.unknown;
+        }
+        
+        function initLegendMinimap() {
+            const minimapDiv = document.getElementById('legendMinimap');
+            if (!minimapDiv || !map) return;
+            
+            try {
+                // Create mini map
+                legendMinimap = L.map('legendMinimap', {
+                    zoomControl: false,
+                    attributionControl: false,
+                    dragging: false,
+                    touchZoom: false,
+                    doubleClickZoom: false,
+                    scrollWheelZoom: false,
+                    boxZoom: false,
+                    keyboard: false
+                });
+                
+                // Add tile layer
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 13,
+                    attribution: ''
+                }).addTo(legendMinimap);
+                
+                // Sync with main map
+                map.on('moveend', function() {
+                    if (legendMinimap) {
+                        legendMinimap.setView(map.getCenter(), Math.min(map.getZoom(), 13));
+                    }
+                });
+                
+                map.on('zoomend', function() {
+                    if (legendMinimap) {
+                        legendMinimap.setView(map.getCenter(), Math.min(map.getZoom(), 13));
+                    }
+                });
+                
+                // Set initial view
+                legendMinimap.setView(map.getCenter(), Math.min(map.getZoom(), 13));
+                
+                // Add rectangle to show main map bounds
+                const updateBounds = function() {
+                    if (legendMinimap && map) {
+                        const bounds = map.getBounds();
+                        if (legendMinimap._boundsRectangle) {
+                            legendMinimap.removeLayer(legendMinimap._boundsRectangle);
+                        }
+                        legendMinimap._boundsRectangle = L.rectangle(bounds, {
+                            color: '#ff7800',
+                            weight: 2,
+                            fill: false
+                        }).addTo(legendMinimap);
+                    }
+                };
+                
+                map.on('moveend', updateBounds);
+                map.on('zoomend', updateBounds);
+                updateBounds();
+                
+            } catch (error) {
+                console.error('[Legend] Error initializing mini map:', error);
+            }
+        }
 
         // MODIFIED: populateParentOdcDropdown to include capacity and disable full ODCs
         function populateParentOdcDropdown(selectedParentId = null) {
@@ -1746,24 +3487,37 @@ function redrawMarkers(markerType) {
 
             const viewLat = (initialLat && !isNaN(parseFloat(initialLat))) ? parseFloat(initialLat) : defaultLat;
             const viewLng = (initialLng && !isNaN(parseFloat(initialLng))) ? parseFloat(initialLng) : defaultLng;
-            const viewZoom = (initialLat && initialLng && !isNaN(parseFloat(initialLat)) && !isNaN(parseFloat(initialLng))) ? 17 : defaultZoom;
+            // Pastikan viewZoom tidak melebihi maxZoom (18 untuk satellite)
+            const calculatedZoom = (initialLat && initialLng && !isNaN(parseFloat(initialLat)) && !isNaN(parseFloat(initialLng))) ? 18 : defaultZoom;
+            const viewZoom = Math.min(calculatedZoom, 18); // Maksimal 18 untuk mencegah error
 
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
+                maxZoom: 22,
                 attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             });
             const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 20,
-                attribution: 'Tiles &copy; Esri'
+                maxZoom: 18,
+                maxNativeZoom: 18, // Esri World Imagery hanya support sampai level 18
+                attribution: 'Tiles &copy; Esri',
+                errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Transparent 1x1 pixel
             });
 
             assetModalMapInstance = L.map(mapId, {
                 layers: [satelliteLayer], // Default layer
-                maxZoom: 20
+                maxZoom: 18 // Sesuaikan dengan maxZoom satellite layer
             }).setView([viewLat, viewLng], viewZoom);
 
             const baseMaps = { "Satelit": satelliteLayer, "OpenStreetMap": osmLayer };
             L.control.layers(baseMaps, null, { collapsed: true, position: 'topright' }).addTo(assetModalMapInstance);
+            
+            // Handle baselayerchange untuk asset modal map
+            assetModalMapInstance.on('baselayerchange', function(e) {
+                const newMaxZoom = e.name === "Satelit" ? 18 : 22;
+                assetModalMapInstance.options.maxZoom = newMaxZoom;
+                if (assetModalMapInstance.getZoom() > newMaxZoom) {
+                    assetModalMapInstance.setZoom(newMaxZoom);
+                }
+            });
 
             function updateMarkerAndInputs(latlng, setView = false) {
                 latInput.val(latlng.lat.toFixed(5));
@@ -2111,6 +3865,8 @@ function redrawMarkers(markerType) {
                     await loadNetworkAssetMarkers();
                     await loadCustomerMarkers();
                     markersProcessedSuccessfully = true;
+                    // Update sidebar stats
+                    updateQuickStats();
                 }
 
             } catch (error) {
@@ -2290,30 +4046,343 @@ function redrawMarkers(markerType) {
                     }
                 });
 
-                odpMarkers.forEach(odpMarker => {
+                // Create routes from ODP to parent ODC dengan routing helper
+                for (const odpMarker of odpMarkers) {
                     const odpAsset = odpMarker.assetData;
                     if (odpAsset.parent_odc_id) {
                         const parentOdcMarker = odcMarkers.find(m => String(m.assetData.id) === String(odpAsset.parent_odc_id));
                         if (parentOdcMarker) {
-                            const line = L.polyline.antPath([parentOdcMarker.getLatLng(), odpMarker.getLatLng()], {
+                            const startLatLng = parentOdcMarker.getLatLng();
+                            const endLatLng = odpMarker.getLatLng();
+                            
+                            // Get routing profile dari config (default: 'driving-car' untuk ODC-ODP)
+                            let routingProfile = 'driving-car';
+                            if (typeof window !== 'undefined' && window.globalConfig && window.globalConfig.openRouteService) {
+                                routingProfile = window.globalConfig.openRouteService.profiles?.odcToOdp || 'driving-car';
+                            }
+                            
+                            // PRIORITAS 1: Cek waypoint manual terlebih dahulu
+                            let routeCoordinates;
+                            try {
+                                const waypointResponse = await fetch(`/api/map/waypoints?connectionType=odc-odp&sourceId=${parentOdcMarker.assetData.id}&targetId=${odpAsset.id}`, {
+                                    credentials: 'include'
+                                });
+                                
+                                if (waypointResponse.ok) {
+                                    const waypointData = await waypointResponse.json();
+                                    if (waypointData.status === 200 && waypointData.data && waypointData.data.waypoints && waypointData.data.waypoints.length >= 2) {
+                                        routeCoordinates = waypointData.data.waypoints;
+                                        console.log(`[WAYPOINTS_MANUAL] ODP-ODC: ${odpAsset.name} → ODC-${parentOdcMarker.assetData.id} (${routeCoordinates.length} points manual)`);
+                                    }
+                                }
+                            } catch (waypointError) {
+                                console.warn(`[WAYPOINTS_ERROR] ODP-ODC: ${odpAsset.name} → ODC-${parentOdcMarker.assetData.id}:`, waypointError);
+                            }
+                            
+                            // PRIORITAS 2: Jika tidak ada waypoint manual, gunakan routing API
+                            if (!routeCoordinates || routeCoordinates.length < 2) {
+                                try {
+                                    routeCoordinates = await getRouteCoordinates(
+                                        startLatLng.lat,
+                                        startLatLng.lng,
+                                        endLatLng.lat,
+                                        endLatLng.lng,
+                                        routingProfile
+                                    );
+                                    
+                                    // Log jika routing berhasil (hanya untuk debugging, bisa di-disable)
+                                    if (routeCoordinates && routeCoordinates.length > 2) {
+                                        console.log(`[ROUTING_SUCCESS] ODP-ODC: ${odpAsset.name} → ODC-${parentOdcMarker.assetData.id} (${routeCoordinates.length} points)`);
+                                    } else {
+                                        console.warn(`[ROUTING_FALLBACK] ODP-ODC: ${odpAsset.name} → ODC-${parentOdcMarker.assetData.id} (straight line, ${routeCoordinates?.length || 0} points)`);
+                                    }
+                                } catch (error) {
+                                    console.error(`[ROUTING_ERROR] ODP-ODC: ${odpAsset.name} → ODC-${parentOdcMarker.assetData.id}:`, error);
+                                    // Fallback ke straight line jika routing gagal
+                                    routeCoordinates = [
+                                        [startLatLng.lat, startLatLng.lng],
+                                        [endLatLng.lat, endLatLng.lng]
+                                    ];
+                                }
+                            }
+                            
+                            // Create elegant animated line dengan route coordinates - Multi-layer untuk depth effect
+                            // Base layer - subtle shadow untuk depth
+                            const baseLine = L.polyline(routeCoordinates, {
+                                color: '#ff7800',
+                                weight: 4,
+                                opacity: 0.12,
+                                className: 'connection-line-base'
+                            });
+                            baseLine.connectedEntities = { odcId: parentOdcMarker.assetData.id, odpId: odpAsset.id };
+                            odpToOdcLines.push(baseLine);
+                            // Attach waypoint editor to base line
+                            attachWaypointEditorToLine(baseLine, 'odc-odp', parentOdcMarker.assetData.id, odpAsset.id);
+                            
+                            // Main animated line - elegant and smooth
+                            const line = L.polyline.antPath(routeCoordinates, {
                                 color: '#ff7800', // Orange
-                                weight: 2,
-                                opacity: 0.8,
-                                delay: 1500, // Slower animation for main connections
-                                dashArray: [8, 15], // Longer dashes, more spaced out
-                                pulseColor: '#fff', // White pulse
+                                weight: 2.5,
+                                opacity: 0.75,
+                                delay: 6000, // Slow, elegant animation
+                                dashArray: [35, 55], // Long dashes for elegant look
+                                pulseColor: '#ffaa44', // Soft orange pulse (lighter than line)
                                 hardwareAccelerated: true
                             });
                             line.connectedEntities = { odcId: parentOdcMarker.assetData.id, odpId: odpAsset.id };
                             odpToOdcLines.push(line);
+                            // Attach waypoint editor to main line
+                            attachWaypointEditorToLine(line, 'odc-odp', parentOdcMarker.assetData.id, odpAsset.id);
                         }
                     }
-                });
+                }
 
             } catch (error) {
                 console.error("[loadNetworkAssetMarkers] Error processing assets:", error);
                 throw error;
             }
+        }
+
+        // Lazy load Chart.js library
+        function loadChartJS() {
+            return new Promise((resolve, reject) => {
+                if (window.Chart) {
+                    Chart = window.Chart;
+                    resolve();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
+                script.onload = () => {
+                    Chart = window.Chart;
+                    console.log('[ChartJS] Chart.js loaded successfully');
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.error('[ChartJS] Failed to load Chart.js');
+                    reject(new Error('Failed to load Chart.js'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Initialize monitoring charts
+        async function initMonitoringCharts() {
+            // Lazy load Chart.js hanya jika dashboard visible
+            const dashboard = document.getElementById('connectionMonitoringDashboard');
+            if (!dashboard || dashboard.style.display === 'none') {
+                return; // Dashboard belum visible, skip init
+            }
+            
+            try {
+                await loadChartJS();
+                
+                if (!Chart) {
+                    console.warn('[ChartJS] Chart.js not available, skipping chart initialization');
+                    return;
+                }
+                
+                const chartOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    },
+                    elements: {
+                        point: { radius: 0 },
+                        line: { borderWidth: 2, tension: 0.4 }
+                    },
+                    animation: { duration: 0 }
+                };
+                
+                // Online Chart
+                const onlineCtx = document.getElementById('chart-online');
+                if (onlineCtx && !monitoringCharts.online) {
+                    monitoringCharts.online = new Chart(onlineCtx, {
+                        type: 'line',
+                        data: {
+                            labels: monitoringHistory.timestamps,
+                            datasets: [{
+                                data: monitoringHistory.online,
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                fill: true
+                            }]
+                        },
+                        options: chartOptions
+                    });
+                }
+                
+                // Offline Chart
+                const offlineCtx = document.getElementById('chart-offline');
+                if (offlineCtx && !monitoringCharts.offline) {
+                    monitoringCharts.offline = new Chart(offlineCtx, {
+                        type: 'line',
+                        data: {
+                            labels: monitoringHistory.timestamps,
+                            datasets: [{
+                                data: monitoringHistory.offline,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                fill: true
+                            }]
+                        },
+                        options: chartOptions
+                    });
+                }
+                
+                // Total Chart
+                const totalCtx = document.getElementById('chart-total');
+                if (totalCtx && !monitoringCharts.total) {
+                    monitoringCharts.total = new Chart(totalCtx, {
+                        type: 'line',
+                        data: {
+                            labels: monitoringHistory.timestamps,
+                            datasets: [{
+                                data: monitoringHistory.total,
+                                borderColor: '#17a2b8',
+                                backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                                fill: true
+                            }]
+                        },
+                        options: chartOptions
+                    });
+                }
+                
+                // Uptime Chart
+                const uptimeCtx = document.getElementById('chart-uptime');
+                if (uptimeCtx && !monitoringCharts.uptime) {
+                    monitoringCharts.uptime = new Chart(uptimeCtx, {
+                        type: 'line',
+                        data: {
+                            labels: monitoringHistory.timestamps,
+                            datasets: [{
+                                data: monitoringHistory.uptime,
+                                borderColor: '#ffc107',
+                                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                fill: true
+                            }]
+                        },
+                        options: chartOptions
+                    });
+                }
+                
+                console.log('[ChartJS] Monitoring charts initialized');
+            } catch (error) {
+                console.error('[ChartJS] Error initializing charts:', error);
+            }
+        }
+        
+        // Update monitoring charts dengan debounce
+        function updateMonitoringCharts(online, offline, total, uptime) {
+            // Clear existing timeout
+            if (chartUpdateTimeout) {
+                clearTimeout(chartUpdateTimeout);
+            }
+            
+            // Add current data to history
+            const now = new Date();
+            const hourLabel = now.getHours().toString().padStart(2, '0') + ':00';
+            
+            // Keep only last 24 hours
+            monitoringHistory.timestamps.push(hourLabel);
+            monitoringHistory.online.push(online);
+            monitoringHistory.offline.push(offline);
+            monitoringHistory.total.push(total);
+            monitoringHistory.uptime.push(uptime);
+            
+            // Limit to 24 entries (24 hours)
+            if (monitoringHistory.timestamps.length > 24) {
+                monitoringHistory.timestamps.shift();
+                monitoringHistory.online.shift();
+                monitoringHistory.offline.shift();
+                monitoringHistory.total.shift();
+                monitoringHistory.uptime.shift();
+            }
+            
+            // Debounce chart updates
+            chartUpdateTimeout = setTimeout(() => {
+                if (!Chart) {
+                    // Try to init charts if not initialized
+                    initMonitoringCharts();
+                    return;
+                }
+                
+                // Update charts jika sudah initialized
+                if (monitoringCharts.online) {
+                    monitoringCharts.online.data.labels = monitoringHistory.timestamps;
+                    monitoringCharts.online.data.datasets[0].data = monitoringHistory.online;
+                    monitoringCharts.online.update('none'); // 'none' mode = no animation
+                }
+                
+                if (monitoringCharts.offline) {
+                    monitoringCharts.offline.data.labels = monitoringHistory.timestamps;
+                    monitoringCharts.offline.data.datasets[0].data = monitoringHistory.offline;
+                    monitoringCharts.offline.update('none');
+                }
+                
+                if (monitoringCharts.total) {
+                    monitoringCharts.total.data.labels = monitoringHistory.timestamps;
+                    monitoringCharts.total.data.datasets[0].data = monitoringHistory.total;
+                    monitoringCharts.total.update('none');
+                }
+                
+                if (monitoringCharts.uptime) {
+                    monitoringCharts.uptime.data.labels = monitoringHistory.timestamps;
+                    monitoringCharts.uptime.data.datasets[0].data = monitoringHistory.uptime;
+                    monitoringCharts.uptime.update('none');
+                }
+            }, CHART_UPDATE_DEBOUNCE_MS);
+        }
+        
+        // Function to update connection monitoring dashboard (moved before loadCustomerMarkers)
+        function updateConnectionMonitoring() {
+            // Show dashboard jika belum ditampilkan
+            const dashboard = $('#connectionMonitoringDashboard');
+            if (dashboard.length && dashboard.css('display') === 'none') {
+                dashboard.slideDown(300);
+                // Initialize charts saat dashboard ditampilkan pertama kali
+                setTimeout(() => {
+                    initMonitoringCharts();
+                }, 350);
+            }
+            
+            if (!customerMarkers || customerMarkers.length === 0) {
+                $('#monitoring-online-count').text('0');
+                $('#monitoring-offline-count').text('0');
+                $('#monitoring-total-count').text('0');
+                $('#monitoring-uptime-rate').text('0%');
+                updateMonitoringCharts(0, 0, 0, 0);
+                return;
+            }
+            
+            let onlineCount = 0;
+            let offlineCount = 0;
+            let unknownCount = 0;
+            
+            customerMarkers.forEach(marker => {
+                const status = marker.customerOnlineStatus;
+                if (status === 'online') onlineCount++;
+                else if (status === 'offline') offlineCount++;
+                else unknownCount++;
+            });
+            
+            const totalCount = customerMarkers.length;
+            const uptimeRate = totalCount > 0 ? ((onlineCount / totalCount) * 100).toFixed(1) : 0;
+            
+            $('#monitoring-online-count').text(onlineCount);
+            $('#monitoring-offline-count').text(offlineCount);
+            $('#monitoring-total-count').text(totalCount);
+            $('#monitoring-uptime-rate').text(uptimeRate + '%');
+            
+            // Update charts dengan debounce
+            updateMonitoringCharts(onlineCount, offlineCount, totalCount, parseFloat(uptimeRate));
         }
 
         async function loadCustomerMarkers() {
@@ -2359,14 +4428,42 @@ function redrawMarkers(markerType) {
 
                         const statusColor = onlineStatus === 'online' ? '#28a745' : (onlineStatus === 'offline' ? '#dc3545' : '#6c757d');
 
-                        let popupContent = `<b>Pelanggan: ${customer.name || 'N/A'}</b><p>ID: ${customer.id}</p>` +
-                                         (customer.phone_number ? `<p>No. HP: ${customer.phone_number}</p>` : '<p>No. HP: N/A</p>') +
-                                         (customer.address ? `<p>Alamat: ${customer.address}</p>` : '<p>Alamat: N/A</p>') +
-                                         `<p>Paket: ${customer.subscription || 'N/A'}</p>` +
-                                         `<p>Status Bayar: ${customer.paid ? '<span class="text-success">Lunas</span>' : '<span class="text-danger">Belum</span>'}</p>`+
-                                         `<p>Status PPPoE: <span style="font-weight:bold; color:${statusColor}">${onlineStatus.toUpperCase()}</span></p>` +
-                                         (customer.pppoe_username ? `<p>PPPoE User: ${customer.pppoe_username}</p>` : '') +
-                                         `<p>IP Pelanggan: ${customerIpAddress}</p>`;
+                        const statusIcon = onlineStatus === 'online' ? '<i class="fas fa-circle text-success"></i>' : 
+                                          (onlineStatus === 'offline' ? '<i class="fas fa-circle text-danger"></i>' : 
+                                          '<i class="fas fa-circle text-muted"></i>');
+                        const statusBadge = onlineStatus === 'online' ? 
+                            '<span class="badge badge-success badge-lg"><i class="fas fa-check-circle"></i> ONLINE</span>' : 
+                            (onlineStatus === 'offline' ? 
+                            '<span class="badge badge-danger badge-lg"><i class="fas fa-times-circle"></i> OFFLINE</span>' : 
+                            '<span class="badge badge-secondary badge-lg"><i class="fas fa-question-circle"></i> UNKNOWN</span>');
+
+                        let popupContent = `<div class="mb-3">
+                            <h5 class="mb-2"><b>${customer.name || 'N/A'}</b></h5>
+                            <div class="mb-2">${statusBadge}</div>
+                        </div>
+                        <hr>
+                        <div class="mb-2">
+                            <strong><i class="fas fa-id-card"></i> ID Pelanggan:</strong> ${customer.id}
+                        </div>
+                        ${customer.phone_number ? `<div class="mb-2"><strong><i class="fas fa-phone-alt"></i> No. HP:</strong> ${customer.phone_number}</div>` : ''}
+                        ${customer.address ? `<div class="mb-2"><strong><i class="fas fa-map-marker-alt"></i> Alamat:</strong> ${customer.address}</div>` : ''}
+                        <div class="mb-2"><strong><i class="fas fa-box"></i> Paket:</strong> ${customer.subscription || 'N/A'}</div>
+                        <div class="mb-2">
+                            <strong><i class="fas fa-money-bill-wave"></i> Status Bayar:</strong> 
+                            ${customer.paid ? '<span class="badge badge-success">Lunas</span>' : '<span class="badge badge-danger">Belum Lunas</span>'}
+                        </div>
+                        <hr>
+                        <div class="mb-2">
+                            <strong><i class="fas fa-network-wired"></i> Status Koneksi:</strong>
+                            <div class="mt-1 p-2 rounded" style="background-color: ${onlineStatus === 'online' ? '#d4edda' : (onlineStatus === 'offline' ? '#f8d7da' : '#e2e3e5')};">
+                                <div class="d-flex align-items-center">
+                                    ${statusIcon}
+                                    <span class="ml-2" style="font-weight:bold; color:${statusColor};">${onlineStatus.toUpperCase()}</span>
+                                </div>
+                                ${customer.pppoe_username ? `<div class="mt-1"><small><strong>PPPoE User:</strong> ${customer.pppoe_username}</small></div>` : ''}
+                                <div class="mt-1"><small><strong>IP Address:</strong> ${customerIpAddress}</small></div>
+                            </div>
+                        </div>`;
 
                         if (customer.device_id) {
                             popupContent += `<p>Redaman: <span id="redaman-val-${customer.id}">Memuat...</span></p>`;
@@ -2413,49 +4510,119 @@ function redrawMarkers(markerType) {
                                         }
                                     }
                                 }
-                                // NEW LOGIC: Differentiate line types based on status
+                                // NEW LOGIC: Differentiate line types based on status dengan routing
+                                // Get routing profile dari config (default: 'foot-walking' untuk Customer-ODP)
+                                let routingProfile = 'foot-walking';
+                                if (typeof window !== 'undefined' && window.globalConfig && window.globalConfig.openRouteService) {
+                                    routingProfile = window.globalConfig.openRouteService.profiles?.customerToOdp || 'foot-walking';
+                                }
+                                
+                                // PRIORITAS 1: Cek waypoint manual terlebih dahulu
+                                let customerToOdpRouteCoordinates;
+                                try {
+                                    const waypointResponse = await fetch(`/api/map/waypoints?connectionType=customer-odp&sourceId=${customer.id}&targetId=${odpAsset.id}`, {
+                                        credentials: 'include'
+                                    });
+                                    
+                                    if (waypointResponse.ok) {
+                                        const waypointData = await waypointResponse.json();
+                                        if (waypointData.status === 200 && waypointData.data && waypointData.data.waypoints && waypointData.data.waypoints.length >= 2) {
+                                            customerToOdpRouteCoordinates = waypointData.data.waypoints;
+                                            console.log(`[WAYPOINTS_MANUAL] Customer-ODP: ${customer.name || customer.id} → ${odpAsset.name} (${customerToOdpRouteCoordinates.length} points manual)`);
+                                        }
+                                    }
+                                } catch (waypointError) {
+                                    console.warn(`[WAYPOINTS_ERROR] Customer-ODP: ${customer.name || customer.id} → ${odpAsset.name}:`, waypointError);
+                                }
+                                
+                                // PRIORITAS 2: Jika tidak ada waypoint manual, gunakan routing API
+                                if (!customerToOdpRouteCoordinates || customerToOdpRouteCoordinates.length < 2) {
+                                    try {
+                                        customerToOdpRouteCoordinates = await getRouteCoordinates(
+                                            lat,
+                                            lng,
+                                            odpMarker.getLatLng().lat,
+                                            odpMarker.getLatLng().lng,
+                                            routingProfile
+                                        );
+                                        
+                                        // Log jika routing berhasil (hanya untuk debugging, bisa di-disable)
+                                        if (customerToOdpRouteCoordinates && customerToOdpRouteCoordinates.length > 2) {
+                                            console.log(`[ROUTING_SUCCESS] Customer-ODP: ${customer.name || customer.id} → ${odpAsset.name} (${customerToOdpRouteCoordinates.length} points)`);
+                                        } else {
+                                            console.warn(`[ROUTING_FALLBACK] Customer-ODP: ${customer.name || customer.id} → ${odpAsset.name} (straight line, ${customerToOdpRouteCoordinates?.length || 0} points)`);
+                                        }
+                                    } catch (error) {
+                                        console.error(`[ROUTING_ERROR] Customer-ODP: ${customer.name || customer.id} → ${odpAsset.name}:`, error);
+                                        // Fallback ke straight line jika routing gagal
+                                        customerToOdpRouteCoordinates = [
+                                            [lat, lng],
+                                            [odpMarker.getLatLng().lat, odpMarker.getLatLng().lng]
+                                        ];
+                                    }
+                                }
+                                
                                 if (onlineStatus === 'online') {
-                                    // Green, animated dots for the main line
-                                    const lineDots = L.polyline.antPath([[lat, lng], odpMarker.getLatLng()], {
+                                    // Elegant multi-layer animated line untuk online customers
+                                    // Base layer - subtle glow
+                                    const baseGlow = L.polyline(customerToOdpRouteCoordinates, {
+                                        color: '#28a745',
+                                        weight: 5,
+                                        opacity: 0.15,
+                                        className: 'connection-line-glow'
+                                    });
+                                    baseGlow.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
+                                    customerToOdpLines.push(baseGlow);
+                                    // Attach waypoint editor to base glow
+                                    attachWaypointEditorToLine(baseGlow, 'customer-odp', customer.id, odpAsset.id);
+                                    
+                                    // Main animated line - elegant and smooth
+                                    const lineDots = L.polyline.antPath(customerToOdpRouteCoordinates, {
                                         color: '#28a745', // Green
-                                        weight: 8,
-                                        opacity: 1,
-                                        delay: 800,
-                                        dashArray: [3, 15],
-                                        pulseColor: '#fff',
+                                        weight: 2.5,
+                                        opacity: 0.8,
+                                        delay: 7000, // Slow, elegant animation
+                                        dashArray: [40, 60], // Long dashes for elegant look
+                                        pulseColor: '#4ade80', // Soft green pulse (lighter)
                                         hardwareAccelerated: true
                                     });
                                     lineDots.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
                                     customerToOdpLines.push(lineDots);
-
-                                    // Bright green, slow pulse for an "active" effect
-                                    const linePulse = L.polyline.antPath([[lat, lng], odpMarker.getLatLng()], {
-                                        color: '#00FF00',
-                                        weight: 6,
-                                        opacity: 0.9,
-                                        delay: 2500,
-                                        dashArray: [30, 100],
-                                        pulseColor: '#fff',
-                                        hardwareAccelerated: true
-                                    });
-                                    linePulse.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
-                                    customerToOdpLines.push(linePulse);
+                                    // Attach waypoint editor to main line
+                                    attachWaypointEditorToLine(lineDots, 'customer-odp', customer.id, odpAsset.id);
                                 } else {
-                                    // For 'offline' or 'unknown' status, use a calmer, slower animated line with a darker pulse
+                                    // For 'offline' or 'unknown' status - elegant subtle line
                                     let lineColor = (onlineStatus === 'offline') ? '#dc3545' : '#6c757d'; // Red for offline, grey for unknown
-                                    let pulseColor = (onlineStatus === 'offline') ? '#a92b38' : '#495057'; // Darker pulse color
+                                    let pulseColor = (onlineStatus === 'offline') ? '#f87171' : '#94a3b8'; // Soft red/grey pulse
 
-                                    const offlineLine = L.polyline.antPath([[lat, lng], odpMarker.getLatLng()], {
+                                    // Base layer - subtle shadow
+                                    const baseShadow = L.polyline(customerToOdpRouteCoordinates, {
                                         color: lineColor,
                                         weight: 4,
-                                        opacity: 0.8,
-                                        delay: 4000, // Even slower animation
-                                        dashArray: [10, 20], // Longer dashes, longer gaps
-                                        pulseColor: pulseColor, // Use the darker, calmer pulse color
+                                        opacity: 0.1,
+                                        className: 'connection-line-shadow'
+                                    });
+                                    baseShadow.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
+                                    customerToOdpLines.push(baseShadow);
+                                    
+                                    // Attach waypoint editor to base shadow
+                                    attachWaypointEditorToLine(baseShadow, 'customer-odp', customer.id, odpAsset.id);
+
+                                    // Main animated line
+                                    const offlineLine = L.polyline.antPath(customerToOdpRouteCoordinates, {
+                                        color: lineColor,
+                                        weight: 2.5,
+                                        opacity: 0.6,
+                                        delay: 8000, // Very slow, elegant animation
+                                        dashArray: [45, 65], // Long dashes for elegant look
+                                        pulseColor: pulseColor, // Soft pulse color
                                         hardwareAccelerated: true
                                     });
                                     offlineLine.connectedEntities = { customerId: customer.id, odpId: odpAsset.id };
                                     customerToOdpLines.push(offlineLine);
+                                    
+                                    // Attach waypoint editor to main line
+                                    attachWaypointEditorToLine(offlineLine, 'customer-odp', customer.id, odpAsset.id);
                                 }
 
                                 if (odpAsset.parent_odc_id) {
@@ -2511,6 +4678,10 @@ function redrawMarkers(markerType) {
                         });
 
                         customerMarkers.push(marker);
+                        
+                        // Update monitoring statistics
+                        updateConnectionMonitoring();
+                        updateLegendCounters();
                     }
                 }
             } catch(processingError) {
@@ -2695,6 +4866,501 @@ function redrawMarkers(markerType) {
         });
 
 
+        // Map Sidebar Variables
+        let sidebarSearchTimeout = null;
+        let sidebarAlerts = [];
+        
+        // Advanced Legend Variables
+        let advancedLegendControl = null;
+        let legendMinimap = null;
+        let legendCounters = {
+            odc: 0,
+            odp: 0,
+            online: 0,
+            offline: 0,
+            unknown: 0
+        };
+        
+        // Alert System Variables
+        let alertSystem = null;
+        let activeAlerts = [];
+        let alertSoundEnabled = false;
+        
+        // Quick Filter Variables
+        let currentQuickFilter = 'all';
+        
+        // Map Sidebar Functions
+        function toggleMapSidebar() {
+            const sidebar = document.getElementById('mapSidebar');
+            const overlay = document.getElementById('mapSidebarOverlay');
+            
+            if (sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+                if (overlay) overlay.classList.remove('active');
+            } else {
+                sidebar.classList.add('open');
+                if (overlay) overlay.classList.add('active');
+                updateQuickStats();
+            }
+        }
+        
+        function updateQuickStats() {
+            const odcCount = allNetworkAssetsData.filter(a => a.type === 'ODC').length;
+            const odpCount = allNetworkAssetsData.filter(a => a.type === 'ODP').length;
+            const customerCount = allCustomerData.length;
+            
+            $('#sidebar-odc-count').text(odcCount);
+            $('#sidebar-odp-count').text(odpCount);
+            $('#sidebar-customer-count').text(customerCount);
+        }
+        
+        function performSidebarSearch(query) {
+            if (!query || query.trim().length < 2) {
+                $('#sidebarSearchResults').hide().empty();
+                return;
+            }
+            
+            const searchTerm = query.toLowerCase().trim();
+            const results = [];
+            
+            // Search customers
+            allCustomerData.forEach(customer => {
+                const name = (customer.name || '').toLowerCase();
+                const phone = (customer.phone_number || '').toLowerCase();
+                const address = (customer.address || '').toLowerCase();
+                
+                if (name.includes(searchTerm) || phone.includes(searchTerm) || address.includes(searchTerm)) {
+                    results.push({
+                        type: 'customer',
+                        id: customer.id,
+                        name: customer.name || 'N/A',
+                        phone: customer.phone_number || 'N/A',
+                        data: customer
+                    });
+                }
+            });
+            
+            // Search network assets
+            allNetworkAssetsData.forEach(asset => {
+                const name = (asset.name || '').toLowerCase();
+                const address = (asset.address || '').toLowerCase();
+                
+                if (name.includes(searchTerm) || address.includes(searchTerm)) {
+                    results.push({
+                        type: asset.type.toLowerCase(),
+                        id: asset.id,
+                        name: asset.name || 'N/A',
+                        address: asset.address || 'N/A',
+                        data: asset
+                    });
+                }
+            });
+            
+            // Display results
+            const resultsContainer = $('#sidebarSearchResults');
+            resultsContainer.empty();
+            
+            if (results.length === 0) {
+                resultsContainer.html('<div class="search-result-item text-muted p-2">Tidak ada hasil ditemukan</div>');
+            } else {
+                results.slice(0, 10).forEach(result => {
+                    const icon = result.type === 'customer' ? 'fa-user' : 
+                                result.type === 'odc' ? 'fa-server' : 'fa-network-wired';
+                    const color = result.type === 'customer' ? 'text-primary' : 
+                                 result.type === 'odc' ? 'text-purple' : 'text-orange';
+                    
+                    const item = $(`
+                        <div class="search-result-item" data-type="${result.type}" data-id="${result.id}">
+                            <i class="fas ${icon} ${color}"></i>
+                            <strong>${result.name}</strong>
+                            <small class="text-muted d-block">${result.type === 'customer' ? result.phone : result.address}</small>
+                        </div>
+                    `);
+                    
+                    item.on('click', function() {
+                        handleSearchResultClick(result);
+                    });
+                    
+                    resultsContainer.append(item);
+                });
+            }
+            
+            resultsContainer.show();
+        }
+        
+        function handleSearchResultClick(result) {
+            if (result.type === 'customer' && map) {
+                // Find customer marker and open popup
+                const marker = customerMarkers.find(m => m.customerData && m.customerData.id === result.id);
+                if (marker) {
+                    map.setView([marker.getLatLng().lat, marker.getLatLng().lng], 18);
+                    marker.openPopup();
+                }
+            } else if ((result.type === 'odc' || result.type === 'odp') && map) {
+                // Find asset marker and open popup
+                const allAssetMarkers = [...odcMarkers, ...odpMarkers];
+                const marker = allAssetMarkers.find(m => m.assetData && m.assetData.id === result.id);
+                if (marker) {
+                    map.setView([marker.getLatLng().lat, marker.getLatLng().lng], 18);
+                    marker.openPopup();
+                }
+            }
+            
+            // Close sidebar on mobile
+            if (window.innerWidth <= 768) {
+                toggleMapSidebar();
+            }
+        }
+        
+        function applySidebarFilters() {
+            const showOnline = $('#sidebarFilterOnline').is(':checked');
+            const showOffline = $('#sidebarFilterOffline').is(':checked');
+            const showOdc = $('#sidebarFilterOdc').is(':checked');
+            const showOdp = $('#sidebarFilterOdp').is(':checked');
+            
+            // Update selected sets based on filters
+            if (!showOdc) {
+                selectedOdcIds.clear();
+            } else {
+                allNetworkAssetsData.filter(a => a.type === 'ODC').forEach(a => {
+                    selectedOdcIds.add(String(a.id));
+                });
+            }
+            
+            if (!showOdp) {
+                selectedOdpIds.clear();
+            } else {
+                allNetworkAssetsData.filter(a => a.type === 'ODP').forEach(a => {
+                    selectedOdpIds.add(String(a.id));
+                });
+            }
+            
+            // Filter customers by online/offline status
+            if (!showOnline || !showOffline) {
+                selectedCustomerIds.clear();
+                customerMarkers.forEach(marker => {
+                    const status = marker.customerOnlineStatus;
+                    if ((showOnline && status === 'online') || (showOffline && status === 'offline')) {
+                        selectedCustomerIds.add(String(marker.customerData.id));
+                    }
+                });
+            } else {
+                allCustomerData.forEach(c => selectedCustomerIds.add(String(c.id)));
+            }
+            
+            // Apply filters
+            applyFilters();
+            updateConnectionMonitoring();
+        }
+        
+        function updateSidebarAlerts() {
+            const alertsList = $('#sidebarAlertsList');
+            alertsList.empty();
+            
+            if (sidebarAlerts.length === 0) {
+                alertsList.html('<div class="alert-item alert-info"><i class="fas fa-info-circle"></i><span>Belum ada alert</span></div>');
+                return;
+            }
+            
+            sidebarAlerts.slice(0, 5).forEach(alert => {
+                const alertClass = alert.severity === 'critical' ? 'alert-danger' :
+                                  alert.severity === 'warning' ? 'alert-warning' :
+                                  alert.severity === 'info' ? 'alert-info' : 'alert-success';
+                
+                const item = $(`
+                    <div class="alert-item ${alertClass}">
+                        <i class="fas ${alert.icon || 'fa-exclamation-circle'}"></i>
+                        <div>
+                            <strong>${alert.title}</strong>
+                            <small class="d-block">${alert.message}</small>
+                        </div>
+                    </div>
+                `);
+                
+                alertsList.append(item);
+            });
+        }
+        
+        function exportCustomers() {
+            try {
+                const csv = ['ID,Nama,No HP,Alamat,Status,PPPoE Username'];
+                allCustomerData.forEach(customer => {
+                    const status = customerMarkers.find(m => m.customerData && m.customerData.id === customer.id)?.customerOnlineStatus || 'unknown';
+                    csv.push([
+                        customer.id,
+                        customer.name || '',
+                        customer.phone_number || '',
+                        (customer.address || '').replace(/,/g, ';'),
+                        status,
+                        customer.pppoe_username || ''
+                    ].join(','));
+                });
+                
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `pelanggan_${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+                
+                displayGlobalMapMessage('Export pelanggan berhasil!', 'success');
+            } catch (error) {
+                console.error('Export error:', error);
+                displayGlobalMapMessage('Gagal export pelanggan', 'danger');
+            }
+        }
+        
+        function exportAssets() {
+            try {
+                const csv = ['ID,Tipe,Nama,Alamat,Latitude,Longitude'];
+                allNetworkAssetsData.forEach(asset => {
+                    csv.push([
+                        asset.id,
+                        asset.type,
+                        asset.name || '',
+                        (asset.address || '').replace(/,/g, ';'),
+                        asset.latitude || '',
+                        asset.longitude || ''
+                    ].join(','));
+                });
+                
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `aset_jaringan_${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+                
+                displayGlobalMapMessage('Export aset berhasil!', 'success');
+            } catch (error) {
+                console.error('Export error:', error);
+                displayGlobalMapMessage('Gagal export aset', 'danger');
+            }
+        }
+        
+        function exportMap() {
+            if (!map) {
+                displayGlobalMapMessage('Peta belum siap', 'warning');
+                return;
+            }
+            
+            try {
+                map.once('rendercomplete', function() {
+                    html2canvas(document.getElementById('interactiveMap'), {
+                        useCORS: true,
+                        logging: false
+                    }).then(canvas => {
+                        canvas.toBlob(function(blob) {
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = `peta_jaringan_${new Date().toISOString().split('T')[0]}.png`;
+                            link.click();
+                            displayGlobalMapMessage('Export peta berhasil!', 'success');
+                        }, 'image/png');
+                    });
+                });
+                
+                map.fire('rendercomplete');
+            } catch (error) {
+                console.error('Export map error:', error);
+                displayGlobalMapMessage('Gagal export peta. Pastikan html2canvas tersedia.', 'danger');
+            }
+        }
+        
+        // Alert System Class
+        class AlertSystem {
+            constructor() {
+                this.activeAlerts = [];
+                this.toastContainer = document.getElementById('toastNotificationsContainer');
+                this.alertPanel = document.getElementById('alertPanel');
+                this.alertPanelContent = document.getElementById('alertPanelContent');
+                this.alertBadge = document.getElementById('alertBadge');
+                this.soundEnabled = false;
+            }
+            
+            showToast(alert) {
+                const toast = document.createElement('div');
+                toast.className = `toast-notification toast-${alert.severity}`;
+                
+                const iconMap = {
+                    'critical': 'fa-exclamation-circle',
+                    'warning': 'fa-exclamation-triangle',
+                    'info': 'fa-info-circle',
+                    'success': 'fa-check-circle'
+                };
+                
+                toast.innerHTML = `
+                    <i class="fas ${iconMap[alert.severity] || 'fa-info-circle'} toast-icon toast-${alert.severity}"></i>
+                    <div class="toast-content">
+                        <div class="toast-title">${alert.title}</div>
+                        <p class="toast-message">${alert.message}</p>
+                    </div>
+                    <button class="toast-close" onclick="this.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                
+                this.toastContainer.appendChild(toast);
+                
+                // Auto-dismiss untuk non-critical alerts
+                if (alert.severity !== 'critical') {
+                    setTimeout(() => {
+                        toast.classList.add('removing');
+                        setTimeout(() => toast.remove(), 300);
+                    }, alert.duration || 5000);
+                }
+                
+                // Play sound untuk critical alerts
+                if (alert.severity === 'critical' && this.soundEnabled) {
+                    this.playAlertSound();
+                }
+            }
+            
+            addAlert(alert) {
+                const alertId = alert.id || `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const newAlert = {
+                    id: alertId,
+                    title: alert.title || 'Alert',
+                    message: alert.message || '',
+                    severity: alert.severity || 'info',
+                    timestamp: new Date(),
+                    acknowledged: false,
+                    duration: alert.duration || 5000
+                };
+                
+                // Check if alert already exists
+                const existingIndex = this.activeAlerts.findIndex(a => a.id === alertId);
+                if (existingIndex >= 0) {
+                    this.activeAlerts[existingIndex] = newAlert;
+                } else {
+                    this.activeAlerts.push(newAlert);
+                }
+                
+                // Show toast
+                this.showToast(newAlert);
+                
+                // Update alert panel
+                this.updateAlertPanel();
+                
+                // Update badge
+                this.updateBadge();
+                
+                return alertId;
+            }
+            
+            acknowledgeAlert(alertId) {
+                const alert = this.activeAlerts.find(a => a.id === alertId);
+                if (alert) {
+                    alert.acknowledged = true;
+                    this.removeAlert(alertId);
+                }
+            }
+            
+            removeAlert(alertId) {
+                this.activeAlerts = this.activeAlerts.filter(a => a.id !== alertId);
+                this.updateAlertPanel();
+                this.updateBadge();
+            }
+            
+            updateAlertPanel() {
+                const unacknowledgedAlerts = this.activeAlerts.filter(a => !a.acknowledged);
+                
+                if (unacknowledgedAlerts.length === 0) {
+                    this.alertPanelContent.innerHTML = `
+                        <div class="alert-panel-empty">
+                            <i class="fas fa-check-circle text-success"></i>
+                            <p>Tidak ada alert aktif</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                this.alertPanelContent.innerHTML = unacknowledgedAlerts.map(alert => {
+                    const severityLabels = {
+                        'critical': 'Critical',
+                        'warning': 'Warning',
+                        'info': 'Info',
+                        'success': 'Success'
+                    };
+                    
+                    const timeAgo = this.getTimeAgo(alert.timestamp);
+                    
+                    return `
+                        <div class="alert-panel-item alert-${alert.severity}">
+                            <div class="alert-panel-item-header">
+                                <div class="alert-panel-item-title">${alert.title}</div>
+                                <span class="alert-panel-item-severity severity-${alert.severity}">
+                                    ${severityLabels[alert.severity] || 'Info'}
+                                </span>
+                            </div>
+                            <div class="alert-panel-item-message">${alert.message}</div>
+                            <div class="alert-panel-item-time">${timeAgo}</div>
+                            <div class="alert-panel-item-actions">
+                                <button class="btn btn-sm btn-primary" onclick="alertSystem.acknowledgeAlert('${alert.id}')">
+                                    <i class="fas fa-check"></i> Acknowledge
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="alertSystem.removeAlert('${alert.id}')">
+                                    <i class="fas fa-times"></i> Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            updateBadge() {
+                const unacknowledgedCount = this.activeAlerts.filter(a => !a.acknowledged).length;
+                if (unacknowledgedCount > 0) {
+                    this.alertBadge.textContent = unacknowledgedCount;
+                    this.alertBadge.style.display = 'flex';
+                } else {
+                    this.alertBadge.style.display = 'none';
+                }
+            }
+            
+            getTimeAgo(timestamp) {
+                const now = new Date();
+                const diff = now - timestamp;
+                const seconds = Math.floor(diff / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const hours = Math.floor(minutes / 60);
+                
+                if (seconds < 60) return `${seconds} detik yang lalu`;
+                if (minutes < 60) return `${minutes} menit yang lalu`;
+                if (hours < 24) return `${hours} jam yang lalu`;
+                return timestamp.toLocaleString('id-ID');
+            }
+            
+            playAlertSound() {
+                // Create audio context untuk sound alert (optional)
+                try {
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.value = 800;
+                    oscillator.type = 'sine';
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                    
+                    oscillator.start(audioContext.currentTime);
+                    oscillator.stop(audioContext.currentTime + 0.5);
+                } catch (error) {
+                    console.warn('Sound alert tidak didukung:', error);
+                }
+            }
+            
+            enableSound() {
+                this.soundEnabled = true;
+            }
+            
+            disableSound() {
+                this.soundEnabled = false;
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             console.log("[DOMReady] DOM fully loaded. Initializing application...");
             
@@ -2712,6 +5378,114 @@ function redrawMarkers(markerType) {
             }
 
             $('#manualFullscreenBtn').on('click', toggleFullScreenManual);
+            
+            // Map Sidebar Event Handlers
+            $('#openMapSidebarBtn').on('click', toggleMapSidebar);
+            $('#toggleMapSidebar').on('click', toggleMapSidebar);
+            $('#mapSidebarOverlay').on('click', toggleMapSidebar);
+            
+            // Search functionality
+            $('#sidebarSearchInput').on('input', function() {
+                const query = $(this).val();
+                if (sidebarSearchTimeout) clearTimeout(sidebarSearchTimeout);
+                sidebarSearchTimeout = setTimeout(() => {
+                    performSidebarSearch(query);
+                }, 300);
+            });
+            
+            $('#sidebarSearchBtn').on('click', function() {
+                performSidebarSearch($('#sidebarSearchInput').val());
+            });
+            
+            // Quick filters
+            $('#sidebarFilterOnline, #sidebarFilterOffline, #sidebarFilterOdc, #sidebarFilterOdp').on('change', function() {
+                applySidebarFilters();
+            });
+            
+            // Export buttons
+            $('#exportCustomersBtn').on('click', exportCustomers);
+            $('#exportAssetsBtn').on('click', exportAssets);
+            $('#exportMapBtn').on('click', exportMap);
+            
+            // Initialize alerts
+            updateSidebarAlerts();
+            
+            // Initialize Alert System
+            alertSystem = new AlertSystem();
+            
+            // Quick Filter Buttons Event Handlers
+            $('.quick-filter-btn').on('click', function() {
+                const filter = $(this).data('filter');
+                applyQuickFilter(filter);
+            });
+            
+            $('#resetQuickFilterBtn').on('click', function() {
+                applyQuickFilter('all');
+            });
+            
+            // Alert Panel Event Handlers
+            $('#openAlertPanelBtn').on('click', function() {
+                $('#alertPanel').addClass('open');
+                $(this).hide();
+            });
+            
+            $('#closeAlertPanel').on('click', function() {
+                $('#alertPanel').removeClass('open');
+                $('#openAlertPanelBtn').show();
+            });
+            
+            $('#toggleAlertPanel').on('click', function() {
+                $('#alertPanel').toggleClass('minimized');
+                const icon = $(this).find('i');
+                if ($('#alertPanel').hasClass('minimized')) {
+                    icon.removeClass('fa-minus').addClass('fa-plus');
+                } else {
+                    icon.removeClass('fa-plus').addClass('fa-minus');
+                }
+            });
+            
+            // Example: Test alerts (can be removed in production)
+            // Uncomment to test alert system
+            /*
+            setTimeout(() => {
+                alertSystem.addAlert({
+                    title: 'Pelanggan Offline',
+                    message: '5 pelanggan terdeteksi offline',
+                    severity: 'warning'
+                });
+            }, 3000);
+            
+            setTimeout(() => {
+                alertSystem.addAlert({
+                    title: 'Koneksi Gagal',
+                    message: 'Gagal mengambil data dari MikroTik',
+                    severity: 'critical'
+                });
+            }, 5000);
+            */
+            
+            // Monitor untuk auto-generate alerts (contoh: banyak pelanggan offline)
+            setInterval(() => {
+                if (alertSystem && customerMarkers && customerMarkers.length > 0) {
+                    const offlineCount = customerMarkers.filter(m => m.customerOnlineStatus === 'offline').length;
+                    const totalCount = customerMarkers.length;
+                    const offlinePercentage = (offlineCount / totalCount) * 100;
+                    
+                    // Alert jika > 20% pelanggan offline
+                    if (offlinePercentage > 20 && offlineCount > 5) {
+                        const existingAlert = alertSystem.activeAlerts.find(a => a.id === 'high-offline-alert');
+                        if (!existingAlert) {
+                            alertSystem.addAlert({
+                                id: 'high-offline-alert',
+                                title: 'Tingkat Offline Tinggi',
+                                message: `${offlineCount} dari ${totalCount} pelanggan offline (${offlinePercentage.toFixed(1)}%)`,
+                                severity: 'warning',
+                                duration: 10000
+                            });
+                        }
+                    }
+                }
+            }, 60000); // Check setiap 1 menit
 
             $('#yesAddOdpBtn').on('click', async function() {
                 const parentOdcId = this.getAttribute('data-odc-id');
@@ -2737,7 +5511,8 @@ function redrawMarkers(markerType) {
                 $('#addOdpAfterOdcModal').modal('hide');
                 displayGlobalMapMessage('ODC berhasil disimpan.', 'success');
             });
-
+            
+            
             $('#refreshAllDataBtn').on('click', async function() {
                 if (!map) { displayGlobalMapMessage("Peta belum siap.", "warning"); return; }
                 const button = $(this);
@@ -2745,6 +5520,7 @@ function redrawMarkers(markerType) {
                 button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Refreshing...');
 
                 await loadAllMapData();
+                updateConnectionMonitoring(); // Update monitoring setelah refresh
 
                 let msg = `Refresh data selesai.`;
                  if (initialPppoeLoadFailed) {
@@ -2770,7 +5546,8 @@ function redrawMarkers(markerType) {
                             return;
                         }
                         
-                        await loadAllMapData(); 
+                        await loadAllMapData();
+                        updateConnectionMonitoring(); // Update monitoring setelah refresh 
                         console.log('[AutoRefresh] Automatic data refresh finished.');
                     };
 
@@ -2794,6 +5571,405 @@ function redrawMarkers(markerType) {
 
             console.log("[DOMReady] Event listeners and page setup complete.");
         });
+        
+        // ============================================
+        // Waypoint Editor Functions
+        // ============================================
+        
+        /**
+         * Start editing waypoints for a connection
+         */
+        function startWaypointEditor(connectionType, sourceId, targetId) {
+            if (!waypointEditorMode) {
+                displayGlobalMapMessage('Aktifkan mode Edit Waypoint terlebih dahulu.', 'warning', 3000);
+                return;
+            }
+            
+            currentEditingConnection = { connectionType, sourceId, targetId };
+            
+            // Load existing waypoints
+            loadWaypointsForEditing(connectionType, sourceId, targetId);
+            
+            // Enable map click untuk add waypoint
+            map.on('click', onMapClickAddWaypoint);
+            
+            displayGlobalMapMessage(`Edit waypoint: ${connectionType} (${sourceId} → ${targetId}). Klik di map untuk tambah waypoint.`, 'info', 5000);
+            
+            // Update controls
+            updateWaypointEditorControls();
+        }
+        
+        /**
+         * Load waypoints for editing
+         */
+        async function loadWaypointsForEditing(connectionType, sourceId, targetId) {
+            try {
+                const response = await fetch(`/api/map/waypoints?connectionType=${connectionType}&sourceId=${sourceId}&targetId=${targetId}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 200 && data.data && data.data.waypoints) {
+                        // Clear existing waypoints
+                        clearWaypointMarkers();
+                        
+                        // Add waypoint markers
+                        data.data.waypoints.forEach((waypoint, index) => {
+                            addWaypointMarker(waypoint[0], waypoint[1], index);
+                        });
+                    } else {
+                        // No waypoints yet, create default (start and end points)
+                        const startPoint = getStartPoint(connectionType, sourceId);
+                        const endPoint = getEndPoint(connectionType, targetId);
+                        
+                        if (startPoint && endPoint) {
+                            clearWaypointMarkers();
+                            addWaypointMarker(startPoint.lat, startPoint.lng, 0);
+                            addWaypointMarker(endPoint.lat, endPoint.lng, 1);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[WAYPOINT_EDITOR] Error loading waypoints:', error);
+                displayGlobalMapMessage('Gagal memuat waypoint.', 'danger', 3000);
+            }
+        }
+        
+        /**
+         * Get start point coordinates
+         */
+        function getStartPoint(connectionType, sourceId) {
+            if (connectionType === 'odc-odp') {
+                const odcMarker = odcMarkers.find(m => String(m.assetData.id) === String(sourceId));
+                if (odcMarker) {
+                    const latLng = odcMarker.getLatLng();
+                    return { lat: latLng.lat, lng: latLng.lng };
+                }
+            } else if (connectionType === 'customer-odp') {
+                const customerMarker = customerMarkers.find(m => String(m.customerData?.id) === String(sourceId));
+                if (customerMarker) {
+                    const latLng = customerMarker.getLatLng();
+                    return { lat: latLng.lat, lng: latLng.lng };
+                }
+            }
+            return null;
+        }
+        
+        /**
+         * Get end point coordinates
+         */
+        function getEndPoint(connectionType, targetId) {
+            const odpMarker = odpMarkers.find(m => String(m.assetData.id) === String(targetId));
+            if (odpMarker) {
+                const latLng = odpMarker.getLatLng();
+                return { lat: latLng.lat, lng: latLng.lng };
+            }
+            return null;
+        }
+        
+        /**
+         * Add waypoint marker
+         */
+        function addWaypointMarker(lat, lng, index) {
+            const waypointIcon = L.divIcon({
+                className: 'waypoint-marker',
+                html: `<div class="waypoint-marker-inner">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span class="waypoint-index">${index + 1}</span>
+                </div>`,
+                iconSize: [30, 40],
+                iconAnchor: [15, 40]
+            });
+            
+            const marker = L.marker([lat, lng], {
+                icon: waypointIcon,
+                draggable: true,
+                zIndexOffset: 1000
+            });
+            
+            marker.waypointIndex = index;
+            
+            // Drag event
+            marker.on('dragend', function() {
+                updateWaypointOrder();
+            });
+            
+            // Click to delete (with confirmation)
+            marker.on('click', function(e) {
+                if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) {
+                    // Ctrl/Cmd + Click to delete
+                    if (waypointMarkers.length <= 2) {
+                        displayGlobalMapMessage('Minimal harus ada 2 waypoint (start dan end).', 'warning', 3000);
+                        return;
+                    }
+                    
+                    if (confirm(`Hapus waypoint ${index + 1}?`)) {
+                        const markerIndex = waypointMarkers.indexOf(marker);
+                        if (markerIndex > -1) {
+                            waypointMarkers.splice(markerIndex, 1);
+                            waypointLayer.removeLayer(marker);
+                            map.removeLayer(marker);
+                            updateWaypointOrder();
+                            displayGlobalMapMessage(`Waypoint ${index + 1} dihapus.`, 'success', 2000);
+                        }
+                    }
+                }
+            });
+            
+            waypointMarkers.push(marker);
+            waypointLayer.addLayer(marker);
+            marker.addTo(map);
+            
+            // Update controls
+            updateWaypointEditorControls();
+        }
+        
+        /**
+         * Clear all waypoint markers
+         */
+        function clearWaypointMarkers() {
+            waypointMarkers.forEach(marker => {
+                waypointLayer.removeLayer(marker);
+                map.removeLayer(marker);
+            });
+            waypointMarkers = [];
+            
+            // Update controls
+            updateWaypointEditorControls();
+        }
+        
+        /**
+         * Update waypoint order after drag
+         */
+        function updateWaypointOrder() {
+            waypointMarkers.forEach((marker, index) => {
+                marker.waypointIndex = index;
+                const icon = marker.getIcon();
+                if (icon && icon.options && icon.options.html) {
+                    icon.options.html = `<div class="waypoint-marker-inner">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span class="waypoint-index">${index + 1}</span>
+                    </div>`;
+                    marker.setIcon(icon);
+                }
+            });
+        }
+        
+        /**
+         * Handle map click to add waypoint
+         */
+        function onMapClickAddWaypoint(e) {
+            if (!waypointEditorMode || !currentEditingConnection) return;
+            
+            const { lat, lng } = e.latlng;
+            const newIndex = waypointMarkers.length;
+            addWaypointMarker(lat, lng, newIndex);
+            
+            displayGlobalMapMessage(`Waypoint ${newIndex + 1} ditambahkan. Drag untuk pindahkan, Ctrl+Click untuk hapus.`, 'success', 3000);
+        }
+        
+        /**
+         * Save waypoints
+         */
+        async function saveWaypoints() {
+            if (!currentEditingConnection || waypointMarkers.length < 2) {
+                displayGlobalMapMessage('Minimal harus ada 2 waypoint (start dan end).', 'warning', 3000);
+                return;
+            }
+            
+            const waypoints = waypointMarkers.map(marker => {
+                const latLng = marker.getLatLng();
+                return [latLng.lat, latLng.lng];
+            });
+            
+            try {
+                const response = await fetch('/api/map/waypoints', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        connectionType: currentEditingConnection.connectionType,
+                        sourceId: currentEditingConnection.sourceId,
+                        targetId: currentEditingConnection.targetId,
+                        waypoints: waypoints
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 200) {
+                        displayGlobalMapMessage('Waypoint berhasil disimpan! Refresh map untuk melihat perubahan.', 'success', 5000);
+                        exitWaypointEditor();
+                        // Auto refresh setelah 2 detik
+                        setTimeout(() => {
+                            loadAllMapData();
+                        }, 2000);
+                    } else {
+                        displayGlobalMapMessage(data.message || 'Gagal menyimpan waypoint.', 'danger', 3000);
+                    }
+                } else {
+                    const errorData = await response.json().catch(() => ({ message: 'Gagal menyimpan waypoint.' }));
+                    displayGlobalMapMessage(errorData.message || 'Gagal menyimpan waypoint.', 'danger', 3000);
+                }
+            } catch (error) {
+                console.error('[WAYPOINT_EDITOR] Error saving waypoints:', error);
+                displayGlobalMapMessage('Gagal menyimpan waypoint.', 'danger', 3000);
+            }
+        }
+        
+        /**
+         * Delete waypoints
+         */
+        async function deleteWaypoints() {
+            if (!currentEditingConnection) return;
+            
+            if (!confirm('Hapus waypoint manual untuk koneksi ini? Garis akan kembali menggunakan routing API atau straight line.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/map/waypoints?connectionType=${currentEditingConnection.connectionType}&sourceId=${currentEditingConnection.sourceId}&targetId=${currentEditingConnection.targetId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    displayGlobalMapMessage('Waypoint berhasil dihapus! Refresh map untuk melihat perubahan.', 'success', 5000);
+                    exitWaypointEditor();
+                    // Auto refresh setelah 2 detik
+                    setTimeout(() => {
+                        loadAllMapData();
+                    }, 2000);
+                } else {
+                    const errorData = await response.json().catch(() => ({ message: 'Gagal menghapus waypoint.' }));
+                    displayGlobalMapMessage(errorData.message || 'Gagal menghapus waypoint.', 'danger', 3000);
+                }
+            } catch (error) {
+                console.error('[WAYPOINT_EDITOR] Error deleting waypoints:', error);
+                displayGlobalMapMessage('Gagal menghapus waypoint.', 'danger', 3000);
+            }
+        }
+        
+        /**
+         * Exit waypoint editor
+         */
+        function exitWaypointEditor() {
+            waypointEditorMode = false;
+            currentEditingConnection = null;
+            clearWaypointMarkers();
+            map.off('click', onMapClickAddWaypoint);
+            $('#editWaypointBtn').removeClass('active').html('<i class="fas fa-route"></i> Edit Waypoint');
+            
+            // Hide controls
+            $('.waypoint-editor-controls').remove();
+        }
+        
+        /**
+         * Attach waypoint editor to connection line
+         */
+        function attachWaypointEditorToLine(line, connectionType, sourceId, targetId) {
+            if (!line) return;
+            
+            // Make line clickable
+            line.setStyle({ interactive: true });
+            
+            line.on('click', function(e) {
+                if (waypointEditorMode) {
+                    e.originalEvent.stopPropagation();
+                    startWaypointEditor(connectionType, sourceId, targetId);
+                }
+            });
+            
+            // Add context menu hint
+            line.on('mouseover', function() {
+                if (waypointEditorMode) {
+                    line.setStyle({ weight: line.options.weight + 1, opacity: 0.9 });
+                }
+            });
+            
+            line.on('mouseout', function() {
+                if (waypointEditorMode) {
+                    line.setStyle({ weight: line.options.weight - 1, opacity: line.options.opacity });
+                }
+            });
+        }
+        
+        // Global functions untuk context menu
+        window.startWaypointEditor = function(connectionType, sourceId, targetId) {
+            if (!waypointEditorMode) {
+                $('#editWaypointBtn').click();
+            }
+            startWaypointEditor(connectionType, sourceId, targetId);
+        };
+        
+        window.deleteWaypointsForConnection = async function(connectionType, sourceId, targetId) {
+            if (!confirm('Hapus waypoint manual untuk koneksi ini?')) return;
+            
+            try {
+                const response = await fetch(`/api/map/waypoints?connectionType=${connectionType}&sourceId=${sourceId}&targetId=${targetId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    displayGlobalMapMessage('Waypoint berhasil dihapus! Refresh map untuk melihat perubahan.', 'success', 5000);
+                    // Reload map data
+                    setTimeout(() => {
+                        loadAllMapData();
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('[WAYPOINT_EDITOR] Error deleting waypoints:', error);
+                displayGlobalMapMessage('Gagal menghapus waypoint.', 'danger', 3000);
+            }
+        };
+        
+        // Add save/delete buttons to waypoint editor
+        function showWaypointEditorControls() {
+            if (!currentEditingConnection) return;
+            
+            // Remove existing controls if any
+            $('.waypoint-editor-controls').remove();
+            
+            const controls = $(`
+                <div class="waypoint-editor-controls" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-success btn-sm" onclick="saveWaypoints()">
+                            <i class="fas fa-save"></i> Simpan Waypoint
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteWaypoints()">
+                            <i class="fas fa-trash"></i> Hapus Waypoint
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="exitWaypointEditor()">
+                            <i class="fas fa-times"></i> Batal
+                        </button>
+                        <span class="ml-2 text-muted">${waypointMarkers.length} waypoint</span>
+                    </div>
+                </div>
+            `);
+            
+            $('body').append(controls);
+        }
+        
+        // Update waypoint editor controls
+        function updateWaypointEditorControls() {
+            if (currentEditingConnection) {
+                showWaypointEditorControls();
+            } else {
+                $('.waypoint-editor-controls').remove();
+            }
+        }
+        
+        // Make functions global
+        window.saveWaypoints = saveWaypoints;
+        window.deleteWaypoints = deleteWaypoints;
+        window.exitWaypointEditor = exitWaypointEditor;
+        
+        // Update controls when waypoints change - call updateWaypointEditorControls() in relevant functions
+        // This is done inline in addWaypointMarker, clearWaypointMarkers, startWaypointEditor, exitWaypointEditor
     </script>
 </body>
 </html>

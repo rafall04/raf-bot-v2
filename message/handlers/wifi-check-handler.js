@@ -6,11 +6,14 @@
 const axios = require('axios');
 const { getSSIDInfo } = require('../../lib/wifi');
 const { sleep } = require('../../lib/myfunc');
+const { getProfileBySubscription } = require('../../lib/myfunc');
+const { getONUInfo } = require('../../lib/wifi');
+const { findUserWithLidSupport } = require('../../lib/lid-handler');
 
 /**
  * Handle cek WiFi status
  */
-async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users, reply, global, mess }) {
+async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users, reply, global, mess, msg, raf }) {
     const plainSenderNumber = sender.split('@')[0];
     let user;
     let searchMode = 'direct'; // 'direct', 'by_id', 'by_name'
@@ -38,17 +41,31 @@ async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users
         user = users.find(v => v.name && v.name.toLowerCase().includes(searchQuery));
         console.log('[CEK_WIFI_DEBUG] Search by name:', searchQuery, 'Found:', !!user);
     }
-    // Priority 3 (Fallback): Find by WhatsApp sender number
+    // Priority 3 (Fallback): Find by WhatsApp sender number (with @lid support)
     else {
-        user = users.find(v => v.phone_number && v.phone_number.split("|").includes(plainSenderNumber));
-        console.log('[CEK_WIFI_DEBUG] Search by phone:', plainSenderNumber, 'Found:', !!user);
+        // Use the new lid-handler to find user (supports @lid format)
+        user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
+        
+        console.log('[CEK_WIFI_DEBUG] Search by phone/LID:', plainSenderNumber, 'Found:', !!user);
         
         // Additional debug if not found
-        if (!user && users.length > 0) {
-            console.log('[CEK_WIFI_DEBUG] Sample phone numbers in DB:');
-            users.slice(0, 3).forEach(u => {
+        if (!user && plainSenderNumber) {
+            console.log('[CEK_WIFI_DEBUG] No user found for phone/LID:', plainSenderNumber);
+            console.log('[CEK_WIFI_DEBUG] Sender format:', sender);
+            
+            // Check if it's @lid format and provide verification instructions
+            if (sender.includes('@lid')) {
+                console.log('[CEK_WIFI_DEBUG] This is @lid format - WhatsApp privacy mode');
+                const { createLidVerification } = require('../../lib/lid-handler');
+                const lidId = sender.split('@')[0];
+                const verification = createLidVerification(lidId, users);
+                return reply(verification.message);
+            }
+            
+            console.log('[CEK_WIFI_DEBUG] Sample phone formats in DB:');
+            users.slice(0, 3).forEach((u, i) => {
                 if (u.phone_number) {
-                    console.log(`   User #${u.id}: "${u.phone_number}"`);
+                    console.log(`  User ${i+1}:`, u.phone_number);
                 }
             });
         }

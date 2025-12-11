@@ -3,7 +3,7 @@
  * Handles topup, transfer, and balance operations
  */
 
-const { convertRupiah } = require('../../lib/function');
+const convertRupiah = require('rupiah-format');
 
 /**
  * Handle topup balance
@@ -17,23 +17,46 @@ async function handleTopup({ q, isOwner, sender, reply, msg, mess, raf, checkATM
         if (isNaN(jumblah)) throw mess.mustNumber;
         
         const tujuantf = `${tujuan.replace("@", '')}@s.whatsapp.net`;
-        const checkATM = checkATMuser(tujuantf);
         
+        // PENTING: Gunakan createUserSaldo untuk inisialisasi, bukan addKoinUser dengan amount=0
         try {
-            if (checkATM === undefined) addATM(tujuantf);
-            const uangsaku = 0;
-            addKoinUser(tujuantf, uangsaku);
+            const saldoManager = require('../../lib/saldo-manager');
+            saldoManager.createUserSaldo(tujuantf);
         } catch (err) {
-            console.error('[TOPUP_INIT]', err);
+            console.error('[TOPUP_INIT] Error creating user saldo:', err);
         }
         
         addKoinUser(tujuantf, jumblah);
         const kerupiah123 = convertRupiah.convert(jumblah);
         
-        await reply(`*「 SUKSES 」*\n\nPengiriman uang telah sukses\nDari : +${sender.split("@")[0]}\nKe : +${tujuan}\nJumlah transfer : ${kerupiah123}`);
-        await raf.sendMessage(tujuantf, {
-            text: `*「 SUKSES 」*\n\nPengisian Saldo Dengan Jumlah\n${kerupiah123}\n\nSilahkan Cek Saldo Anda Dengan Ketik ceksaldo\n\nTerima Kasih Telah Melakukan Topup\nBy Bot`
-        }, { quoted: msg });
+        // Gunakan template system untuk notifikasi admin
+        const { renderTemplate } = require('../../lib/templating');
+        const adminMessage = renderTemplate('topup_success_admin', {
+            nomor_pengirim: sender.split("@")[0],
+            nomor_tujuan: tujuan,
+            jumlah: kerupiah123
+        });
+        await reply(adminMessage, { skipDuplicateCheck: true });
+        
+        // Gunakan template system untuk notifikasi penerima
+        const recipientMessage = renderTemplate('topup_success_recipient_manual', {
+            jumlah: kerupiah123
+        });
+        
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                await raf.sendMessage(tujuantf, { text: recipientMessage }, { quoted: msg });
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    tujuantf,
+                    error: error.message
+                });
+                console.error('[TOPUP_HANDLER] Error sending notification to recipient:', error);
+            }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', tujuantf);
+        }
         
     } catch (error) {
         if (typeof error === 'string') {
@@ -55,13 +78,21 @@ async function handleDelSaldo({ q, isOwner, reply, mess, checkATMuser, delSaldo 
         if (isNaN(q)) throw mess.mustNumber;
         
         const tujuandel = `${q.replace("@", '')}@s.whatsapp.net`;
-        const checkATM = checkATMuser(tujuandel);
+        const checkATM = await checkATMuser(tujuandel);
         
         if (checkATM === undefined) {
             await reply('Nomor Yang Akan Dihapus Tidak Ditemukan.');
+            return;
         } else {
             delSaldo(tujuandel);
-            await reply(`*「 SUKSES 」*\n\nHapus Saldo User Dengan Nomor :\n${tujuandel}`);
+            
+            // Gunakan template system untuk notifikasi hapus saldo
+            const { renderTemplate } = require('../../lib/templating');
+            const message = renderTemplate('del_saldo_success', {
+                nomor_user: tujuandel
+            });
+            await reply(message, { skipDuplicateCheck: true });
+            return;
         }
     } catch (error) {
         if (typeof error === 'string') {
@@ -80,29 +111,49 @@ async function handleTransfer({ q, sender, reply, msg, mess, raf, checkATMuser, 
     try {
         if (!q.includes('|')) return reply(format('mess_wrongFormat'));
         
+        // PENTING: Normalisasi JID dari @lid ke format standar sebelum operasi saldo
+        const { normalizeJidForSaldo } = require('../../lib/lid-handler');
+        let normalizedSender = sender;
+        
+        if (sender && sender.endsWith('@lid')) {
+            const normalizedJid = await normalizeJidForSaldo(sender, { allowLid: false, raf: raf });
+            if (!normalizedJid) {
+                return await reply('❌ Maaf, tidak dapat memverifikasi nomor WhatsApp Anda. Silakan hubungi admin.');
+            }
+            normalizedSender = normalizedJid;
+        }
+        
+        // PENTING: Pastikan normalizedSender tidak mengandung :0 atau format aneh lainnya
+        if (normalizedSender && normalizedSender.includes(':')) {
+            normalizedSender = normalizedSender.split(':')[0];
+            if (!normalizedSender.endsWith('@s.whatsapp.net')) {
+                normalizedSender = normalizedSender + '@s.whatsapp.net';
+            }
+        }
+        
         let [tujuan, jumblah] = q.split('|');
         if (isNaN(jumblah)) throw mess.mustNumber;
         
-        if (checkATMuser(sender) < jumblah) {
+        const senderSaldo = await checkATMuser(normalizedSender);
+        if (senderSaldo < jumblah) {
             throw `uang mu tidak mencukupi untuk melakukan transfer.`;
         }
         
         const tujuantf = `${tujuan.replace("@", '')}@s.whatsapp.net`;
-        const checkATM = checkATMuser(tujuantf);
         
+        // PENTING: Gunakan createUserSaldo untuk inisialisasi, bukan addKoinUser dengan amount=0
         try {
-            if (checkATM === undefined) addATM(tujuantf);
-            const uangsaku = 0;
-            addKoinUser(tujuantf, uangsaku);
+            const saldoManager = require('../../lib/saldo-manager');
+            saldoManager.createUserSaldo(tujuantf);
         } catch (err) {
-            console.error('[TRANSFER_INIT]', err);
+            console.error('[TRANSFER_INIT] Error creating user saldo:', err);
         }
         
-        confirmATM(sender, jumblah);
+        confirmATM(normalizedSender, jumblah);
         addKoinUser(tujuantf, jumblah);
         
         const kerupiah123 = convertRupiah.convert(jumblah);
-        const sisaSaldo = convertRupiah.convert(checkATMuser(sender));
+        const sisaSaldo = convertRupiah.convert(await checkATMuser(normalizedSender));
         
         await reply(format('transfer_sukses_pengirim', { 
             nomorPengirim: sender.split("@")[0], 
@@ -111,12 +162,69 @@ async function handleTransfer({ q, sender, reply, msg, mess, raf, checkATMuser, 
             sisaSaldo 
         }));
         
-        await raf.sendMessage(tujuantf, {
-            text: format('transfer_sukses_penerima', { 
-                jumlah: kerupiah123, 
-                nomorPengirim: sender.split("@")[0] 
-            })
-        }, { quoted: msg });
+        // Dapatkan nama pengirim (pushname atau nomor HP, bukan @lid)
+        let namaPengirim = normalizedSender.replace('@s.whatsapp.net', '');
+        
+        // Coba ambil pushname dari database saldo jika ada
+        const saldoManager = require('../../lib/saldo-manager');
+        try {
+            const saldoData = await saldoManager.getAllSaldoDataFromDb();
+            const senderSaldoData = saldoData.find(s => s.user_id === normalizedSender);
+            if (senderSaldoData && senderSaldoData.pushname) {
+                namaPengirim = senderSaldoData.pushname;
+            }
+        } catch (err) {
+            // Ignore error, continue with other methods
+        }
+        
+        // Coba ambil dari database user jika ada
+        if (global.users && Array.isArray(global.users)) {
+            const senderUser = global.users.find(u => {
+                const userPhone = u.phone_number ? u.phone_number.replace(/[^0-9]/g, '') : '';
+                const senderPhone = normalizedSender.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+                return userPhone === senderPhone || userPhone === senderPhone.replace('62', '0');
+            });
+            
+            if (senderUser && senderUser.name) {
+                namaPengirim = senderUser.name;
+            }
+        }
+        
+        // Jika masih @lid atau format aneh, gunakan nomor HP yang sudah dinormalisasi
+        if (namaPengirim.includes('@lid') || namaPengirim.includes(':')) {
+            namaPengirim = normalizedSender.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+        }
+        
+        // Jika msg tersedia, coba ambil pushname dari message
+        if (msg && msg.pushName) {
+            namaPengirim = msg.pushName;
+        }
+        
+        // Gunakan template system untuk notifikasi penerima
+        const { renderTemplate } = require('../../lib/templating');
+        const recipientSaldo = await checkATMuser(tujuantf);
+        
+        const message = renderTemplate('transfer_saldo_masuk', {
+            jumlah: kerupiah123,
+            nama_pengirim: namaPengirim,
+            formattedSaldo: convertRupiah.convert(recipientSaldo)
+        });
+        
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                await raf.sendMessage(tujuantf, { text: message }, { quoted: msg });
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    tujuantf,
+                    error: error.message
+                });
+                logger.error('[TRANSFER_HANDLER] Error sending notification to recipient:', error);
+                // Jangan throw - notification tidak critical
+            }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', tujuantf);
+        }
         
     } catch (error) {
         if (typeof error === 'string') {

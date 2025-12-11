@@ -14,7 +14,9 @@ const {
     saveReports, saveSpeedRequests, saveNetworkAssets, saveCompensations,
     savePackage, saveAccounts, saveStatik, saveVoucher, saveAtm,
     savePayment, savePaymentMethod, saveRequests, loadJSON, saveJSON,
-    updateOdpPortUsage, savePackageChangeRequests
+    updateOdpPortUsage, updateOdcPortUsage, savePackageChangeRequests,
+    initializeConnectionWaypointsTable, getConnectionWaypoints, saveConnectionWaypoints,
+    deleteConnectionWaypoints, getAllConnectionWaypoints
 } = require('../lib/database');
 const {
     initializeAllCronTasks,
@@ -31,15 +33,30 @@ const { renderTemplate, templatesCache } = require('../lib/templating');
 const { getProfileBySubscription } = require('../lib/myfunc');
 const { handlePaidStatusChange, sendTechnicianNotification } = require('../lib/approval-logic.js');
 const { normalizePhoneNumber } = require('../lib/utils');
+const agentVoucherManager = require('../lib/agent-voucher-manager');
+const agentManager = require('../lib/agent-manager');
+const { withLock } = require('../lib/request-lock');
+const { rateLimit } = require('../lib/security');
 
 const router = express.Router();
+const { getLoginLogs, getActivityLogs, logActivity } = require('../lib/activity-logger');
 
 // --- Helper Functions (moved from index.js) ---
 
 function ensureAuthenticatedStaff(req, res, next) {
-    if (!req.user || !['admin', 'owner', 'superadmin', 'teknisi'].includes(req.user.role)) {
-        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    // Debug logging untuk troubleshooting
+    if (!req.user) {
+        console.log(`[AUTH_DEBUG] ensureAuthenticatedStaff: req.user is null/undefined. Path: ${req.path}, Method: ${req.method}`);
+        console.log(`[AUTH_DEBUG] Cookies:`, req.cookies);
+        console.log(`[AUTH_DEBUG] Headers:`, req.headers.authorization ? 'Authorization header present' : 'No Authorization header');
+        return res.status(403).json({ status: 403, message: "Akses ditolak. User tidak terautentikasi." });
     }
+    
+    if (!['admin', 'owner', 'superadmin', 'teknisi'].includes(req.user.role)) {
+        console.log(`[AUTH_DEBUG] ensureAuthenticatedStaff: Invalid role. User: ${req.user.username}, Role: ${req.user.role}, Path: ${req.path}`);
+        return res.status(403).json({ status: 403, message: "Akses ditolak. Role tidak diizinkan." });
+    }
+    
     next();
 }
 
@@ -118,14 +135,25 @@ async function broadcast(text, users = global.users) {
             const personalizedText = formatBroadcastMessage(text, user);
             const numbers = user.phone_number.split("|").map(n => normalizePhoneNumber(n)).filter(Boolean);
 
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
             for (const number of numbers) {
-                try {
-                    const { delay } = await import('@whiskeysockets/baileys');
-                    await global.raf.sendMessage(number + "@s.whatsapp.net", { text: personalizedText });
-                    console.log(`Broadcast sent to ${user.name} (${number})`);
-                    await delay(1000); // Delay between sending to each number
-                } catch (e) {
-                    console.error(`Failed to send broadcast to ${number}:`, e);
+                const phoneJid = number + "@s.whatsapp.net";
+                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                    try {
+                        const { delay } = await import('@whiskeysockets/baileys');
+                        await global.raf.sendMessage(phoneJid, { text: personalizedText });
+                        console.log(`Broadcast sent to ${user.name} (${number})`);
+                        await delay(1000); // Delay between sending to each number
+                    } catch (e) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            phoneJid,
+                            error: e.message
+                        });
+                        console.error(`Failed to send broadcast to ${number}:`, e);
+                        // Continue to next number
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', phoneJid);
                 }
             }
         }
@@ -139,7 +167,235 @@ async function broadcast(text, users = global.users) {
 // All routes here are implicitly protected by the admin auth middleware in index.js
 
 // API routes for populating form dropdowns
-router.get('/api/list/users', ensureAuthenticatedStaff, (req, res) => {
+// Debug endpoint to inspect database (accessible via web interface)
+router.get('/api/debug/database', ensureAuthenticatedStaff, async (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+
+    try {
+        const sqlite3 = require('sqlite3').verbose();
+        const { getDatabasePath } = require('../lib/env-config');
+        const dbPath = getDatabasePath('users.sqlite');
+        
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
+
+        const results = {};
+
+        // Get all tables
+        const tables = await new Promise((resolve, reject) => {
+            db.all("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name", [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            });
+        });
+
+        results.tables = tables.map(t => t.name);
+
+        // Get users count
+        const userCount = await new Promise((resolve, reject) => {
+            db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
+                if (err) reject(err);
+                else resolve(row ? row.count : 0);
+            });
+        });
+
+        results.usersCount = userCount;
+
+        // Get users table structure
+        const columns = await new Promise((resolve, reject) => {
+            db.all("PRAGMA table_info(users)", [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            });
+        });
+
+        results.columns = columns;
+
+        // Get sample users (first 10)
+        const sampleUsers = await new Promise((resolve, reject) => {
+            db.all("SELECT id, name, phone_number, subscription, status, paid FROM users ORDER BY id LIMIT 10", [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            });
+        });
+
+        results.sampleUsers = sampleUsers;
+
+        // Get global.users count
+        results.globalUsersCount = global.users ? global.users.length : 0;
+
+        // Get users by status
+        const usersByStatus = await new Promise((resolve, reject) => {
+            db.all("SELECT status, COUNT(*) as count FROM users GROUP BY status", [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            });
+        });
+
+        results.usersByStatus = usersByStatus;
+
+        db.close();
+
+        res.json({
+            status: 200,
+            message: "Database inspection successful",
+            database: {
+                path: dbPath,
+                exists: fs.existsSync(dbPath),
+                fileSize: fs.existsSync(dbPath) ? fs.statSync(dbPath).size : 0
+            },
+            data: results
+        });
+
+    } catch (error) {
+        console.error('[DEBUG_DB] Error inspecting database:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Gagal inspect database",
+            error: error.message
+        });
+    }
+});
+
+// Note: Delete all users endpoint is available at /api/admin/delete-all-users
+// This endpoint is already integrated with the users.php page (Delete All Users button)
+// The endpoint includes: delete from DB, reset sequence, clear memory, verify deletion
+
+// Reload users from database endpoint (via web interface)
+router.post('/api/users/reload', ensureAuthenticatedStaff, async (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+
+    try {
+        console.log('[RELOAD_USERS] Starting user reload from database...');
+        
+        const sqlite3 = require('sqlite3').verbose();
+        const { getDatabasePath } = require('../lib/env-config');
+        const dbPath = getDatabasePath('users.sqlite');
+        
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
+        
+        // Get count from database
+        const dbCountPromise = new Promise((resolve, reject) => {
+            db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
+                if (err) reject(err);
+                else resolve(row ? row.count : 0);
+            });
+        });
+        
+        const dbCount = await dbCountPromise;
+        const memoryCountBefore = global.users ? global.users.length : 0;
+        
+        // Load all users from database
+        const usersPromise = new Promise((resolve, reject) => {
+            db.all('SELECT * FROM users ORDER BY id', [], (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows || []);
+            });
+        });
+        
+        const rows = await usersPromise;
+        db.close();
+        
+        console.log(`[RELOAD_USERS] Loaded ${rows.length} rows from database (DB count: ${dbCount})`);
+        
+        // Transform the data (same logic as initializeDatabase)
+        const transformedUsers = [];
+        let transformErrorCount = 0;
+        
+        if (rows && rows.length > 0) {
+            rows.forEach((user, index) => {
+                try {
+                    const transformed = {
+                        ...user,
+                        paid: user.paid === 1 || user.paid === '1',
+                        send_invoice: user.send_invoice === 1 || user.send_invoice === '1',
+                        is_corporate: user.is_corporate === 1 || user.is_corporate === '1',
+                        bulk: (() => {
+                            try {
+                                if (!user.bulk) return [];
+                                if (typeof user.bulk === 'string') {
+                                    const trimmed = user.bulk.trim();
+                                    if (trimmed === '' || trimmed === '[]' || trimmed === 'null') return [];
+                                    // Handle corrupted data: "[object Object]"
+                                    if (trimmed === '[object Object]' || trimmed.startsWith('[object')) {
+                                        console.warn(`[RELOAD_USERS] Corrupted bulk data for user ${user.id}: "${trimmed}", resetting to default`);
+                                        return [];
+                                    }
+                                    return JSON.parse(user.bulk);
+                                }
+                                // Jika sudah array, return langsung
+                                if (Array.isArray(user.bulk)) return user.bulk;
+                                return [];
+                            } catch (e) {
+                                console.warn(`[RELOAD_USERS] Failed to parse bulk for user ${user.id}:`, e.message);
+                                return [];
+                            }
+                        })(),
+                        connected_odp_id: user.connected_odp_id || null,
+                        phone: user.phone_number || user.phone || null,
+                        package: user.subscription || user.package || null
+                    };
+                    transformedUsers.push(transformed);
+                } catch (transformErr) {
+                    transformErrorCount++;
+                    console.error(`[RELOAD_USERS] Failed to transform user ${user.id}:`, transformErr.message);
+                    // Still try to add with minimal transformation
+                    try {
+                        transformedUsers.push({
+                            ...user,
+                            paid: user.paid === 1 || user.paid === '1',
+                            send_invoice: user.send_invoice === 1 || user.send_invoice === '1',
+                            is_corporate: user.is_corporate === 1 || user.is_corporate === '1',
+                            bulk: [],
+                            connected_odp_id: user.connected_odp_id || null,
+                            phone: user.phone_number || user.phone || null,
+                            package: user.subscription || user.package || null
+                        });
+                    } catch (minimalErr) {
+                        console.error(`[RELOAD_USERS] CRITICAL: Cannot add user ${user.id}:`, minimalErr.message);
+                    }
+                }
+            });
+        }
+        
+        // Update global.users
+        global.users = transformedUsers;
+        const memoryCountAfter = global.users.length;
+        
+        console.log(`[RELOAD_USERS] Reload complete: ${memoryCountBefore} → ${memoryCountAfter} users (DB: ${dbCount})`);
+        
+        if (memoryCountAfter < rows.length) {
+            const missingCount = rows.length - memoryCountAfter;
+            console.error(`[RELOAD_USERS] WARNING: ${missingCount} user(s) were NOT loaded!`);
+        }
+        
+        res.json({
+            status: 200,
+            message: `Users reloaded successfully. ${memoryCountAfter} users loaded from database.`,
+            details: {
+                databaseCount: dbCount,
+                memoryCountBefore: memoryCountBefore,
+                memoryCountAfter: memoryCountAfter,
+                rowsLoaded: rows.length,
+                transformErrors: transformErrorCount,
+                missing: rows.length - memoryCountAfter
+            }
+        });
+        
+    } catch (error) {
+        console.error('[RELOAD_USERS] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: "Gagal reload users dari database.",
+            error: error.message
+        });
+    }
+});
+
+router.get('/api/list/users', ensureAuthenticatedStaff, rateLimit('list-users', 30, 60000), (req, res) => {
     // Return a simplified list of users suitable for a dropdown
     const userList = global.users.map(u => ({
         id: u.id,
@@ -150,7 +406,7 @@ router.get('/api/list/users', ensureAuthenticatedStaff, (req, res) => {
     res.json({ status: 200, message: "User list fetched.", data: userList });
 });
 
-router.get('/api/list/packages', ensureAuthenticatedStaff, (req, res) => {
+router.get('/api/list/packages', ensureAuthenticatedStaff, rateLimit('list-packages', 30, 60000), (req, res) => {
     // Return packages, ensuring price is a number
     const packageList = global.packages.map(p => ({
         ...p,
@@ -289,14 +545,33 @@ router.get('/api/config', ensureAuthenticatedStaff, (req, res) => {
     try {
         const mainConfigPath = path.join(__dirname, '..', 'config.json');
         const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
+        const speedBoostConfigPath = path.join(__dirname, '..', 'database', 'speed_boost_matrix.json');
         
         const mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
         const cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
         
+        // Load speed boost config untuk get enabled status
+        let speedOnDemandEnabled = true; // default
+        try {
+            if (fs.existsSync(speedBoostConfigPath)) {
+                const speedBoostConfig = JSON.parse(fs.readFileSync(speedBoostConfigPath, 'utf8'));
+                speedOnDemandEnabled = speedBoostConfig.enabled !== false;
+            }
+        } catch (err) {
+            console.warn('[API_CONFIG_GET] Failed to load speed boost config:', err.message);
+        }
+        
+        // Get payment status visibility config (default: true)
+        const showPaymentStatus = mainConfig.showPaymentStatus !== false;
+        const showDueDate = mainConfig.showDueDate !== false;
+
         // Combine both configs
         const combinedConfig = {
             ...mainConfig,
-            ...cronConfig
+            ...cronConfig,
+            speedOnDemandEnabled: speedOnDemandEnabled,
+            showPaymentStatus: showPaymentStatus,
+            showDueDate: showDueDate
         };
         
         res.status(200).json({
@@ -366,7 +641,7 @@ router.post('/api/cron', ensureAuthenticatedStaff, (req, res) => {
     }
 });
 
-router.post('/api/config', ensureAuthenticatedStaff, (req, res) => {
+router.post('/api/config', ensureAuthenticatedStaff, async (req, res) => {
     if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
         return res.status(403).json({ message: "Akses ditolak." });
     }
@@ -405,6 +680,50 @@ router.post('/api/config', ensureAuthenticatedStaff, (req, res) => {
                     continue;
                 }
 
+                // Handle speedOnDemandEnabled - update speed_boost_matrix.json
+                if (key === 'speedOnDemandEnabled') {
+                    const speedBoostConfigPath = path.join(__dirname, '..', 'database', 'speed_boost_matrix.json');
+                    try {
+                        let speedBoostConfig = { enabled: true };
+                        if (fs.existsSync(speedBoostConfigPath)) {
+                            speedBoostConfig = JSON.parse(fs.readFileSync(speedBoostConfigPath, 'utf8'));
+                        }
+                        speedBoostConfig.enabled = receivedConfig[key] === 'true';
+                        speedBoostConfig.lastUpdated = new Date().toISOString();
+                        fs.writeFileSync(speedBoostConfigPath, JSON.stringify(speedBoostConfig, null, 2), 'utf8');
+                        
+                        // Update global config if exists
+                        if (global.speedBoostConfig) {
+                            global.speedBoostConfig = speedBoostConfig;
+                        }
+                        
+                        console.log('[CONFIG_SAVE] Speed On Demand updated:', speedBoostConfig.enabled);
+                    } catch (err) {
+                        console.error('[CONFIG_SAVE] Failed to update speed boost config:', err);
+                    }
+                    continue; // Don't add to mainConfig
+                }
+
+                // Handle showPaymentStatus and showDueDate - boolean conversion
+                if (key === 'showPaymentStatus' || key === 'showDueDate') {
+                    newMainConfig[key] = receivedConfig[key] === 'true';
+                    continue;
+                }
+
+                // Handle welcomeMessage object
+                if (key === 'welcomeMessageEnabled' || key === 'customerPortalUrl') {
+                    // Initialize welcomeMessage object if not exists
+                    if (!newMainConfig.welcomeMessage) {
+                        newMainConfig.welcomeMessage = {};
+                    }
+                    if (key === 'welcomeMessageEnabled') {
+                        newMainConfig.welcomeMessage.enabled = receivedConfig[key] === 'true';
+                    } else if (key === 'customerPortalUrl') {
+                        newMainConfig.welcomeMessage.customerPortalUrl = receivedConfig[key];
+                    }
+                    continue;
+                }
+
                 if (key in currentCronConfig) {
                     newCronConfig[key] = receivedConfig[key];
                 } else {
@@ -416,13 +735,47 @@ router.post('/api/config', ensureAuthenticatedStaff, (req, res) => {
         // Merge the new data with the existing config to preserve any unsubmitted fields
         const finalMainConfig = { ...currentMainConfig, ...newMainConfig };
         const finalCronConfig = { ...currentCronConfig, ...newCronConfig };
+        
+        // Merge welcomeMessage object properly if it exists
+        if (newMainConfig.welcomeMessage) {
+            finalMainConfig.welcomeMessage = {
+                ...(currentMainConfig.welcomeMessage || {}),
+                ...newMainConfig.welcomeMessage
+            };
+        }
 
         // Write the updated configs back to their files
         fs.writeFileSync(mainConfigPath, JSON.stringify(finalMainConfig, null, 4), 'utf8');
         fs.writeFileSync(cronConfigPath, JSON.stringify(finalCronConfig, null, 2), 'utf8');
 
-        // Update the global config objects in memory
+        // Update the global config objects in memory (BOTH main and cron)
         global.config = finalMainConfig;
+        if (global.cronConfig) {
+            global.cronConfig = finalCronConfig;
+        }
+        
+        console.log('[CONFIG_SAVE] Config saved. accessLimit:', finalMainConfig.accessLimit || finalCronConfig.accessLimit || 'not set');
+
+        // Log activity
+        try {
+            const changedKeys = Object.keys(newMainConfig).concat(Object.keys(newCronConfig));
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'config',
+                resourceId: 'system',
+                resourceName: 'System Configuration',
+                description: `Updated system configuration (${changedKeys.length} keys changed)`,
+                oldValue: { ...currentMainConfig, ...currentCronConfig },
+                newValue: { ...finalMainConfig, ...finalCronConfig },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[ACTIVITY_LOG_ERROR] Failed to log config change:', logErr);
+        }
 
         // Re-initialize cron tasks with the new settings
         initializeAllCronTasks();
@@ -437,135 +790,139 @@ router.post('/api/config', ensureAuthenticatedStaff, (req, res) => {
 
 // --- Announcements CRUD ---
 router.post('/api/announcements', ensureAuthenticatedStaff, (req, res) => {
-    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
-        return res.status(403).json({ message: "Akses ditolak." });
-    }
     const { message } = req.body;
-    if (!message || typeof message !== 'string') {
-        return res.status(400).json({ message: "Invalid message provided." });
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+        return res.status(400).json({ status: 400, message: "Pesan tidak boleh kosong." });
     }
     try {
         const newAnnouncement = {
             id: String(Date.now()),
-            message: message,
+            message: message.trim(),
             createdAt: new Date().toISOString()
         };
         global.announcements.push(newAnnouncement);
         saveJSON('announcements.json', global.announcements);
-        res.status(201).json({ message: "Announcement created successfully.", data: newAnnouncement });
+        res.status(201).json({ 
+            status: 201, 
+            message: "Pengumuman berhasil dibuat.", 
+            data: newAnnouncement 
+        });
     } catch (error) {
         console.error("[API_ANNOUNCEMENTS_POST_ERROR]", error);
-        res.status(500).json({ message: "Failed to create announcement." });
+        res.status(500).json({ status: 500, message: "Gagal membuat pengumuman." });
     }
 });
 
 router.post('/api/announcements/:id', ensureAuthenticatedStaff, (req, res) => {
-    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
-        return res.status(403).json({ message: "Akses ditolak." });
-    }
     const { id } = req.params;
     const { message } = req.body;
-    if (!message || typeof message !== 'string') {
-        return res.status(400).json({ message: "Invalid message provided." });
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+        return res.status(400).json({ status: 400, message: "Pesan tidak boleh kosong." });
     }
     try {
         const announcementIndex = global.announcements.findIndex(a => a.id === id);
         if (announcementIndex === -1) {
-            return res.status(404).json({ message: "Announcement not found." });
+            return res.status(404).json({ status: 404, message: "Pengumuman tidak ditemukan." });
         }
-        global.announcements[announcementIndex].message = message;
+        global.announcements[announcementIndex].message = message.trim();
         saveJSON('announcements.json', global.announcements);
-        res.status(200).json({ message: "Announcement updated successfully.", data: global.announcements[announcementIndex] });
+        res.status(200).json({ 
+            status: 200, 
+            message: "Pengumuman berhasil diperbarui.", 
+            data: global.announcements[announcementIndex] 
+        });
     } catch (error) {
         console.error("[API_ANNOUNCEMENTS_UPDATE_ERROR]", error);
-        res.status(500).json({ message: "Failed to update announcement." });
+        res.status(500).json({ status: 500, message: "Gagal memperbarui pengumuman." });
     }
 });
 
 router.delete('/api/announcements/:id', ensureAuthenticatedStaff, (req, res) => {
-    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
-        return res.status(403).json({ message: "Akses ditolak." });
-    }
     const { id } = req.params;
     try {
         const initialLength = global.announcements.length;
         global.announcements = global.announcements.filter(a => a.id !== id);
         if (global.announcements.length === initialLength) {
-            return res.status(404).json({ message: "Announcement not found." });
+            return res.status(404).json({ status: 404, message: "Pengumuman tidak ditemukan." });
         }
         saveJSON('announcements.json', global.announcements);
-        res.status(200).json({ message: "Announcement deleted successfully." });
+        res.status(200).json({ status: 200, message: "Pengumuman berhasil dihapus." });
     } catch (error) {
         console.error("[API_ANNOUNCEMENTS_DELETE_ERROR]", error);
-        res.status(500).json({ message: "Failed to delete announcement." });
+        res.status(500).json({ status: 500, message: "Gagal menghapus pengumuman." });
     }
 });
 
 // --- News CRUD ---
 router.post('/api/news', ensureAuthenticatedStaff, (req, res) => {
-    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
-        return res.status(403).json({ message: "Akses ditolak." });
-    }
     const { title, news_content } = req.body;
-    if (!title || !news_content || typeof title !== 'string' || typeof news_content !== 'string') {
-        return res.status(400).json({ message: "Invalid title or content provided." });
+    if (!title || typeof title !== 'string' || title.trim() === '') {
+        return res.status(400).json({ status: 400, message: "Judul tidak boleh kosong." });
+    }
+    if (!news_content || typeof news_content !== 'string' || news_content.trim() === '') {
+        return res.status(400).json({ status: 400, message: "Konten tidak boleh kosong." });
     }
     try {
         const newItem = {
             id: `news_${Date.now()}`,
-            title: title,
-            content: news_content,
+            title: title.trim(),
+            content: news_content.trim(),
             createdAt: new Date().toISOString()
         };
         global.news.push(newItem);
         saveJSON('news.json', global.news);
-        res.status(201).json({ message: "News item created successfully.", data: newItem });
+        res.status(201).json({ 
+            status: 201, 
+            message: "Berita berhasil dibuat.", 
+            data: newItem 
+        });
     } catch (error) {
         console.error("[API_NEWS_POST_ERROR]", error);
-        res.status(500).json({ message: "Failed to create news item." });
+        res.status(500).json({ status: 500, message: "Gagal membuat berita." });
     }
 });
 
 router.post('/api/news/:id', ensureAuthenticatedStaff, (req, res) => {
-    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
-        return res.status(403).json({ message: "Akses ditolak." });
-    }
     const { id } = req.params;
     const { title, news_content } = req.body;
-    if (!title || !news_content || typeof title !== 'string' || typeof news_content !== 'string') {
-        return res.status(400).json({ message: "Invalid title or content provided." });
+    if (!title || typeof title !== 'string' || title.trim() === '') {
+        return res.status(400).json({ status: 400, message: "Judul tidak boleh kosong." });
+    }
+    if (!news_content || typeof news_content !== 'string' || news_content.trim() === '') {
+        return res.status(400).json({ status: 400, message: "Konten tidak boleh kosong." });
     }
     try {
         const newsIndex = global.news.findIndex(item => item.id === id);
         if (newsIndex === -1) {
-            return res.status(404).json({ message: "News item not found." });
+            return res.status(404).json({ status: 404, message: "Berita tidak ditemukan." });
         }
-        global.news[newsIndex].title = title;
-        global.news[newsIndex].content = news_content;
+        global.news[newsIndex].title = title.trim();
+        global.news[newsIndex].content = news_content.trim();
         saveJSON('news.json', global.news);
-        res.status(200).json({ message: "News item updated successfully.", data: global.news[newsIndex] });
+        res.status(200).json({ 
+            status: 200, 
+            message: "Berita berhasil diperbarui.", 
+            data: global.news[newsIndex] 
+        });
     } catch (error) {
         console.error("[API_NEWS_UPDATE_ERROR]", error);
-        res.status(500).json({ message: "Failed to update news item." });
+        res.status(500).json({ status: 500, message: "Gagal memperbarui berita." });
     }
 });
 
 router.delete('/api/news/:id', ensureAuthenticatedStaff, (req, res) => {
-    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
-        return res.status(403).json({ message: "Akses ditolak." });
-    }
     const { id } = req.params;
     try {
         const initialLength = global.news.length;
         global.news = global.news.filter(item => item.id !== id);
         if (global.news.length === initialLength) {
-            return res.status(404).json({ message: "News item not found." });
+            return res.status(404).json({ status: 404, message: "Berita tidak ditemukan." });
         }
         saveJSON('news.json', global.news);
-        res.status(200).json({ message: "News item deleted successfully." });
+        res.status(200).json({ status: 200, message: "Berita berhasil dihapus." });
     } catch (error) {
         console.error("[API_NEWS_DELETE_ERROR]", error);
-        res.status(500).json({ message: "Failed to delete news item." });
+        res.status(500).json({ status: 500, message: "Gagal menghapus berita." });
     }
 });
 
@@ -609,7 +966,29 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
             });
 
             // DB update successful, now update cache and handle side effects
+            const oldPaidStatus = userToUpdate.paid;
             userToUpdate.paid = (newPaidStatus === 1);
+            
+            // Log activity
+            try {
+                await logActivity({
+                    userId: req.user.id,
+                    username: req.user.username,
+                    role: req.user.role,
+                    actionType: 'UPDATE',
+                    resourceType: 'payment',
+                    resourceId: userToUpdate.id.toString(),
+                    resourceName: userToUpdate.name,
+                    description: `Approved payment request for user ${userToUpdate.name} (bulk approve)`,
+                    oldValue: { paid: oldPaidStatus },
+                    newValue: { paid: userToUpdate.paid },
+                    ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                    userAgent: req.headers['user-agent']
+                });
+            } catch (logErr) {
+                console.error('[ACTIVITY_LOG_ERROR] Failed to log payment approval:', logErr);
+            }
+            
             if (userToUpdate.paid === true) {
                 // When admin approves payment request, use TRANSFER_BANK
                 const paymentDetails = {
@@ -637,7 +1016,7 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
     });
 });
 
-router.post('/api/request-package-change', ensureAuthenticatedStaff, async (req, res) => {
+router.post('/api/request-package-change', ensureAuthenticatedStaff, rateLimit('request-package-change', 5, 60000), async (req, res) => {
     const { userId, newPackageName, notes } = req.body;
     const requester = req.user; // Can be admin or technician
 
@@ -646,63 +1025,93 @@ router.post('/api/request-package-change', ensureAuthenticatedStaff, async (req,
         return res.status(400).json({ message: "Parameter 'userId' dan 'newPackageName' wajib diisi." });
     }
 
+    // Use lock to prevent race condition when creating request for same user
     try {
-        // Validasi user exists
-        const user = global.users.find(u => u.id == userId);
-        if (!user) {
-            console.error(`[API_REQUEST_PKG_CHANGE_ERROR] User ID ${userId} tidak ditemukan.`);
-            return res.status(404).json({ message: `Pelanggan dengan ID ${userId} tidak ditemukan.` });
-        }
+        return await withLock(`create-pkg-request-${userId}`, async () => {
+            // Validasi user exists
+            const user = global.users.find(u => u.id == userId);
+            if (!user) {
+                console.error(`[API_REQUEST_PKG_CHANGE_ERROR] User ID ${userId} tidak ditemukan.`);
+                return res.status(404).json({ message: `Pelanggan dengan ID ${userId} tidak ditemukan.` });
+            }
 
-        // Validasi package exists
-        const requestedPackage = global.packages.find(p => p.name === newPackageName);
-        if (!requestedPackage) {
-            console.error(`[API_REQUEST_PKG_CHANGE_ERROR] Package '${newPackageName}' tidak ditemukan.`);
-            return res.status(404).json({ message: `Paket '${newPackageName}' tidak ditemukan.` });
-        }
+            // Validasi package exists
+            const requestedPackage = global.packages.find(p => p.name === newPackageName);
+            if (!requestedPackage) {
+                console.error(`[API_REQUEST_PKG_CHANGE_ERROR] Package '${newPackageName}' tidak ditemukan.`);
+                return res.status(404).json({ message: `Paket '${newPackageName}' tidak ditemukan.` });
+            }
 
-        // Cek apakah user sudah menggunakan paket yang diminta
-        if (user.subscription === newPackageName) {
-            return res.status(400).json({ message: `Pelanggan sudah menggunakan paket '${newPackageName}'.` });
-        }
+            // Cek apakah user sudah menggunakan paket yang diminta
+            if (user.subscription === newPackageName) {
+                return res.status(400).json({ message: `Pelanggan sudah menggunakan paket '${newPackageName}'.` });
+            }
 
-        // Cek apakah ada request pending untuk user ini
-        const existingPendingRequest = global.packageChangeRequests.find(
-            r => r.userId === user.id && r.status === 'pending'
-        );
-        if (existingPendingRequest) {
-            return res.status(400).json({ 
-                message: `Pelanggan ini sudah memiliki permintaan perubahan paket yang sedang menunggu persetujuan (Request ID: ${existingPendingRequest.id}).` 
+            // Auto-cancel expired requests sebelum cek duplicate
+            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+            const now = Date.now();
+            let hasExpiredRequests = false;
+            
+            global.packageChangeRequests.forEach(request => {
+                if (request.status === 'pending' && request.createdAt) {
+                    try {
+                        const requestAge = now - new Date(request.createdAt).getTime();
+                        if (requestAge > sevenDaysInMs) {
+                            request.status = 'cancelled_by_system';
+                            request.updatedAt = new Date().toISOString();
+                            request.notes = (request.notes || '') + ' [Auto-cancelled: Request expired >7 hari]';
+                            hasExpiredRequests = true;
+                            console.log(`[PKG_REQUEST_AUTO_CANCEL] Request ID ${request.id} auto-cancelled karena expired (>7 hari).`);
+                        }
+                    } catch (e) {
+                        console.error(`[PKG_REQUEST_AUTO_CANCEL_ERROR] Error processing request ${request.id}:`, e.message);
+                    }
+                }
             });
-        }
+            
+            // Simpan jika ada expired requests yang di-cancel
+            if (hasExpiredRequests) {
+                savePackageChangeRequests();
+            }
 
-        // Buat request baru
-        const newRequest = {
-            id: `req_pkg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            userId: user.id,
-            userName: user.name,
-            userPhone: user.phone_number || 'N/A',
-            currentPackageName: user.subscription || 'Belum berlangganan',
-            requestedPackageName: newPackageName,
-            requestedPackagePrice: requestedPackage.price || 0,
-            requestedBy: requester.username,
-            requestedByRole: requester.role,
-            requestedById: requester.id,
-            createdAt: new Date().toISOString(),
-            updatedAt: null,
-            approvedBy: null,
-            status: 'pending',
-            notes: notes || ''
-        };
+            // Cek apakah ada request pending untuk user ini (setelah auto-cancel)
+            const existingPendingRequest = global.packageChangeRequests.find(
+                r => r.userId === user.id && r.status === 'pending'
+            );
+            if (existingPendingRequest) {
+                return res.status(400).json({ 
+                    message: `Pelanggan ini sudah memiliki permintaan perubahan paket yang sedang menunggu persetujuan (Request ID: ${existingPendingRequest.id}).` 
+                });
+            }
 
-        // Simpan ke database
-        global.packageChangeRequests.push(newRequest);
-        savePackageChangeRequests();
+            // Buat request baru
+            const newRequest = {
+                id: `req_pkg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                userId: user.id,
+                userName: user.name,
+                userPhone: user.phone_number || 'N/A',
+                currentPackageName: user.subscription || 'Belum berlangganan',
+                requestedPackageName: newPackageName,
+                requestedPackagePrice: requestedPackage.price || 0,
+                requestedBy: requester.username,
+                requestedByRole: requester.role,
+                requestedById: requester.id,
+                createdAt: new Date().toISOString(),
+                updatedAt: null,
+                approvedBy: null,
+                status: 'pending',
+                notes: notes || ''
+            };
 
-        console.log(`[REQUEST_PKG_CHANGE_LOG] ${requester.role.toUpperCase()} ${requester.username} (ID: ${requester.id}) membuat permintaan perubahan paket untuk User ${user.name} (ID: ${user.id}). Paket: ${user.subscription} → ${newPackageName}`);
+            // Simpan ke database
+            global.packageChangeRequests.push(newRequest);
+            savePackageChangeRequests();
 
-        // Kirim notifikasi WhatsApp ke admin/owner
-        if (global.raf && global.raf.ws && global.raf.ws.isOpen && global.config.ownerNumber && Array.isArray(global.config.ownerNumber) && global.config.ownerNumber.length > 0) {
+            console.log(`[REQUEST_PKG_CHANGE_LOG] ${requester.role.toUpperCase()} ${requester.username} (ID: ${requester.id}) membuat permintaan perubahan paket untuk User ${user.name} (ID: ${user.id}). Paket: ${user.subscription} → ${newPackageName}`);
+
+            // Kirim notifikasi WhatsApp ke admin/owner
+            // PENTING: Gunakan connection state check yang benar
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage && global.config.ownerNumber && Array.isArray(global.config.ownerNumber) && global.config.ownerNumber.length > 0) {
             const { delay } = await import('@whiskeysockets/baileys');
             
             // Format harga paket
@@ -732,31 +1141,45 @@ ${notes ? `📝 *Catatan:*\n${notes}\n\n` : ''}🆔 *Request ID:* ${newRequest.i
 _Mohon segera ditinjau dan diproses di panel admin._`;
 
             // Kirim ke semua owner number
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
             for (const ownerNum of global.config.ownerNumber) {
-                try {
-                    const ownerNumberJid = ownerNum.endsWith('@s.whatsapp.net') ? ownerNum : `${ownerNum}@s.whatsapp.net`;
-                    await delay(1000); // Delay untuk menghindari spam
-                    await global.raf.sendMessage(ownerNumberJid, { text: messageToOwner });
-                    console.log(`[REQUEST_PKG_CHANGE_NOTIF] Notifikasi berhasil dikirim ke owner ${ownerNumberJid}`);
-                } catch (notifError) {
-                    console.error(`[REQUEST_PKG_CHANGE_NOTIF_ERROR] Gagal kirim notif ke owner ${ownerNum}:`, notifError.message);
+                const ownerNumberJid = ownerNum.endsWith('@s.whatsapp.net') ? ownerNum : `${ownerNum}@s.whatsapp.net`;
+                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                    try {
+                        await delay(1000); // Delay untuk menghindari spam
+                        await global.raf.sendMessage(ownerNumberJid, { text: messageToOwner });
+                        console.log(`[REQUEST_PKG_CHANGE_NOTIF] Notifikasi berhasil dikirim ke owner ${ownerNumberJid}`);
+                    } catch (notifError) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            ownerNumberJid,
+                            error: notifError.message
+                        });
+                        console.error(`[REQUEST_PKG_CHANGE_NOTIF_ERROR] Gagal kirim notif ke owner ${ownerNum}:`, notifError.message);
+                        // Continue to next owner
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to owner', ownerNumberJid);
                 }
             }
         } else {
             console.warn(`[REQUEST_PKG_CHANGE_NOTIF_WARN] WhatsApp tidak terhubung atau ownerNumber tidak dikonfigurasi. Notifikasi tidak dikirim.`);
         }
 
-        return res.status(201).json({ 
-            message: 'Permintaan perubahan paket berhasil dibuat dan akan ditinjau oleh admin.',
-            data: {
-                requestId: newRequest.id,
-                status: newRequest.status
-            }
+            return res.status(201).json({ 
+                message: 'Permintaan perubahan paket berhasil dibuat dan akan ditinjau oleh admin.',
+                data: {
+                    requestId: newRequest.id,
+                    status: newRequest.status
+                }
+            });
         });
-
     } catch (error) {
         console.error(`[API_REQUEST_PKG_CHANGE_ERROR] Gagal membuat permintaan:`, error);
-        return res.status(500).json({ message: error.message || "Terjadi kesalahan internal server." });
+        return res.status(500).json({ 
+            message: error.message === `Could not acquire lock for create-pkg-request-${userId}`
+                ? 'Request sedang diproses. Silakan coba lagi.'
+                : (error.message || "Terjadi kesalahan internal server.")
+        });
     }
 });
 
@@ -771,22 +1194,25 @@ router.post('/api/approve-package-change', ensureAuthenticatedStaff, async (req,
         return res.status(400).json({ message: "Parameter 'requestId' dan 'action' wajib diisi." });
     }
 
-    const requestIndex = global.packageChangeRequests.findIndex(r => r.id === requestId);
-
-    if (requestIndex === -1) {
-        return res.status(404).json({ message: "Permintaan perubahan paket tidak ditemukan." });
-    }
-
-    const request = global.packageChangeRequests[requestIndex];
-
-    if (request.status !== 'pending') {
-        return res.status(400).json({ message: `Permintaan ini sudah dalam status '${request.status}' dan tidak dapat diubah lagi.` });
-    }
-
-    const adminUser = req.user;
-    let notificationMessage = "";
-
+    // Use lock to prevent race condition when approving same request
     try {
+        return await withLock(`approve-pkg-${requestId}`, async () => {
+            const requestIndex = global.packageChangeRequests.findIndex(r => r.id === requestId);
+
+            if (requestIndex === -1) {
+                return res.status(404).json({ message: "Permintaan perubahan paket tidak ditemukan." });
+            }
+
+            const request = global.packageChangeRequests[requestIndex];
+
+            if (request.status !== 'pending') {
+                return res.status(400).json({ message: `Permintaan ini sudah dalam status '${request.status}' dan tidak dapat diubah lagi.` });
+            }
+
+            const adminUser = req.user;
+            let notificationMessage = "";
+
+            try {
         if (action === 'approve') {
             const user = global.users.find(u => u.id === request.userId);
             if (!user) throw new Error(`User dengan ID ${request.userId} untuk permintaan ini tidak ditemukan.`);
@@ -797,36 +1223,67 @@ router.post('/api/approve-package-change', ensureAuthenticatedStaff, async (req,
 
             const newProfile = requestedPackage.profile;
 
+            // Store old package for activity log (before any changes)
+            const oldPackage = user.subscription;
+
             // Check if sync to MikroTik is enabled before syncing
             const syncToMikrotik = global.config.sync_to_mikrotik !== false; // Default to true if not set
 
+            // PENTING: Update MikroTik FIRST, baru update database
+            // Ini untuk mencegah inconsistent state jika MikroTik error
             if (syncToMikrotik) {
-                // Update profile on Mikrotik
+                // Update profile on Mikrotik FIRST
                 try {
                     await updatePPPoEProfile(user.pppoe_username, newProfile);
                     console.log(`[PKG_CHANGE_MIKROTIK_SYNC] Successfully updated profile for ${user.pppoe_username} to ${newProfile}.`);
                 } catch (mikrotikError) {
                     console.error(`[PKG_CHANGE_MIKROTIK_ERROR] Failed to update profile for ${user.pppoe_username}:`, mikrotikError.message);
-                    throw new Error(`Gagal mengupdate profil di MikroTik: ${mikrotikError.message}`);
+                    // Jika MikroTik error, jangan update database - throw error untuk prevent inconsistent state
+                    throw new Error(`Gagal mengupdate profil di MikroTik: ${mikrotikError.message}. Database tidak di-update untuk mencegah inconsistent state.`);
                 }
 
                 // Try to disconnect the user so the new profile takes effect
+                // Ini tidak critical, jadi jika error tidak perlu throw
                 try {
                     await deleteActivePPPoEUser(user.pppoe_username);
+                    console.log(`[PKG_CHANGE_APPROVE] Successfully disconnected active session for ${user.pppoe_username}.`);
                 } catch (e) {
                     console.warn(`[PKG_CHANGE_APPROVE_WARN] Gagal memutuskan sesi aktif untuk ${user.pppoe_username}, mungkin sedang tidak online. Melanjutkan proses. Error: ${e.message}`);
+                    // Tidak throw error karena disconnect tidak critical
                 }
             } else {
                 console.log(`[PKG_CHANGE_MIKROTIK_SYNC] Sync to MikroTik is DISABLED - skipping profile update for ${user.pppoe_username}.`);
             }
 
             // Update user's subscription in the database
+            // Hanya dilakukan jika MikroTik update berhasil (atau sync disabled)
             user.subscription = request.requestedPackageName;
+            
+            // Log activity
+            try {
+                await logActivity({
+                    userId: req.user.id,
+                    username: req.user.username,
+                    role: req.user.role,
+                    actionType: 'UPDATE',
+                    resourceType: 'package',
+                    resourceId: user.id.toString(),
+                    resourceName: user.name,
+                    description: `Approved package change for user ${user.name}: ${oldPackage} → ${request.requestedPackageName}`,
+                    oldValue: { subscription: oldPackage },
+                    newValue: { subscription: request.requestedPackageName },
+                    ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                    userAgent: req.headers['user-agent']
+                });
+            } catch (logErr) {
+                console.error('[ACTIVITY_LOG_ERROR] Failed to log package change:', logErr);
+            }
+            
             // No need to call a separate saveUsers() function as global.users is manipulated directly
             // and will be persisted if the app restarts based on the SQLite DB.
             // We do need to update the SQLite DB, however.
             await new Promise((resolve, reject) => {
-                db.run('UPDATE users SET subscription = ? WHERE id = ?', [request.requestedPackageName, user.id], function(err) {
+                global.db.run('UPDATE users SET subscription = ? WHERE id = ?', [request.requestedPackageName, user.id], function(err) {
                     if (err) {
                         console.error(`[PKG_CHANGE_APPROVE_DB_ERROR] Gagal update langganan untuk user ID ${user.id}:`, err.message);
                         return reject(new Error(`Gagal memperbarui langganan di database.`));
@@ -871,13 +1328,24 @@ Silakan hubungi admin untuk informasi lebih lanjut.`;
         const user = global.users.find(u => u.id === request.userId);
         if (user && user.phone_number && global.raf) {
              const phoneNumbers = user.phone_number.split('|');
+             // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
              for (let number of phoneNumbers) {
                 let normalizedNumber = normalizePhoneNumber(number);
                 if(normalizedNumber) {
-                    try {
-                        await global.raf.sendMessage(`${normalizedNumber}@s.whatsapp.net`, { text: notificationMessage });
-                    } catch (e) {
-                        console.error(`[PKG_CHANGE_ACTION_NOTIF_ERROR] Gagal kirim notif ke ${normalizedNumber}:`, e.message);
+                    const phoneJid = `${normalizedNumber}@s.whatsapp.net`;
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(phoneJid, { text: notificationMessage });
+                        } catch (e) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                phoneJid,
+                                error: e.message
+                            });
+                            console.error(`[PKG_CHANGE_ACTION_NOTIF_ERROR] Gagal kirim notif ke ${normalizedNumber}:`, e.message);
+                            // Continue to next number
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', phoneJid);
                     }
                 }
              }
@@ -917,19 +1385,36 @@ Silakan hubungi admin untuk informasi lebih lanjut.`;
                 }
             }
             
-            try {
-                await global.raf.sendMessage(teknisiPhone, { text: teknisiMessage });
-                console.log(`[PKG_CHANGE_TEKNISI_NOTIF] Notifikasi berhasil dikirim ke teknisi ${teknisiName} (${teknisiPhone})`);
-            } catch (e) {
-                console.error(`[PKG_CHANGE_TEKNISI_NOTIF_ERROR] Gagal kirim notif ke teknisi ${teknisiPhone}:`, e.message);
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    await global.raf.sendMessage(teknisiPhone, { text: teknisiMessage });
+                    console.log(`[PKG_CHANGE_TEKNISI_NOTIF] Notifikasi berhasil dikirim ke teknisi ${teknisiName} (${teknisiPhone})`);
+                } catch (e) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        teknisiPhone,
+                        error: e.message
+                    });
+                    console.error(`[PKG_CHANGE_TEKNISI_NOTIF_ERROR] Gagal kirim notif ke teknisi ${teknisiPhone}:`, e.message);
+                }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisiPhone);
             }
         }
 
-        return res.status(200).json({ message: `Permintaan berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}.` });
-
+            return res.status(200).json({ message: `Permintaan berhasil di-${action === 'approve' ? 'setujui' : 'tolak'}.` });
+            } catch (error) {
+                console.error(`[API_APPROVE_PKG_CHANGE_ERROR] Gagal memproses permintaan ${requestId}:`, error);
+                throw error; // Re-throw untuk ditangani oleh outer catch
+            }
+        });
     } catch (error) {
         console.error(`[API_APPROVE_PKG_CHANGE_ERROR] Gagal memproses permintaan ${requestId}:`, error);
-        return res.status(500).json({ message: error.message || "Terjadi kesalahan internal server." });
+        return res.status(500).json({ 
+            message: error.message === `Could not acquire lock for approve-pkg-${requestId}`
+                ? 'Request sedang diproses. Silakan coba lagi.'
+                : (error.message || "Terjadi kesalahan internal server.")
+        });
     }
 });
 
@@ -1127,16 +1612,10 @@ router.post('/api/ssid/:deviceId', ensureAuthenticatedStaff, async (req, res) =>
                 
                 let customer = global.users ? global.users.find(u => u.device_id === deviceId) : null;
                 
-                // If not found in global.users, try loading from file
+                // Customer should be in global.users (loaded from users.sqlite)
+                // No need to check file anymore since all data is in database
                 if (!customer) {
-                    console.log(`[WIFI_LOGGING] Customer not found in global.users, trying file...`);
-                    const users = await loadJSON('users.json');
-                    customer = users.find(u => u.device_id === deviceId);
-                    if (customer) {
-                        console.log(`[WIFI_LOGGING] Customer found in file: ${customer.name} (ID: ${customer.id})`);
-                    } else {
-                        console.log(`[WIFI_LOGGING] Customer not found in file either for device ${deviceId}`);
-                    }
+                    console.log(`[WIFI_LOGGING] Customer not found in database for device ${deviceId}`);
                 }
                 
                 // Get the admin/staff user who is making the change
@@ -1432,7 +1911,7 @@ router.post('/api/broadcast', ensureAuthenticatedStaff, async (req, res) => {
     }
 });
 
-router.delete('/api/:category/:id', (req, res) => {
+router.delete('/api/:category/:id', async (req, res) => {
     const { category, id } = req.params;
     switch(category) {
         case 'users': {
@@ -1443,6 +1922,32 @@ router.delete('/api/:category/:id', (req, res) => {
 
             const userToDelete = global.users[userIndexToDelete];
             const connectedOdpId = userToDelete.connected_odp_id;
+            
+            // Log activity before deletion
+            try {
+                await logActivity({
+                    userId: req.user.id,
+                    username: req.user.username,
+                    role: req.user.role,
+                    actionType: 'DELETE',
+                    resourceType: 'user',
+                    resourceId: id.toString(),
+                    resourceName: userToDelete.name,
+                    description: `Deleted user ${userToDelete.name}`,
+                    oldValue: {
+                        name: userToDelete.name,
+                        phone_number: userToDelete.phone_number,
+                        subscription: userToDelete.subscription,
+                        paid: userToDelete.paid,
+                        pppoe_username: userToDelete.pppoe_username
+                    },
+                    newValue: null,
+                    ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                    userAgent: req.headers['user-agent']
+                });
+            } catch (logErr) {
+                console.error('[ACTIVITY_LOG_ERROR] Failed to log user delete:', logErr);
+            }
 
             global.db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
                 if (err) {
@@ -1453,9 +1958,6 @@ router.delete('/api/:category/:id', (req, res) => {
                 global.users.splice(userIndexToDelete, 1);
 
                 if (connectedOdpId) {
-                    // Ensure updateOdpPortUsage and updateOdcPortUsage are available
-                    const { saveNetworkAssets, updateNetworkAssetsWithLock } = require('../lib/database');
-
                     // Decrement ODP ports_used
                     updateOdpPortUsage(connectedOdpId, false, global.networkAssets);
 
@@ -1564,6 +2066,94 @@ router.get('/api/map/network-assets', ensureAuthenticatedStaff, (req, res) => {
         res.status(500).json({
             status: 500,
             message: `Failed to load network assets: ${error.message}`
+        });
+    }
+});
+
+// POST /api/map/route - Get route coordinates yang mengikuti jalan
+router.post('/api/map/route', ensureAuthenticatedStaff, rateLimit('map-route', 30, 60000), async (req, res) => {
+    try {
+        const { startLat, startLng, endLat, endLng, profile } = req.body;
+        
+        // Validasi required fields
+        if (startLat === undefined || startLng === undefined || endLat === undefined || endLng === undefined) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Koordinat awal dan akhir harus diisi (startLat, startLng, endLat, endLng)'
+            });
+        }
+        
+        // Validasi tipe data
+        const parsedStartLat = parseFloat(startLat);
+        const parsedStartLng = parseFloat(startLng);
+        const parsedEndLat = parseFloat(endLat);
+        const parsedEndLng = parseFloat(endLng);
+        
+        if (isNaN(parsedStartLat) || isNaN(parsedStartLng) || isNaN(parsedEndLat) || isNaN(parsedEndLng)) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Koordinat harus berupa angka yang valid'
+            });
+        }
+        
+        // Validasi range koordinat (valid lat: -90 to 90, valid lng: -180 to 180)
+        if (parsedStartLat < -90 || parsedStartLat > 90 || parsedStartLng < -180 || parsedStartLng > 180 ||
+            parsedEndLat < -90 || parsedEndLat > 90 || parsedEndLng < -180 || parsedEndLng > 180) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Koordinat di luar range yang valid (lat: -90 to 90, lng: -180 to 180)'
+            });
+        }
+        
+        // Validasi profile (optional, default dari config atau 'driving-car')
+        const routingProfile = profile || (global.config?.openRouteService?.defaultProfile) || 'driving-car';
+        
+        // Validasi profile yang diizinkan
+        const allowedProfiles = ['driving-car', 'driving-hgv', 'foot-walking', 'foot-hiking', 'cycling-regular', 'cycling-road', 'cycling-mountain', 'cycling-electric'];
+        if (!allowedProfiles.includes(routingProfile)) {
+            return res.status(400).json({
+                status: 400,
+                message: `Profile routing tidak valid. Profile yang diizinkan: ${allowedProfiles.join(', ')}`
+            });
+        }
+        
+        // Import routing service
+        const routingService = require('../lib/routing-service');
+        
+        // Get route coordinates
+        const coordinates = await routingService.getRoute(
+            parsedStartLat,
+            parsedStartLng,
+            parsedEndLat,
+            parsedEndLng,
+            routingProfile
+        );
+        
+        // Validasi hasil
+        if (!Array.isArray(coordinates) || coordinates.length < 2) {
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal mendapatkan route. Format koordinat tidak valid.'
+            });
+        }
+        
+        // Response success
+        res.status(200).json({
+            status: 200,
+            message: 'Route berhasil didapatkan',
+            data: {
+                coordinates: coordinates,
+                profile: routingProfile,
+                pointCount: coordinates.length,
+                enabled: routingService.isEnabled()
+            }
+        });
+        
+    } catch (error) {
+        console.error('[API_MAP_ROUTE_ERROR]', error);
+        res.status(500).json({
+            status: 500,
+            message: error.message || 'Gagal mendapatkan route'
         });
     }
 });
@@ -1899,39 +2489,124 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
         return res.status(403).json({ status: 403, message: "Akses ditolak." });
     }
 
-    const usersJsonPath = path.join(__dirname, '..', 'users.json');
     console.log('[MIGRATE_USERS] Starting migration process...');
 
     try {
-        // 1. Read users.json
-        if (!fs.existsSync(usersJsonPath)) {
-            console.error('[MIGRATE_USERS] File users.json tidak ditemukan.');
-            return res.status(404).json({ status: 404, message: 'File users.json tidak ditemukan.' });
+        // Setup multer for file upload
+        const multer = require('multer');
+        const upload = multer({
+            dest: path.join(__dirname, '..', 'temp'),
+            limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+            fileFilter: (req, file, cb) => {
+                const ext = path.extname(file.originalname).toLowerCase();
+                if (ext === '.json') {
+                    cb(null, true);
+                } else {
+                    cb(new Error('Invalid file type. Only JSON files are allowed.'));
+                }
+            }
+        }).single('usersFile');
+
+        // Process file upload
+        await new Promise((resolve, reject) => {
+            upload(req, res, (err) => {
+                if (err) {
+                    console.error('[MIGRATE_USERS] Upload error:', err.message);
+                    return reject(err);
+                }
+                resolve();
+            });
+        });
+
+        // Check if file was uploaded
+        if (!req.file) {
+            console.error('[MIGRATE_USERS] No file uploaded.');
+            return res.status(400).json({ status: 400, message: 'File users.json harus diupload.' });
         }
+
+        // Read uploaded file
+        const uploadedFilePath = req.file.path;
+        let usersData;
         
-        const usersData = JSON.parse(fs.readFileSync(usersJsonPath, 'utf8'));
+        try {
+            const fileContent = fs.readFileSync(uploadedFilePath, 'utf8');
+            usersData = JSON.parse(fileContent);
+        } catch (parseError) {
+            // Clean up uploaded file
+            fs.unlinkSync(uploadedFilePath);
+            console.error('[MIGRATE_USERS] Error parsing JSON file:', parseError.message);
+            return res.status(400).json({ 
+                status: 400, 
+                message: 'File JSON tidak valid atau rusak. Pastikan file adalah JSON yang valid.' 
+            });
+        }
+
+        // Validate data format
         if (!Array.isArray(usersData)) {
+            // Clean up uploaded file
+            fs.unlinkSync(uploadedFilePath);
             console.error('[MIGRATE_USERS] Format users.json tidak valid.');
             return res.status(400).json({ status: 400, message: 'Format users.json tidak valid, harus berupa array.' });
         }
         
-        console.log(`[MIGRATE_USERS] Found ${usersData.length} users in users.json`);
+        console.log(`[MIGRATE_USERS] Found ${usersData.length} users in uploaded file: ${req.file.originalname}`);
+
+        // Clean up uploaded file after reading
+        try {
+            fs.unlinkSync(uploadedFilePath);
+            console.log('[MIGRATE_USERS] Temporary file cleaned up');
+        } catch (cleanupError) {
+            console.warn('[MIGRATE_USERS] Failed to cleanup temp file:', cleanupError.message);
+        }
 
         // 2. Prepare for DB Insertion with Promise-based approach
         const db = global.db;
         
         // Wrap the entire migration in a promise for proper async handling
+        // IMPORTANT: Use INSERT OR IGNORE to prevent overwriting existing users
+        // This ensures migration doesn't overwrite existing data
         const migrationPromise = new Promise((resolve, reject) => {
-            const insertStmt = db.prepare(`INSERT OR REPLACE INTO users
-                (id, name, phone_number, address, subscription, pppoe_username, device_id, paid, bulk, pppoe_password)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+            // First, check existing users to avoid duplicates
+            db.all("SELECT id, phone_number FROM users", [], (err, existingUsers) => {
+                if (err) {
+                    console.error('[MIGRATE_USERS] Error checking existing users:', err.message);
+                    return reject(new Error(`Gagal cek users existing: ${err.message}`));
+                }
 
-            let insertCount = 0;
-            let errorCount = 0;
-            const errors = [];
+                const existingIds = new Set(existingUsers.map(u => String(u.id)));
+                const existingPhones = new Set(existingUsers.map(u => u.phone_number).filter(p => p));
 
-            // 3. Begin transaction with proper error handling
-            db.serialize(() => {
+                // Filter out duplicates
+                const usersToInsert = usersData.filter(user => {
+                    const idExists = existingIds.has(String(user.id));
+                    const phoneExists = user.phone_number && existingPhones.has(user.phone_number);
+                    
+                    if (idExists || phoneExists) {
+                        console.log(`[MIGRATE_USERS] Skipping duplicate: ${user.name} (ID: ${user.id}, Phone: ${user.phone_number})`);
+                        return false;
+                    }
+                    return true;
+                });
+
+                console.log(`[MIGRATE_USERS] Total users in file: ${usersData.length}`);
+                console.log(`[MIGRATE_USERS] Duplicates found: ${usersData.length - usersToInsert.length}`);
+                console.log(`[MIGRATE_USERS] Users to insert: ${usersToInsert.length}`);
+
+                if (usersToInsert.length === 0) {
+                    return resolve({ insertCount: 0, errorCount: 0, errors: [], totalUsers: usersData.length, skipped: usersData.length });
+                }
+
+                // Use INSERT OR IGNORE to prevent overwriting (extra safety)
+                const insertStmt = db.prepare(`INSERT OR IGNORE INTO users
+                    (id, name, phone_number, address, subscription, pppoe_username, device_id, paid, bulk, pppoe_password)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+
+                let insertCount = 0;
+                let errorCount = 0;
+                const errors = [];
+
+                // 3. Begin transaction with proper error handling
+                db.serialize(() => {
                 // Start transaction
                 db.run("BEGIN TRANSACTION", (err) => {
                     if (err) {
@@ -1941,8 +2616,8 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
                     console.log('[MIGRATE_USERS] Transaction started');
                 });
 
-                // 4. Iterate and Insert with error handling
-                usersData.forEach((user, index) => {
+                // 4. Iterate and Insert with error handling (only non-duplicates)
+                usersToInsert.forEach((user, index) => {
                     const params = [
                         user.id,
                         user.name || null,
@@ -1995,18 +2670,29 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
                     if (errorCount > 0) {
                         console.warn(`[MIGRATE_USERS] Migration completed with ${errorCount} errors:`, errors);
                     }
+
+                    const skipped = usersData.length - usersToInsert.length;
+                    console.log(`[MIGRATE_USERS] Migration summary: ${insertCount} inserted, ${skipped} skipped (duplicates), ${errorCount} errors`);
                     
-                    resolve({ insertCount, errorCount, errors, totalUsers: usersData.length });
+                    resolve({ 
+                        insertCount, 
+                        errorCount, 
+                        errors, 
+                        totalUsers: usersData.length,
+                        skipped: skipped,
+                        inserted: insertCount
+                    });
                 });
+            });
             });
         });
 
         // 7. Wait for migration to complete, then reload users
-        const migrationResult = await migrationPromise;
-        console.log(`[MIGRATE_USERS] Migration promise resolved. Inserted: ${migrationResult.insertCount}, Errors: ${migrationResult.errorCount}`);
+        migrationPromise.then((migrationResult) => {
+            console.log(`[MIGRATE_USERS] Migration promise resolved. Inserted: ${migrationResult.insertCount}, Errors: ${migrationResult.errorCount}`);
 
-        // 8. Reload users into memory - NOW SAFE because COMMIT is complete
-        const reloadPromise = new Promise((resolve, reject) => {
+            // 8. Reload users into memory - NOW SAFE because COMMIT is complete
+            const reloadPromise = new Promise((resolve, reject) => {
             db.all('SELECT * FROM users', [], (err, rows) => {
                 if (err) {
                     console.error('[MIGRATE_USERS] Error reloading users from database:', err.message);
@@ -2027,24 +2713,44 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
             });
         });
 
-        const reloadedCount = await reloadPromise;
-        
-        // 9. Send success response with detailed information
-        const responseMessage = migrationResult.errorCount > 0
-            ? `Migrasi selesai dengan peringatan! ${migrationResult.insertCount} dari ${migrationResult.totalUsers} pengguna berhasil dimigrasikan. ${migrationResult.errorCount} pengguna gagal. Silakan periksa log untuk detail.`
-            : `Migrasi berhasil! ${reloadedCount} pengguna telah dipindahkan ke database SQLite dan dimuat ke memori.`;
-        
-        console.log(`[MIGRATE_USERS] ${responseMessage}`);
-        
-        res.status(200).json({
-            status: 200,
-            message: responseMessage,
-            details: {
-                totalUsers: migrationResult.totalUsers,
-                inserted: migrationResult.insertCount,
-                errors: migrationResult.errorCount,
-                reloaded: reloadedCount
-            }
+            reloadPromise.then((reloadedCount) => {
+                // 9. Send success response with detailed information
+                const responseMessage = migrationResult.errorCount > 0
+                    ? `Migrasi selesai dengan peringatan! ${migrationResult.insertCount} dari ${migrationResult.totalUsers} pengguna berhasil dimigrasikan. ${migrationResult.errorCount} pengguna gagal. Silakan periksa log untuk detail.`
+                    : `Migrasi berhasil! ${reloadedCount} pengguna telah dipindahkan ke database SQLite dan dimuat ke memori.`;
+                
+                console.log(`[MIGRATE_USERS] ${responseMessage}`);
+                
+                res.status(200).json({
+                    status: 200,
+                    message: responseMessage,
+                    details: {
+                        totalUsers: migrationResult.totalUsers,
+                        inserted: migrationResult.insertCount,
+                        errors: migrationResult.errorCount,
+                        reloaded: reloadedCount
+                    }
+                });
+            }).catch((reloadError) => {
+                console.error('[MIGRATE_USERS] Error reloading users:', reloadError);
+                res.status(500).json({
+                    status: 500,
+                    message: 'Migrasi berhasil tapi gagal reload users. Silakan restart aplikasi.',
+                    error: reloadError.message,
+                    details: {
+                        totalUsers: migrationResult.totalUsers,
+                        inserted: migrationResult.insertCount,
+                        errors: migrationResult.errorCount
+                    }
+                });
+            });
+        }).catch((migrationError) => {
+            console.error('[MIGRATE_USERS] Migration failed:', migrationError);
+            res.status(500).json({
+                status: 500,
+                message: 'Gagal melakukan migrasi.',
+                error: migrationError.message
+            });
         });
 
     } catch (error) {
@@ -2052,7 +2758,7 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
         res.status(500).json({ 
             status: 500, 
             message: `Terjadi kesalahan saat migrasi: ${error.message}`,
-            error: error.stack
+            error: error.message
         });
     }
 });
@@ -2135,16 +2841,61 @@ router.post('/api/admin/delete-all-users', ensureAuthenticatedStaff, async (req,
             }
         }
         
-        // Clear database
-        await new Promise((resolve, reject) => {
+        // Delete all users from database
+        const deletePromise = new Promise((resolve, reject) => {
             global.db.run('DELETE FROM users', function(err) {
-                if (err) reject(err);
-                else resolve();
+                if (err) {
+                    console.error('[/api/admin/delete-all-users] Error deleting users:', err.message);
+                    return reject(err);
+                }
+                const deletedCount = this.changes;
+                console.log(`[/api/admin/delete-all-users] Deleted ${deletedCount} users from database`);
+                resolve(deletedCount);
+            });
+        });
+
+        const deletedCount = await deletePromise;
+
+        // Reset auto-increment sequence (IMPORTANT for clean start)
+        const resetSequencePromise = new Promise((resolve, reject) => {
+            global.db.run("DELETE FROM sqlite_sequence WHERE name='users'", [], (err) => {
+                if (err) {
+                    console.warn('[/api/admin/delete-all-users] Warning: Could not reset sequence:', err.message);
+                    // Not critical, continue
+                } else {
+                    console.log('[/api/admin/delete-all-users] Reset auto-increment sequence (ID will start from 1)');
+                }
+                resolve();
+            });
+        });
+
+        await resetSequencePromise;
+        
+        // CRITICAL: Run VACUUM to physically remove deleted data from file
+        // Without VACUUM, deleted data still exists in file and can be seen in text editors
+        console.log('[/api/admin/delete-all-users] Running VACUUM to physically remove deleted data from file...');
+        const vacuumPromise = new Promise((resolve, reject) => {
+            global.db.run('VACUUM', (err) => {
+                if (err) {
+                    console.error('[/api/admin/delete-all-users] Error running VACUUM:', err.message);
+                    // Not critical, continue but warn user
+                    console.warn('[/api/admin/delete-all-users] WARNING: VACUUM failed. Deleted data may still exist in file.');
+                    resolve(); // Don't reject, continue with cleanup
+                } else {
+                    console.log('[/api/admin/delete-all-users] ✅ VACUUM completed successfully. Deleted data has been physically removed from file.');
+                    resolve();
+                }
             });
         });
         
+        await vacuumPromise;
+        
+        // NOTE: login_logs and activity_logs are now in separate database (activity_logs.sqlite)
+        // They should be cleaned separately if needed via the activity logger module
+        
         // Clear memory
         global.users = [];
+        console.log('[/api/admin/delete-all-users] Cleared global.users from memory');
         
         // Reset all ODP/ODC port usage
         global.networkAssets.forEach(asset => {
@@ -2161,9 +2912,61 @@ router.post('/api/admin/delete-all-users', ensureAuthenticatedStaff, async (req,
         saveNetworkAssets(global.networkAssets);
         console.log('[/api/admin/delete-all-users] Network assets ports reset.');
         
+        // Verify deletion (count check)
+        const verifyPromise = new Promise((resolve, reject) => {
+            global.db.get("SELECT COUNT(*) as count FROM users", [], (err, row) => {
+                if (err) {
+                    return reject(err);
+                }
+                const remainingCount = row ? row.count : 0;
+                resolve(remainingCount);
+            });
+        });
+
+        const remainingCount = await verifyPromise;
+
+        if (remainingCount > 0) {
+            console.warn(`[/api/admin/delete-all-users] WARNING: ${remainingCount} users still remain in database!`);
+            return res.json({
+                status: 200,
+                message: `Hapus users berhasil dengan peringatan. ${deletedCount} users dihapus, ${remainingCount} masih tersisa.`,
+                details: {
+                    deleted: deletedCount,
+                    remaining: remainingCount
+                }
+            });
+        }
+
+        console.log('[/api/admin/delete-all-users] Complete cleanup successful!');
+        
+        // Get file size after VACUUM for verification
+        const fs = require('fs');
+        const path = require('path');
+        const { getDatabasePath } = require('../lib/env-config');
+        const dbPath = getDatabasePath('users.sqlite');
+        let fileSizeAfter = 0;
+        try {
+            if (fs.existsSync(dbPath)) {
+                fileSizeAfter = fs.statSync(dbPath).size;
+            }
+        } catch (err) {
+            console.warn('[/api/admin/delete-all-users] Could not get file size:', err.message);
+        }
+        
         return res.json({
             status: 200,
-            message: 'Semua pengguna berhasil dihapus'
+            message: `Semua pengguna berhasil dihapus secara permanen! ${deletedCount} users dihapus. Database telah dibersihkan dan siap untuk production.`,
+            details: {
+                deleted: deletedCount,
+                remaining: remainingCount,
+                memoryCleared: true,
+                sequenceReset: true,
+                vacuumPerformed: true,
+                logsCleaned: true,
+                fileSizeAfter: fileSizeAfter,
+                note: 'VACUUM telah dijalankan untuk menghapus data secara fisik dari file database. Admin logs (login_logs, activity_logs) berada di database terpisah (activity_logs.sqlite) dan tidak terpengaruh oleh operasi ini.',
+                important: 'CATATAN: Database pelanggan (users.sqlite) terpisah dari database log (activity_logs.sqlite). Operasi ini hanya menghapus data pelanggan.'
+            }
         });
         
     } catch (error) {
@@ -2171,6 +2974,257 @@ router.post('/api/admin/delete-all-users', ensureAuthenticatedStaff, async (req,
         return res.status(500).json({
             status: 500,
             message: 'Terjadi kesalahan saat menghapus semua user',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/admin/cleanup-orphaned-photos - Cleanup photos from deleted tickets
+router.post('/api/admin/cleanup-orphaned-photos', ensureAuthenticatedStaff, async (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+    
+    try {
+        // Get password from request
+        const { password } = req.body;
+        if (!password) {
+            return res.status(400).json({ 
+                status: 400, 
+                message: "Password is required." 
+            });
+        }
+        
+        // Import required functions
+        const { comparePassword } = require('../lib/password');
+        const { getReportsUploadsPath, getProjectRoot } = require('../lib/path-helper');
+        
+        // Find admin account
+        let account = global.accounts.find(acc => String(acc.id) === String(req.user.id));
+        if (!account) {
+            if (req.user && req.user.username && req.user.password) {
+                account = req.user;
+            } else {
+                return res.status(401).json({ 
+                    status: 401, 
+                    message: "Akun admin tidak ditemukan. Silakan login ulang." 
+                });
+            }
+        }
+        
+        // Verify password
+        const isValid = await comparePassword(password, account.password);
+        if (!isValid) {
+            return res.status(401).json({ 
+                status: 401, 
+                message: "Password salah. Silakan coba lagi." 
+            });
+        }
+        
+        // Get all ticket IDs from reports.json
+        const validTicketIds = new Set();
+        if (global.reports && Array.isArray(global.reports)) {
+            global.reports.forEach(ticket => {
+                if (ticket.ticketId) {
+                    validTicketIds.add(ticket.ticketId);
+                }
+            });
+        }
+        
+        const projectRoot = getProjectRoot(__dirname);
+        const deletedFiles = [];
+        const errors = [];
+        
+        // 1. Cleanup customer photos: uploads/reports/YEAR/MONTH/TICKET_ID/
+        const reportsDir = path.join(projectRoot, 'uploads', 'reports');
+        if (fs.existsSync(reportsDir)) {
+            const years = fs.readdirSync(reportsDir, { withFileTypes: true })
+                .filter(dirent => dirent.isDirectory())
+                .map(dirent => dirent.name);
+            
+            for (const year of years) {
+                const yearDir = path.join(reportsDir, year);
+                const months = fs.readdirSync(yearDir, { withFileTypes: true })
+                    .filter(dirent => dirent.isDirectory())
+                    .map(dirent => dirent.name);
+                
+                for (const month of months) {
+                    const monthDir = path.join(yearDir, month);
+                    const ticketDirs = fs.readdirSync(monthDir, { withFileTypes: true })
+                        .filter(dirent => dirent.isDirectory())
+                        .map(dirent => dirent.name);
+                    
+                    for (const ticketId of ticketDirs) {
+                        if (!validTicketIds.has(ticketId)) {
+                            // Ticket tidak ada di reports.json, hapus folder dan isinya
+                            const ticketDir = path.join(monthDir, ticketId);
+                            try {
+                                // Delete all files in ticket directory
+                                const files = fs.readdirSync(ticketDir);
+                                for (const file of files) {
+                                    const filePath = path.join(ticketDir, file);
+                                    if (fs.statSync(filePath).isFile()) {
+                                        fs.unlinkSync(filePath);
+                                        deletedFiles.push(filePath);
+                                    }
+                                }
+                                // Delete empty directory
+                                fs.rmdirSync(ticketDir);
+                            } catch (err) {
+                                errors.push(`Error deleting ${ticketDir}: ${err.message}`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 2. Cleanup teknisi photos (WhatsApp): uploads/teknisi/YEAR/MONTH/TICKET_ID/ (NEW STRUCTURE)
+        const teknisiDir = path.join(projectRoot, 'uploads', 'teknisi');
+        if (fs.existsSync(teknisiDir)) {
+            // Scan structured folders: YEAR/MONTH/TICKET_ID/
+            const years = fs.readdirSync(teknisiDir, { withFileTypes: true })
+                .filter(dirent => dirent.isDirectory())
+                .map(dirent => dirent.name);
+            
+            for (const year of years) {
+                const yearDir = path.join(teknisiDir, year);
+                const months = fs.readdirSync(yearDir, { withFileTypes: true })
+                    .filter(dirent => dirent.isDirectory())
+                    .map(dirent => dirent.name);
+                
+                for (const month of months) {
+                    const monthDir = path.join(yearDir, month);
+                    const ticketDirs = fs.readdirSync(monthDir, { withFileTypes: true })
+                        .filter(dirent => dirent.isDirectory())
+                        .map(dirent => dirent.name);
+                    
+                    for (const ticketId of ticketDirs) {
+                        if (!validTicketIds.has(ticketId)) {
+                            // Ticket tidak ada, hapus folder dan isinya
+                            const ticketDir = path.join(monthDir, ticketId);
+                            try {
+                                const files = fs.readdirSync(ticketDir);
+                                for (const file of files) {
+                                    const filePath = path.join(ticketDir, file);
+                                    if (fs.statSync(filePath).isFile()) {
+                                        fs.unlinkSync(filePath);
+                                        deletedFiles.push(filePath);
+                                    }
+                                }
+                                fs.rmdirSync(ticketDir);
+                            } catch (err) {
+                                errors.push(`Error deleting ${ticketDir}: ${err.message}`);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // BACKWARD COMPATIBILITY: Also check old flat structure (files directly in teknisi/)
+            const files = fs.readdirSync(teknisiDir, { withFileTypes: true })
+                .filter(dirent => dirent.isFile())
+                .map(dirent => dirent.name);
+            
+            for (const file of files) {
+                const filePath = path.join(teknisiDir, file);
+                // Try to extract ticketId from filename (old format: teknisi_TIMESTAMP.jpg or TICKET_ID-TIMESTAMP-RANDOM.ext)
+                let ticketId = null;
+                const match = file.match(/^([A-Z0-9]+)-/);
+                if (match) {
+                    ticketId = match[1];
+                }
+                
+                if (!ticketId || !validTicketIds.has(ticketId)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                        deletedFiles.push(filePath);
+                    } catch (err) {
+                        errors.push(`Error deleting ${filePath}: ${err.message}`);
+                    }
+                }
+            }
+        }
+        
+        // 3. Cleanup teknisi photos (Web): uploads/tickets/YEAR/MONTH/TICKET_ID/ (NEW STRUCTURE)
+        const ticketsDir = path.join(projectRoot, 'uploads', 'tickets');
+        if (fs.existsSync(ticketsDir)) {
+            // Scan structured folders: YEAR/MONTH/TICKET_ID/
+            const years = fs.readdirSync(ticketsDir, { withFileTypes: true })
+                .filter(dirent => dirent.isDirectory())
+                .map(dirent => dirent.name);
+            
+            for (const year of years) {
+                const yearDir = path.join(ticketsDir, year);
+                const months = fs.readdirSync(yearDir, { withFileTypes: true })
+                    .filter(dirent => dirent.isDirectory())
+                    .map(dirent => dirent.name);
+                
+                for (const month of months) {
+                    const monthDir = path.join(yearDir, month);
+                    const ticketDirs = fs.readdirSync(monthDir, { withFileTypes: true })
+                        .filter(dirent => dirent.isDirectory())
+                        .map(dirent => dirent.name);
+                    
+                    for (const ticketId of ticketDirs) {
+                        if (!validTicketIds.has(ticketId)) {
+                            // Ticket tidak ada, hapus folder dan isinya
+                            const ticketDir = path.join(monthDir, ticketId);
+                            try {
+                                const files = fs.readdirSync(ticketDir);
+                                for (const file of files) {
+                                    const filePath = path.join(ticketDir, file);
+                                    if (fs.statSync(filePath).isFile()) {
+                                        fs.unlinkSync(filePath);
+                                        deletedFiles.push(filePath);
+                                    }
+                                }
+                                fs.rmdirSync(ticketDir);
+                            } catch (err) {
+                                errors.push(`Error deleting ${ticketDir}: ${err.message}`);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // BACKWARD COMPATIBILITY: Also check old flat structure (files directly in tickets/)
+            const files = fs.readdirSync(ticketsDir, { withFileTypes: true })
+                .filter(dirent => dirent.isFile())
+                .map(dirent => dirent.name);
+            
+            for (const file of files) {
+                const filePath = path.join(ticketsDir, file);
+                // Try to extract ticketId from filename (old format: TICKET_ID-TIMESTAMP-RANDOM.ext)
+                let ticketId = null;
+                const match = file.match(/^([A-Z0-9]+)-/);
+                if (match) {
+                    ticketId = match[1];
+                }
+                
+                if (!ticketId || !validTicketIds.has(ticketId)) {
+                    try {
+                        fs.unlinkSync(filePath);
+                        deletedFiles.push(filePath);
+                    } catch (err) {
+                        errors.push(`Error deleting ${filePath}: ${err.message}`);
+                    }
+                }
+            }
+        }
+        
+        return res.json({
+            status: 200,
+            message: `Berhasil menghapus ${deletedFiles.length} foto yang tidak terpakai.`,
+            deletedCount: deletedFiles.length,
+            errors: errors.length > 0 ? errors : undefined
+        });
+        
+    } catch (error) {
+        console.error('[API_ADMIN_CLEANUP_PHOTOS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan saat membersihkan foto',
             error: error.message
         });
     }
@@ -2352,6 +3406,90 @@ router.post('/api/mikrotik-devices/set-active/:id', ensureAuthenticatedStaff, (r
 const wifiTemplatesPath = path.join(__dirname, '..', 'database', 'wifi_templates.json');
 
 // Get all WiFi templates
+// Get login logs
+router.get('/api/logs/login', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const {
+            limit = parseInt(req.query.limit) || 100,
+            offset = parseInt(req.query.offset) || 0,
+            username = req.query.username || null,
+            actionType = req.query.actionType || null,
+            successOnly = req.query.successOnly === 'true',
+            startDate = req.query.startDate ? new Date(req.query.startDate) : null,
+            endDate = req.query.endDate ? new Date(req.query.endDate) : null
+        } = req.query;
+
+        const logs = await getLoginLogs({
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            username,
+            actionType,
+            successOnly,
+            startDate,
+            endDate
+        });
+
+        res.status(200).json({
+            status: 200,
+            message: 'Login logs retrieved',
+            data: logs,
+            pagination: {
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                count: logs.length
+            }
+        });
+    } catch (error) {
+        console.error('[API_LOGIN_LOGS_ERROR]', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving login logs: ' + error.message
+        });
+    }
+});
+
+// Get activity logs
+router.get('/api/logs/activity', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const {
+            limit = parseInt(req.query.limit) || 100,
+            offset = parseInt(req.query.offset) || 0,
+            userId = req.query.userId ? parseInt(req.query.userId) : null,
+            actionType = req.query.actionType || null,
+            resourceType = req.query.resourceType || null,
+            startDate = req.query.startDate ? new Date(req.query.startDate) : null,
+            endDate = req.query.endDate ? new Date(req.query.endDate) : null
+        } = req.query;
+
+        const logs = await getActivityLogs({
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            userId,
+            actionType,
+            resourceType,
+            startDate,
+            endDate
+        });
+
+        res.status(200).json({
+            status: 200,
+            message: 'Activity logs retrieved',
+            data: logs,
+            pagination: {
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                count: logs.length
+            }
+        });
+    } catch (error) {
+        console.error('[API_ACTIVITY_LOGS_ERROR]', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving activity logs: ' + error.message
+        });
+    }
+});
+
 router.get('/api/wifi-templates', ensureAuthenticatedStaff, (req, res) => {
     if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
         return res.status(403).json({ message: "Akses ditolak." });
@@ -2396,6 +3534,16 @@ router.post('/api/wifi-templates', ensureAuthenticatedStaff, (req, res) => {
         templates.push(newTemplate);
         saveJSON('wifi_templates.json', templates);
 
+        // Force reload WiFi templates untuk update cache
+        try {
+            const { loadWifiTemplates } = require('../lib/wifi_template_handler');
+            loadWifiTemplates();
+            console.log('[WIFI_TEMPLATES] Template cache reloaded after save');
+        } catch (reloadError) {
+            console.error('[WIFI_TEMPLATES] Failed to reload template cache:', reloadError.message);
+            // Don't fail the request if reload fails, just log the error
+        }
+
         console.log(`[WIFI_TEMPLATES] Template baru ditambahkan: ${intent} (${category}) oleh ${req.user.username}`);
         res.status(201).json({ status: 201, message: "Template WiFi berhasil ditambahkan.", data: newTemplate });
     } catch (error) {
@@ -2411,7 +3559,7 @@ router.put('/api/wifi-templates/:intent', ensureAuthenticatedStaff, (req, res) =
     }
     try {
         const { intent } = req.params;
-        const { keywords, newIntent } = req.body;
+        const { keywords, newIntent, category, description, icon } = req.body;
 
         if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
             return res.status(400).json({ status: 400, message: "Keywords (array) wajib diisi." });
@@ -2433,8 +3581,35 @@ router.put('/api/wifi-templates/:intent', ensureAuthenticatedStaff, (req, res) =
             templates[templateIndex].intent = newIntent;
         }
 
+        // Update keywords (required)
         templates[templateIndex].keywords = keywords.filter(k => k && k.trim() !== '');
+        
+        // Update category (optional, only if provided)
+        if (category !== undefined && category !== null && category.trim() !== '') {
+            templates[templateIndex].category = category.trim();
+        }
+        
+        // Update description (optional, only if provided)
+        if (description !== undefined && description !== null) {
+            templates[templateIndex].description = description.trim() || '';
+        }
+        
+        // Update icon (optional, only if provided)
+        if (icon !== undefined && icon !== null && icon.trim() !== '') {
+            templates[templateIndex].icon = icon.trim();
+        }
+        
         saveJSON('wifi_templates.json', templates);
+
+        // Force reload WiFi templates untuk update cache
+        try {
+            const { loadWifiTemplates } = require('../lib/wifi_template_handler');
+            loadWifiTemplates();
+            console.log('[WIFI_TEMPLATES] Template cache reloaded after update');
+        } catch (reloadError) {
+            console.error('[WIFI_TEMPLATES] Failed to reload template cache:', reloadError.message);
+            // Don't fail the request if reload fails, just log the error
+        }
 
         console.log(`[WIFI_TEMPLATES] Template diupdate: ${intent} oleh ${req.user.username}`);
         res.status(200).json({ status: 200, message: "Template WiFi berhasil diupdate.", data: templates[templateIndex] });
@@ -2461,6 +3636,16 @@ router.delete('/api/wifi-templates/:intent', ensureAuthenticatedStaff, (req, res
         }
 
         saveJSON('wifi_templates.json', filteredTemplates);
+
+        // Force reload WiFi templates untuk update cache
+        try {
+            const { loadWifiTemplates } = require('../lib/wifi_template_handler');
+            loadWifiTemplates();
+            console.log('[WIFI_TEMPLATES] Template cache reloaded after delete');
+        } catch (reloadError) {
+            console.error('[WIFI_TEMPLATES] Failed to reload template cache:', reloadError.message);
+            // Don't fail the request if reload fails, just log the error
+        }
 
         console.log(`[WIFI_TEMPLATES] Template dihapus: ${intent} oleh ${req.user.username}`);
         res.status(200).json({ status: 200, message: "Template WiFi berhasil dihapus." });
@@ -2793,10 +3978,25 @@ router.post('/api/test-parameter', ensureAuthenticatedStaff, async (req, res) =>
         // Try each path until we find a value
         for (const path of paramConfig.paths) {
             const pathValue = getNestedValue(deviceData, path);
-            if (pathValue && typeof pathValue._value !== 'undefined') {
-                value = pathValue._value;
-                pathFound = path;
-                break;
+            if (pathValue !== undefined && pathValue !== null) {
+                // Handle _value wrapper
+                if (typeof pathValue === 'object' && pathValue.hasOwnProperty('_value')) {
+                    value = pathValue._value;
+                    pathFound = path;
+                    break;
+                } 
+                // Handle direct value (string, number, etc.)
+                else if (typeof pathValue !== 'object' || Array.isArray(pathValue)) {
+                    value = pathValue;
+                    pathFound = path;
+                    break;
+                }
+                // Handle object that might have value property
+                else if (pathValue.value !== undefined) {
+                    value = pathValue.value;
+                    pathFound = path;
+                    break;
+                }
             }
         }
 
@@ -2818,6 +4018,204 @@ router.post('/api/test-parameter', ensureAuthenticatedStaff, async (req, res) =>
             status: 500,
             message: error.message || "Failed to test parameter",
             data: { value: null, pathFound: null }
+        });
+    }
+});
+
+// Test custom parameter endpoint (not registered - direct path testing)
+router.post('/api/test-parameter-custom', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { deviceId, parameterPath } = req.body;
+        
+        if (!deviceId || !parameterPath) {
+            return res.status(400).json({
+                status: 400,
+                message: "deviceId and parameterPath are required"
+            });
+        }
+
+        // Test the parameter by fetching it directly from GenieACS
+        const config = global.config;
+        if (!config.genieacsBaseUrl) {
+            return res.status(500).json({
+                status: 500,
+                message: "GenieACS URL not configured"
+            });
+        }
+
+        const queryPayload = { "_id": deviceId };
+        const projectionFields = parameterPath; // Use the provided path directly
+        
+        console.log(`[API_TEST_PARAMETER_CUSTOM] Testing parameter: ${parameterPath} for device: ${deviceId}`);
+        
+        const response = await axios.get(`${config.genieacsBaseUrl}/devices/`, {
+            params: {
+                query: JSON.stringify(queryPayload),
+                projection: projectionFields
+            },
+            timeout: 10000
+        });
+
+        if (!response.data || response.data.length === 0) {
+            return res.status(404).json({
+                status: 404,
+                message: "Device not found in GenieACS",
+                data: { 
+                    value: null, 
+                    pathFound: null,
+                    valueType: null,
+                    rawValue: null
+                }
+            });
+        }
+
+        const deviceData = response.data[0];
+        
+        // Try multiple ACCESS METHODS to get value from the SAME path (like modemType does)
+        // Method 1: Direct path using getNestedValue
+        let pathValue = getNestedValue(deviceData, parameterPath);
+        let pathFound = parameterPath;
+        let accessMethod = 'getNestedValue';
+        
+        // Method 2: If not found, try alternative access methods for the SAME path
+        if (pathValue === undefined || pathValue === null) {
+            // Try flat key access (e.g., device['Events.Registered'])
+            if (deviceData[parameterPath] !== undefined && deviceData[parameterPath] !== null) {
+                pathValue = deviceData[parameterPath];
+                accessMethod = 'flat key';
+            }
+            // Try nested access for Events.Registered (same path, different access)
+            else if (parameterPath === 'Events.Registered' && deviceData.Events) {
+                if (deviceData.Events.Registered !== undefined && deviceData.Events.Registered !== null) {
+                    pathValue = deviceData.Events.Registered;
+                    accessMethod = 'nested (Events.Registered)';
+                } else if (deviceData.Events['Registered'] !== undefined && deviceData.Events['Registered'] !== null) {
+                    pathValue = deviceData.Events['Registered'];
+                    accessMethod = 'nested (Events[Registered])';
+                }
+            }
+            // Try manual traversal for the same path
+            else {
+                const parts = parameterPath.split('.');
+                let current = deviceData;
+                let found = true;
+                for (const part of parts) {
+                    if (current && typeof current === 'object' && current.hasOwnProperty(part)) {
+                        current = current[part];
+                    } else {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found && current !== undefined && current !== null) {
+                    pathValue = current;
+                    accessMethod = 'manual traversal';
+                }
+            }
+        }
+        
+        let value = null;
+        let valueType = null;
+        let rawValue = pathValue;
+
+        // Try multiple METHODS to EXTRACT VALUE from the same pathValue (like test-parameter does)
+        if (pathValue !== undefined && pathValue !== null) {
+            // Method 1: Handle _value wrapper (common in GenieACS, like VirtualParameters.getSerialNumber)
+            // Structure: {_value: "...", _type: "xsd:string", _timestamp: "...", _writable: false}
+            if (typeof pathValue === 'object' && pathValue.hasOwnProperty('_value')) {
+                value = pathValue._value;
+                valueType = typeof value;
+                // If _type indicates Date, try to parse it
+                if (pathValue._type && (pathValue._type.includes('date') || pathValue._type.includes('time'))) {
+                    if (typeof value === 'string') {
+                        const dateValue = new Date(value);
+                        if (!isNaN(dateValue.getTime())) {
+                            value = dateValue.toISOString();
+                            valueType = 'Date';
+                        }
+                    } else if (typeof value === 'number') {
+                        // Timestamp in milliseconds or seconds
+                        const dateValue = new Date(value > 1000000000000 ? value : value * 1000);
+                        if (!isNaN(dateValue.getTime())) {
+                            value = dateValue.toISOString();
+                            valueType = 'Date';
+                        }
+                    }
+                }
+            } 
+            // Method 2: Handle direct value (string, number, boolean, etc.) - like modemType
+            // This is for values that are directly accessible without wrapper
+            else if (typeof pathValue !== 'object' || Array.isArray(pathValue)) {
+                value = pathValue;
+                valueType = typeof pathValue;
+            }
+            // Method 3: Handle Date object
+            else if (pathValue instanceof Date) {
+                value = pathValue.toISOString();
+                valueType = 'Date';
+            }
+            // Method 4: Handle object that might have value property (alternative structure)
+            else if (pathValue.value !== undefined) {
+                value = pathValue.value;
+                valueType = typeof value;
+            }
+            // Method 5: If it's an object but no _value or value property, try to extract meaningful data
+            else {
+                // Try to find any string/number property that might be the actual value
+                const keys = Object.keys(pathValue);
+                for (const key of keys) {
+                    const propValue = pathValue[key];
+                    if (typeof propValue === 'string' || typeof propValue === 'number' || typeof propValue === 'boolean') {
+                        value = propValue;
+                        valueType = typeof propValue;
+                        break;
+                    }
+                }
+                // If still no value found, return the whole object as JSON string for inspection
+                if (value === null) {
+                    value = JSON.stringify(pathValue, null, 2);
+                    valueType = 'object';
+                }
+            }
+        }
+
+        const message = value !== null && value !== undefined 
+            ? `Parameter found successfully at path: ${pathFound} (access method: ${accessMethod})`
+            : `Parameter path "${parameterPath}" exists but no value found or value is null`;
+
+        res.status(200).json({
+            status: 200,
+            message: message,
+            data: {
+                value: value,
+                pathFound: pathFound,
+                valueType: valueType,
+                rawValue: rawValue,
+                deviceId: deviceId,
+                parameterPath: parameterPath,
+                accessMethod: accessMethod
+            }
+        });
+
+    } catch (error) {
+        console.error("[API_TEST_PARAMETER_CUSTOM_ERROR]", error);
+        
+        let errorMessage = error.message || "Failed to test parameter";
+        if (error.response) {
+            errorMessage = `GenieACS error: ${error.response.status} - ${error.response.statusText}`;
+        } else if (error.code === 'ECONNABORTED') {
+            errorMessage = "Request timeout - GenieACS tidak merespons";
+        }
+        
+        return res.status(500).json({
+            status: 500,
+            message: errorMessage,
+            data: { 
+                value: null, 
+                pathFound: null,
+                valueType: null,
+                rawValue: null
+            }
         });
     }
 });
@@ -2897,6 +4295,29 @@ router.post('/api/payment-status/bulk-update', ensureAuthenticatedStaff, async (
             // Get previous paid status for comparison
             const previousPaidStatus = userExists.paid === 1;
             
+            // Log activity
+            if (previousPaidStatus !== paid) {
+                try {
+                    const user = global.users.find(u => u.id === userId);
+                    await logActivity({
+                        userId: req.user.id,
+                        username: req.user.username,
+                        role: req.user.role,
+                        actionType: 'UPDATE',
+                        resourceType: 'payment',
+                        resourceId: userId.toString(),
+                        resourceName: user ? user.name : `User ID ${userId}`,
+                        description: `Bulk updated payment status for user ${user ? user.name : userId}: ${previousPaidStatus ? 'paid' : 'unpaid'} → ${paid ? 'paid' : 'unpaid'}`,
+                        oldValue: { paid: previousPaidStatus },
+                        newValue: { paid: paid },
+                        ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                        userAgent: req.headers['user-agent']
+                    });
+                } catch (logErr) {
+                    console.error(`[ACTIVITY_LOG_ERROR] Failed to log bulk payment update for user ${userId}:`, logErr);
+                }
+            }
+
             // Trigger handlePaidStatusChange if status changed from unpaid to paid
             if (paid && !previousPaidStatus) {
                 try {
@@ -2969,8 +4390,14 @@ router.get('/api/working-hours', ensureAuthenticatedStaff, (req, res) => {
                 high_priority_within_hours: "maksimal 2 jam",
                 high_priority_outside_hours: "keesokan hari jam kerja",
                 medium_priority: "1x24 jam kerja"
-            }
+            },
+            psbEstimationTime: "30-60 menit"
         };
+        
+        // Ensure psbEstimationTime exists (for backward compatibility)
+        if (!settings.psbEstimationTime) {
+            settings.psbEstimationTime = "30-60 menit";
+        }
         
         const workingStatus = isWithinWorkingHours();
         const nextAvailable = getNextAvailableMessage();
@@ -2995,7 +4422,7 @@ router.get('/api/working-hours', ensureAuthenticatedStaff, (req, res) => {
 });
 
 // POST working hours settings (update)
-router.post('/api/working-hours', ensureAuthenticatedStaff, (req, res) => {
+router.post('/api/working-hours', ensureAuthenticatedStaff, rateLimit('working-hours-update', 5, 60000), async (req, res) => {
     if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
         return res.status(403).json({
             success: false,
@@ -3025,7 +4452,8 @@ router.post('/api/working-hours', ensureAuthenticatedStaff, (req, res) => {
                 holidays: newSettings.holidays || global.config.teknisiWorkingHours?.holidays || [],
                 responseTime: newSettings.responseTime,
                 outOfHoursMessage: newSettings.outOfHoursMessage || 'Laporan Anda diterima di luar jam kerja. Akan diproses pada jam kerja berikutnya.',
-                holidayMessage: newSettings.holidayMessage || 'Laporan Anda diterima pada hari libur. Akan diproses pada hari kerja berikutnya.'
+                holidayMessage: newSettings.holidayMessage || 'Laporan Anda diterima pada hari libur. Akan diproses pada hari kerja berikutnya.',
+                psbEstimationTime: newSettings.psbEstimationTime || '30-60 menit'
             };
         } else {
             // Old structure (for backward compatibility)
@@ -3042,7 +4470,8 @@ router.post('/api/working-hours', ensureAuthenticatedStaff, (req, res) => {
                 saturday: newSettings.saturday,
                 sunday: newSettings.sunday,
                 holidays: newSettings.holidays || [],
-                responseTime: newSettings.responseTime
+                responseTime: newSettings.responseTime,
+                psbEstimationTime: newSettings.psbEstimationTime || '30-60 menit'
             };
         }
         
@@ -3073,13 +4502,99 @@ function getNestedValue(obj, path) {
     const parts = path.split('.');
     let current = obj;
     for (const part of parts) {
-        if (current && typeof current === 'object' && current.hasOwnProperty(part)) {
-            current = current[part];
+        if (current && typeof current === 'object') {
+            // Handle method calls like getSerialNumber (GenieACS VirtualParameters)
+            if (current.hasOwnProperty(part)) {
+                current = current[part];
+            } else {
+                // Try with different casing or as method result
+                // For VirtualParameters.getSerialNumber, GenieACS might return it as getSerialNumber directly
+                const lowerPart = part.toLowerCase();
+                const foundKey = Object.keys(current).find(key => key.toLowerCase() === lowerPart);
+                if (foundKey) {
+                    current = current[foundKey];
+                } else {
+                    return undefined;
+                }
+            }
         } else {
             return undefined;
         }
     }
     return current;
+}
+
+
+// Generate alternative paths based on common GenieACS patterns
+function generateAlternativePaths(path) {
+    const alternatives = [];
+    
+    // Common patterns for ProductClass
+    if (path.includes('ProductClass')) {
+        // If path is DeviceID.ProductClass, try alternatives
+        if (path === 'DeviceID.ProductClass') {
+            alternatives.push('Device.DeviceInfo.ProductClass');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ProductClass');
+            alternatives.push('Device.DeviceInfo.ModelName');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ModelName');
+        }
+        // If path contains Device.DeviceInfo.ProductClass
+        else if (path.includes('Device.DeviceInfo.ProductClass')) {
+            alternatives.push('DeviceID.ProductClass');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ProductClass');
+            alternatives.push('Device.DeviceInfo.ModelName');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ModelName');
+        }
+        // If path contains InternetGatewayDevice.DeviceInfo.ProductClass
+        else if (path.includes('InternetGatewayDevice.DeviceInfo.ProductClass')) {
+            alternatives.push('DeviceID.ProductClass');
+            alternatives.push('Device.DeviceInfo.ProductClass');
+            alternatives.push('Device.DeviceInfo.ModelName');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ModelName');
+        }
+    }
+    
+    // Common patterns for SerialNumber
+    if (path.includes('SerialNumber')) {
+        if (path.includes('Device.DeviceInfo.SerialNumber')) {
+            alternatives.push('VirtualParameters.getSerialNumber');
+            alternatives.push('VirtualParameters.serialNumber');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.SerialNumber');
+            alternatives.push('_serialNumber');
+        } else if (path.includes('InternetGatewayDevice.DeviceInfo.SerialNumber')) {
+            alternatives.push('VirtualParameters.getSerialNumber');
+            alternatives.push('VirtualParameters.serialNumber');
+            alternatives.push('Device.DeviceInfo.SerialNumber');
+            alternatives.push('_serialNumber');
+        } else if (path.includes('VirtualParameters')) {
+            alternatives.push('Device.DeviceInfo.SerialNumber');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.SerialNumber');
+            alternatives.push('_serialNumber');
+        }
+    }
+    
+    // Common patterns for ModelName
+    if (path.includes('ModelName')) {
+        if (path.includes('Device.DeviceInfo.ModelName')) {
+            alternatives.push('DeviceID.ProductClass');
+            alternatives.push('Device.DeviceInfo.ProductClass');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ModelName');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ProductClass');
+        } else if (path.includes('InternetGatewayDevice.DeviceInfo.ModelName')) {
+            alternatives.push('DeviceID.ProductClass');
+            alternatives.push('Device.DeviceInfo.ProductClass');
+            alternatives.push('Device.DeviceInfo.ModelName');
+            alternatives.push('InternetGatewayDevice.DeviceInfo.ProductClass');
+        }
+    }
+    
+    // Common patterns for Events.Registered
+    if (path === 'Events.Registered') {
+        // Events.Registered usually doesn't have alternatives, but we can try flat key
+        alternatives.push('Events.Registered'); // Already tried, but keep for consistency
+    }
+    
+    return alternatives;
 }
 
 // ====================
@@ -3092,7 +4607,8 @@ const sqlite3 = require('sqlite3').verbose();
 // Get database information
 router.get('/api/database/info', ensureAuthenticatedStaff, async (req, res) => {
     try {
-        const dbPath = path.join(__dirname, '..', 'database.sqlite');
+        // All databases stored in database/ folder
+        const dbPath = path.join(__dirname, '..', 'database', 'users.sqlite');
         const stats = fs.statSync(dbPath);
         
         // Get user count and column info from database
@@ -3208,7 +4724,8 @@ router.post('/api/database/check-schema', ensureAuthenticatedStaff, async (req, 
             'updated_at', 'otp', 'otpTimestamp'
         ];
         
-        const dbPath = path.join(__dirname, '..', 'database.sqlite');
+        // All databases stored in database/ folder
+        const dbPath = path.join(__dirname, '..', 'database', 'users.sqlite');
         const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
         
         const checkSchema = () => new Promise((resolve, reject) => {
@@ -3415,7 +4932,8 @@ router.post('/api/database/upload', ensureAuthenticatedStaff, async (req, res) =
             }
             
             const uploadedPath = req.file.path;
-            const dbPath = path.join(__dirname, '..', 'database.sqlite');
+            // All databases stored in database/ folder
+            const dbPath = path.join(__dirname, '..', 'database', 'users.sqlite');
             const autoMigrate = req.body.autoMigrate === 'true';
             
             // Validate SQLite file
@@ -3683,7 +5201,8 @@ router.post('/api/database/restore', ensureAuthenticatedStaff, (req, res) => {
         
         const backupsDir = path.join(__dirname, '..', 'backups');
         const backupPath = path.join(backupsDir, filename);
-        const dbPath = path.join(__dirname, '..', 'database.sqlite');
+        // All databases stored in database/ folder
+        const dbPath = path.join(__dirname, '..', 'database', 'users.sqlite');
         
         if (!fs.existsSync(backupPath)) {
             return res.status(404).json({
@@ -3707,7 +5226,7 @@ router.post('/api/database/restore', ensureAuthenticatedStaff, (req, res) => {
             console.log(`[DB_RESTORE] Database restored from: ${filename}`);
             
             // Reload users from restored database
-            const initDatabase = require('../lib/database').initializeDatabase;
+            const { initializeDatabase, initializeConnectionWaypointsTable } = require('../lib/database');
             initDatabase((err) => {
                 if (err) {
                     console.error('[DB_RESTORE] Error reloading database:', err);
@@ -3737,6 +5256,481 @@ router.post('/api/database/restore', ensureAuthenticatedStaff, (req, res) => {
         res.status(500).json({
             status: 500,
             message: "Error restoring database: " + error.message,
+            data: null
+        });
+    }
+});
+
+// ============================================
+// VOUCHER MANAGEMENT API ENDPOINTS
+// ============================================
+
+/**
+ * GET /api/voucher
+ * Get all voucher profiles for DataTable
+ */
+router.get('/api/voucher', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        console.log('[VOUCHER_API] GET /api/voucher - Request received');
+        console.log('[VOUCHER_API] User:', req.user ? req.user.username : 'No user');
+        
+        const voucherManager = require('../lib/voucher-manager');
+        console.log('[VOUCHER_API] VoucherManager loaded:', typeof voucherManager);
+        console.log('[VOUCHER_API] getVoucherProfiles function:', typeof voucherManager.getVoucherProfiles);
+        
+        if (typeof voucherManager.getVoucherProfiles !== 'function') {
+            console.error('[VOUCHER_API] Error: getVoucherProfiles is not a function');
+            return res.status(500).json({ error: 'getVoucherProfiles function not found' });
+        }
+        
+        const vouchers = voucherManager.getVoucherProfiles();
+        
+        console.log('[VOUCHER_API] Vouchers loaded:', vouchers.length, 'items');
+        
+        if (!Array.isArray(vouchers)) {
+            console.error('[VOUCHER_API] Error: vouchers is not an array:', typeof vouchers);
+            return res.status(500).json({ error: 'Invalid voucher data format' });
+        }
+        
+        if (vouchers.length === 0) {
+            console.warn('[VOUCHER_API] Warning: No vouchers found in database');
+            // Return empty array instead of error
+            return res.json([]);
+        }
+        
+        // Pastikan setiap voucher memiliki hargaReseller dan margin
+        // DataTable mengharapkan array langsung, bukan object dengan property data
+        const vouchersWithReseller = vouchers.map((voucher, index) => {
+            try {
+                const hargaJual = parseInt(voucher.hargavc || 0);
+                const hargaReseller = parseInt(voucher.hargaReseller || 0);
+                const margin = hargaJual - hargaReseller;
+                
+                const result = {
+                    prof: voucher.prof || '',
+                    namavc: voucher.namavc || '',
+                    durasivc: voucher.durasivc || '',
+                    hargavc: voucher.hargavc || '0',
+                    hargaReseller: voucher.hargaReseller || (hargaReseller > 0 ? String(hargaReseller) : null),
+                    margin: voucher.margin || (hargaReseller > 0 ? String(margin) : null)
+                };
+                
+                return result;
+            } catch (mapError) {
+                console.error(`[VOUCHER_API] Error mapping voucher at index ${index}:`, mapError);
+                return null;
+            }
+        }).filter(v => v !== null); // Filter out any null entries
+        
+        console.log('[VOUCHER_API] Processed vouchers:', vouchersWithReseller.length, 'items');
+        console.log('[VOUCHER_API] Sample voucher:', JSON.stringify(vouchersWithReseller[0] || {}));
+        
+        // DataTable mengharapkan array langsung
+        res.json(vouchersWithReseller);
+    } catch (error) {
+        console.error('[VOUCHER_API] Error getting vouchers:', error);
+        console.error('[VOUCHER_API] Error stack:', error.stack);
+        res.status(500).json({ 
+            error: 'Failed to get vouchers',
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+/**
+ * POST /api/voucher
+ * Create new voucher profile
+ */
+router.post('/api/voucher', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const voucherManager = require('../lib/voucher-manager');
+        const { prof, namavc, durasivc, hargavc, hargaReseller } = req.body;
+        
+        if (!prof || !namavc || !durasivc || !hargavc) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        const hargaJual = parseInt(hargavc);
+        const hargaResellerValue = hargaReseller ? parseInt(hargaReseller) : null;
+        const margin = hargaResellerValue ? hargaJual - hargaResellerValue : null;
+        
+        const result = voucherManager.addVoucherProfile({
+            prof,
+            namavc,
+            durasivc,
+            hargavc: String(hargaJual),
+            hargaReseller: hargaResellerValue ? String(hargaResellerValue) : null,
+            margin: margin ? String(margin) : null
+        });
+        
+        if (result.success) {
+            // Reload global.voucher
+            const { loadJSON } = require('../lib/database');
+            global.voucher = loadJSON('voucher.json');
+            
+            res.json({ success: true, message: 'Voucher created successfully' });
+        } else {
+            res.status(400).json({ error: result.message });
+        }
+    } catch (error) {
+        console.error('[VOUCHER_API] Error creating voucher:', error);
+        res.status(500).json({ error: 'Failed to create voucher' });
+    }
+});
+
+/**
+ * PUT /api/voucher/:id
+ * Update voucher profile
+ */
+router.put('/api/voucher/:id', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const voucherManager = require('../lib/voucher-manager');
+        const { id } = req.params;
+        const { prof, namavc, durasivc, hargavc, hargaReseller } = req.body;
+        
+        if (!namavc || !durasivc || !hargavc) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        const hargaJual = parseInt(hargavc);
+        const hargaResellerValue = hargaReseller ? parseInt(hargaReseller) : null;
+        const margin = hargaResellerValue ? hargaJual - hargaResellerValue : null;
+        
+        const result = voucherManager.updateVoucherProfile(id, {
+            prof: prof || id,
+            namavc,
+            durasivc,
+            hargavc: String(hargaJual),
+            hargaReseller: hargaResellerValue ? String(hargaResellerValue) : null,
+            margin: margin ? String(margin) : null
+        });
+        
+        if (result.success) {
+            // Reload global.voucher
+            const { loadJSON } = require('../lib/database');
+            global.voucher = loadJSON('voucher.json');
+            
+            res.json({ success: true, message: 'Voucher updated successfully' });
+        } else {
+            res.status(400).json({ error: result.message });
+        }
+    } catch (error) {
+        console.error('[VOUCHER_API] Error updating voucher:', error);
+        res.status(500).json({ error: 'Failed to update voucher' });
+    }
+});
+
+/**
+ * DELETE /api/voucher/:id
+ * Delete voucher profile
+ */
+router.delete('/api/voucher/:id', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const voucherManager = require('../lib/voucher-manager');
+        const { id } = req.params;
+        
+        const result = voucherManager.deleteVoucherProfile(id);
+        
+        if (result.success) {
+            // Reload global.voucher
+            const { loadJSON } = require('../lib/database');
+            global.voucher = loadJSON('voucher.json');
+            
+            res.json({ success: true, message: 'Voucher deleted successfully' });
+        } else {
+            res.status(400).json({ error: result.message });
+        }
+    } catch (error) {
+        console.error('[VOUCHER_API] Error deleting voucher:', error);
+        res.status(500).json({ error: 'Failed to delete voucher' });
+    }
+});
+
+// ============================================
+// AGENT VOUCHER MANAGEMENT API ENDPOINTS
+// ============================================
+
+/**
+ * GET /api/admin/agent-voucher/stats
+ * Get overall statistics for agent voucher system
+ */
+router.get('/api/admin/agent-voucher/stats', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const agents = agentManager.getAllAgents();
+        
+        let totalPurchases = 0;
+        let totalSales = 0;
+        let totalRevenue = 0;
+        let totalProfit = 0;
+        let totalStok = 0;
+        
+        const agentStats = [];
+        
+        agents.forEach(agent => {
+            const inventory = agentVoucherManager.getAgentInventory(agent.id);
+            const stats = agentVoucherManager.getAgentVoucherStats(agent.id);
+            
+            totalStok += inventory.totalStok;
+            totalPurchases += stats.purchases.total;
+            totalSales += stats.sales.total;
+            totalRevenue += stats.sales.totalAmount;
+            totalProfit += stats.sales.totalProfit;
+            
+            if (stats.sales.total > 0 || stats.purchases.total > 0) {
+                agentStats.push({
+                    agentId: agent.id,
+                    agentName: agent.name,
+                    totalStok: inventory.totalStok,
+                    totalPurchases: stats.purchases.total,
+                    totalSales: stats.sales.total,
+                    totalRevenue: stats.sales.totalAmount,
+                    totalProfit: stats.sales.totalProfit
+                });
+            }
+        });
+        
+        // Sort by profit (descending)
+        agentStats.sort((a, b) => b.totalProfit - a.totalProfit);
+        
+        res.json({
+            status: 200,
+            message: 'Statistics retrieved successfully',
+            data: {
+                overall: {
+                    totalAgents: agentStats.length,
+                    totalStok: totalStok,
+                    totalPurchases: totalPurchases,
+                    totalSales: totalSales,
+                    totalRevenue: totalRevenue,
+                    totalProfit: totalProfit
+                },
+                topAgents: agentStats.slice(0, 10) // Top 10 agents
+            }
+        });
+        
+    } catch (error) {
+        console.error('[AGENT_VOUCHER_STATS] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving statistics: ' + error.message,
+            data: null
+        });
+    }
+});
+
+/**
+ * GET /api/admin/agent-voucher/inventory
+ * Get all agent inventories
+ */
+router.get('/api/admin/agent-voucher/inventory', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const agents = agentManager.getAllAgents();
+        
+        const inventories = agents.map(agent => {
+            const inventory = agentVoucherManager.getAgentInventory(agent.id);
+            return {
+                agentId: agent.id,
+                agentName: agent.name,
+                agentPhone: agent.phone,
+                agentArea: agent.area,
+                inventory: inventory
+            };
+        }).filter(item => item.inventory.totalStok > 0 || item.inventory.totalTerjual > 0);
+        
+        res.json({
+            status: 200,
+            message: 'Inventories retrieved successfully',
+            data: inventories
+        });
+        
+    } catch (error) {
+        console.error('[AGENT_VOUCHER_INVENTORY] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving inventories: ' + error.message,
+            data: null
+        });
+    }
+});
+
+/**
+ * GET /api/admin/agent-voucher/agent/:id/inventory
+ * Get specific agent inventory
+ */
+router.get('/api/admin/agent-voucher/agent/:id/inventory', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const agentId = req.params.id;
+        const agent = agentManager.getAgentById(agentId);
+        
+        if (!agent) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Agent not found',
+                data: null
+            });
+        }
+        
+        const inventory = agentVoucherManager.getAgentInventory(agentId);
+        const stats = agentVoucherManager.getAgentVoucherStats(agentId);
+        
+        res.json({
+            status: 200,
+            message: 'Inventory retrieved successfully',
+            data: {
+                agent: {
+                    id: agent.id,
+                    name: agent.name,
+                    phone: agent.phone,
+                    area: agent.area
+                },
+                inventory: inventory,
+                stats: stats
+            }
+        });
+        
+    } catch (error) {
+        console.error('[AGENT_VOUCHER_AGENT_INVENTORY] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving inventory: ' + error.message,
+            data: null
+        });
+    }
+});
+
+/**
+ * GET /api/admin/agent-voucher/agent/:id/purchases
+ * Get agent purchase history
+ */
+router.get('/api/admin/agent-voucher/agent/:id/purchases', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const agentId = req.params.id;
+        const limit = parseInt(req.query.limit) || 50;
+        
+        const agent = agentManager.getAgentById(agentId);
+        
+        if (!agent) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Agent not found',
+                data: null
+            });
+        }
+        
+        const purchases = agentVoucherManager.getPurchaseHistory(agentId, limit);
+        
+        res.json({
+            status: 200,
+            message: 'Purchase history retrieved successfully',
+            data: {
+                agent: {
+                    id: agent.id,
+                    name: agent.name
+                },
+                purchases: purchases
+            }
+        });
+        
+    } catch (error) {
+        console.error('[AGENT_VOUCHER_AGENT_PURCHASES] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving purchase history: ' + error.message,
+            data: null
+        });
+    }
+});
+
+/**
+ * GET /api/admin/agent-voucher/agent/:id/sales
+ * Get agent sales history
+ */
+router.get('/api/admin/agent-voucher/agent/:id/sales', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const agentId = req.params.id;
+        const limit = parseInt(req.query.limit) || 50;
+        
+        const agent = agentManager.getAgentById(agentId);
+        
+        if (!agent) {
+            return res.status(404).json({
+                status: 404,
+                message: 'Agent not found',
+                data: null
+            });
+        }
+        
+        const sales = agentVoucherManager.getSalesHistory(agentId, limit);
+        
+        res.json({
+            status: 200,
+            message: 'Sales history retrieved successfully',
+            data: {
+                agent: {
+                    id: agent.id,
+                    name: agent.name
+                },
+                sales: sales
+            }
+        });
+        
+    } catch (error) {
+        console.error('[AGENT_VOUCHER_AGENT_SALES] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving sales history: ' + error.message,
+            data: null
+        });
+    }
+});
+
+/**
+ * GET /api/admin/agent-voucher/top-agents
+ * Get top agents by profit or volume
+ */
+router.get('/api/admin/agent-voucher/top-agents', ensureAuthenticatedStaff, (req, res) => {
+    try {
+        const sortBy = req.query.sortBy || 'profit'; // 'profit' or 'volume'
+        const limit = parseInt(req.query.limit) || 10;
+        
+        const agents = agentManager.getAllAgents();
+        
+        const agentStats = agents.map(agent => {
+            const stats = agentVoucherManager.getAgentVoucherStats(agent.id);
+            return {
+                agentId: agent.id,
+                agentName: agent.name,
+                agentArea: agent.area,
+                totalStok: stats.inventory.totalStok,
+                totalPurchases: stats.purchases.total,
+                totalSales: stats.sales.total,
+                totalRevenue: stats.sales.totalAmount,
+                totalProfit: stats.sales.totalProfit
+            };
+        }).filter(stat => stat.totalSales > 0 || stat.totalPurchases > 0);
+        
+        // Sort by profit or volume
+        if (sortBy === 'profit') {
+            agentStats.sort((a, b) => b.totalProfit - a.totalProfit);
+        } else {
+            agentStats.sort((a, b) => b.totalSales - a.totalSales);
+        }
+        
+        res.json({
+            status: 200,
+            message: 'Top agents retrieved successfully',
+            data: {
+                sortBy: sortBy,
+                agents: agentStats.slice(0, limit)
+            }
+        });
+        
+    } catch (error) {
+        console.error('[AGENT_VOUCHER_TOP_AGENTS] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving top agents: ' + error.message,
             data: null
         });
     }

@@ -1,7 +1,7 @@
 {
-  "enabled": true,
+  "enabled": false,
   "description": "Speed Boost pricing configuration matrix",
-  "lastUpdated": "2025-10-17T00:00:00.000Z",
+  "lastUpdated": "2025-12-11T10:29:57.431Z",
   "globalSettings": {
     "allowMultipleBoosts": false,
     "requirePaymentFirst": true,

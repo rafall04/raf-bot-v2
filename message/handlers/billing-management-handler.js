@@ -3,21 +3,23 @@
  * Handles billing checks and package changes
  */
 
-const { convertRupiah } = require('../../lib/function');
+const convertRupiah = require('rupiah-format');
+const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
+const { getUserState, setUserState, deleteUserState } = require('./conversation-handler');
 
 /**
  * Handle check billing
  */
-async function handleCekTagihan({ plainSenderNumber, pushname, reply, mess, global, renderTemplate }) {
+async function handleCekTagihan({ plainSenderNumber, pushname, reply, mess, global, renderTemplate, msg, raf, sender }) {
     try {
-        // 1. Find user by sender's phone number
-        const user = global.users.find(u =>
-            u.phone_number &&
-            u.phone_number.split('|').some(num =>
-                num.trim() === plainSenderNumber ||
-                `62${num.trim().substring(1)}` === plainSenderNumber
-            )
-        );
+        // 1. Find user with @lid support
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender && sender.includes('@lid')) {
+            const verification = createLidVerification(plainSenderNumber, global.users);
+            return reply(verification.message);
+        }
 
         if (!user) {
             return reply(mess.userNotRegister);
@@ -35,8 +37,8 @@ async function handleCekTagihan({ plainSenderNumber, pushname, reply, mess, glob
 
         // 4. Check paid status and build response using templates
         const templateData = {
-            nama: user.name || pushname,
-            paket: packageName,
+            nama_pelanggan: user.name || pushname,
+            nama_paket: packageName,
             harga: packagePrice
         };
 
@@ -58,12 +60,16 @@ async function handleCekTagihan({ plainSenderNumber, pushname, reply, mess, glob
 /**
  * Handle package change request
  */
-async function handleUbahPaket({ plainSenderNumber, reply, mess, global, temp }) {
+async function handleUbahPaket({ plainSenderNumber, reply, mess, global, temp, msg, raf, sender }) {
     try {
-        const user = global.users.find(u => 
-            u.phone_number && 
-            u.phone_number.split('|').some(num => plainSenderNumber.includes(num))
-        );
+        // Find user with @lid support
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender && sender.includes('@lid')) {
+            const verification = createLidVerification(plainSenderNumber, global.users);
+            return reply(verification.message);
+        }
         
         if (!user) {
             return reply(mess.userNotRegister);
@@ -95,11 +101,12 @@ async function handleUbahPaket({ plainSenderNumber, reply, mess, global, temp })
         ).join('\n');
 
         // Set state to ask for package choice
-        temp[plainSenderNumber + '@s.whatsapp.net'] = { 
+        const senderJid = plainSenderNumber + '@s.whatsapp.net';
+        setUserState(senderJid, { 
             step: 'ASK_PACKAGE_CHOICE', 
             userId: user.id, 
             availablePackages 
-        };
+        });
         
         const replyText = `*UBAH PAKET INTERNET*\n\nPaket Anda saat ini: *${user.subscription}*\n\nPilih paket baru:\n${packageList}\n\nBalas dengan nomor pilihan Anda (1-${availablePackages.length})`;
         await reply(replyText);

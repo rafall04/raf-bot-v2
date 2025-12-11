@@ -216,7 +216,8 @@ async function handleGeneralSteps({ userState, sender, chats, pushname, reply, s
                     saveReportsToFile(global.reports);
                     
                     // Notify customer
-                    if (global.raf && global.raf.sendMessage) {
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                         try {
                             await global.raf.sendMessage(report.pelangganId, {
                                 text: `✅ *Update Tiket*
@@ -234,10 +235,15 @@ Terima kasih atas kesabarannya! 🙏`
                             });
                             console.log(`[PROCESS_TICKET] ✅ Notified customer: ${report.pelangganId}`);
                         } catch (err) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                pelangganId: report.pelangganId,
+                                error: err.message
+                            });
                             console.error('[NOTIFY_CUSTOMER_ERROR] ❌', err);
                         }
                     } else {
-                        console.warn('[PROCESS_TICKET] Cannot notify customer - global.raf not available');
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', report.pelangganId);
+                        console.warn('[PROCESS_TICKET] Cannot notify customer - WhatsApp not connected');
                     }
                     
                     deleteUserState(sender);
@@ -512,7 +518,8 @@ Balas *'ya'* untuk selesaikan atau *'edit'* untuk ubah resolusi.`
                     const ticketData = global.reports[reportIndex];
                     
                     // Update report
-                    ticketData.status = 'selesai';
+                    // Standardisasi status ke 'completed'
+                    ticketData.status = 'completed';
                     ticketData.resolvedAt = new Date().toISOString();
                     ticketData.resolvedBy = pushname;
                     ticketData.resolutionNotes = resolutionNotes;
@@ -535,26 +542,37 @@ ID Tiket: *${ticketIdToResolve}*
 ${resolutionNotes}`;
 
                     // Send notification to customer if we have their ID
-                    if (global.raf && global.raf.sendMessage && ticketData.pelangganId) {
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage && ticketData.pelangganId) {
                         if (uploadedPhotos && uploadedPhotos.length > 0) {
                             customerMessage += `\n\n📸 *Dokumentasi:* ${uploadedPhotos.length} foto terlampir`;
                             
                             for (const photo of uploadedPhotos) {
-                                try {
-                                    // Check if photo file exists before trying to read
-                                    const fs = require('fs');
-                                    if (photo.path && fs.existsSync(photo.path)) {
-                                        const photoBuffer = fs.readFileSync(photo.path);
-                                        await global.raf.sendMessage(ticketData.pelangganId, {
-                                            image: photoBuffer,
-                                            caption: `📸 Dokumentasi Perbaikan - ${photo.fileName || 'Foto'}`
+                                // PENTING: Cek connection state untuk setiap foto
+                                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                                    try {
+                                        // Check if photo file exists before trying to read
+                                        const fs = require('fs');
+                                        if (photo.path && fs.existsSync(photo.path)) {
+                                            const photoBuffer = fs.readFileSync(photo.path);
+                                            await global.raf.sendMessage(ticketData.pelangganId, {
+                                                image: photoBuffer,
+                                                caption: `📸 Dokumentasi Perbaikan - ${photo.fileName || 'Foto'}`
+                                            });
+                                            console.log(`[TICKET_RESOLVED] ✅ Sent photo ${photo.fileName} to customer`);
+                                        } else {
+                                            console.error(`[SEND_PHOTO_ERROR] Photo file not found: ${photo.path}`);
+                                        }
+                                    } catch (err) {
+                                        console.error('[SEND_MESSAGE_ERROR]', {
+                                            pelangganId: ticketData.pelangganId,
+                                            type: 'image',
+                                            photoFileName: photo.fileName,
+                                            error: err.message
                                         });
-                                        console.log(`[TICKET_RESOLVED] ✅ Sent photo ${photo.fileName} to customer`);
-                                    } else {
-                                        console.error(`[SEND_PHOTO_ERROR] Photo file not found: ${photo.path}`);
+                                        console.error('[SEND_PHOTO_ERROR] ❌', err);
+                                        // Continue to next photo
                                     }
-                                } catch (err) {
-                                    console.error('[SEND_PHOTO_ERROR] ❌', err);
                                 }
                             }
                         }
@@ -567,13 +585,21 @@ Jika masih ada kendala, silakan lapor kembali.
 Terima kasih! 🙏`;
 
                         // Send text notification
-                        try {
-                            await global.raf.sendMessage(ticketData.pelangganId, {
-                                text: customerMessage
-                            });
-                            console.log(`[TICKET_RESOLVED] ✅ Notified customer: ${ticketData.pelangganId}`);
-                        } catch (err) {
-                            console.error('[NOTIFY_CUSTOMER_ERROR] ❌', err);
+                        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                            try {
+                                await global.raf.sendMessage(ticketData.pelangganId, {
+                                    text: customerMessage
+                                });
+                                console.log(`[TICKET_RESOLVED] ✅ Notified customer: ${ticketData.pelangganId}`);
+                            } catch (err) {
+                                console.error('[SEND_MESSAGE_ERROR]', {
+                                    pelangganId: ticketData.pelangganId,
+                                    error: err.message
+                                });
+                                console.error('[NOTIFY_CUSTOMER_ERROR] ❌', err);
+                            }
+                        } else {
+                            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', ticketData.pelangganId);
                         }
                     } else {
                         if (!ticketData.pelangganId) {

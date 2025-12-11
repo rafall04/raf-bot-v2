@@ -73,7 +73,7 @@ console.log('');
 console.log('1. Stop the application (Ctrl+C)');
 console.log('2. Choose a backup from above');
 console.log('3. Run this command (replace with actual filename):');
-console.log(`   copy backups\\${backupFiles[0]} database.sqlite`);
+console.log(`   copy backups\\${backupFiles[0]} database\\database.sqlite`);
 console.log('4. Restart the application');
 console.log('');
 

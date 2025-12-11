@@ -163,7 +163,8 @@ class SystemHealthCheck {
     async checkDatabase() {
         this.log('section', '🗄️ CHECKING DATABASE');
         
-        const dbPath = path.join(this.rootDir, 'database.sqlite');
+        // All databases stored in database/ folder
+        const dbPath = path.join(this.rootDir, 'database', 'database.sqlite');
         if (!fs.existsSync(dbPath)) {
             this.log('error', 'SQLite database not found');
             return;

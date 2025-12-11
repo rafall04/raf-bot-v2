@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { renderTemplate } = require('../lib/templating');
 
 const router = express.Router();
 
@@ -262,7 +263,8 @@ router.post('/send-invoice-manual', ensureAdmin, async (req, res) => {
         }
 
         // Send via WhatsApp
-        if (global.raf && global.raf.ws.isOpen && phoneNumber) {
+        // PENTING: Gunakan connection state check yang benar
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage && phoneNumber) {
             const { normalizePhoneNumber } = require('../lib/utils');
             const phoneNumberStr = String(phoneNumber || '');
             const phoneNumbers = phoneNumberStr.split('|');
@@ -273,12 +275,29 @@ router.post('/send-invoice-manual', ensureAdmin, async (req, res) => {
                 
                 if (normalizedNumber && normalizedNumber.length > 8) {
                     const whatsappId = normalizedNumber + '@s.whatsapp.net';
-                    await global.raf.sendMessage(whatsappId, {
-                        document: pdfResult.buffer,
-                        fileName: `Invoice_${invoiceData.invoiceNumber}.pdf`,
-                        mimetype: 'application/pdf',
-                        caption: `📄 *INVOICE*\n\nKepada Yth. ${userName}\n\nBerikut kami kirimkan invoice untuk layanan internet Anda.\n\nTerima kasih atas kepercayaan Anda.`
+                    const invoiceCaption = renderTemplate('invoice_caption', {
+                        nama_pelanggan: userName
                     });
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk media
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(whatsappId, {
+                                document: pdfResult.buffer,
+                                fileName: `Invoice_${invoiceData.invoiceNumber}.pdf`,
+                                mimetype: 'application/pdf',
+                                caption: invoiceCaption
+                            });
+                        } catch (error) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                whatsappId,
+                                type: 'document',
+                                error: error.message
+                            });
+                            // Jangan throw - notification tidak critical
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', whatsappId);
+                    }
                 }
             }
             

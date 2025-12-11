@@ -186,5 +186,109 @@
   "mess_userNotRegister": {
     "name": "Pesan Pengguna Tidak Terdaftar",
     "template": "Anda tidak terdaftar di dalam database pelanggan kami."
+  },
+  "error_photo_process_failed": {
+    "name": "Error: Gagal Memproses Foto",
+    "template": "❌ Gagal memproses foto. Silakan coba lagi."
+  },
+  "error_photo_receive_failed": {
+    "name": "Error: Gagal Menerima Foto",
+    "template": "❌ Gagal menerima foto. Silakan coba lagi atau ketik *SKIP* untuk lewati."
+  },
+  "error_photo_max_limit": {
+    "name": "Error: Maksimal Foto",
+    "template": "⚠️ Maksimal 3 foto. Ketik *lanjut* untuk melanjutkan."
+  },
+  "error_photo_upload_failed": {
+    "name": "Error: Gagal Upload Foto",
+    "template": "❌ Gagal upload foto. Silakan coba lagi atau ketik *skip*."
+  },
+  "error_not_verified": {
+    "name": "Error: Belum Terverifikasi",
+    "template": "❌ Anda belum terverifikasi. Minta OTP dari pelanggan terlebih dahulu."
+  },
+  "error_location_invalid": {
+    "name": "Error: Data Lokasi Tidak Valid",
+    "template": "❌ Data lokasi tidak valid. Silakan coba lagi."
+  },
+  "error_notes_too_short": {
+    "name": "Error: Catatan Terlalu Pendek",
+    "template": "❌ *CATATAN TERLALU PENDEK*\n\n📌 *PERSYARATAN:*\n• Minimal 10 karakter\n• Jelaskan apa yang diperbaiki\n\n📌 *CONTOH YANG BENAR:*\n✅ \"Restart router, internet normal\"\n✅ \"Ganti kabel LAN rusak\"\n✅ \"Setting ulang konfigurasi\"\n\n➡️ Silakan ketik ulang catatan Anda..."
+  },
+  "info_notes_edit_cancelled": {
+    "name": "Info: Edit Catatan Dibatalkan",
+    "template": "🔄 *EDIT CATATAN DIBATALKAN*\n\n📌 *STEP SELANJUTNYA:*\n➡️ Silakan ketik ulang catatan resolusi perbaikan\n   (minimal 10 karakter)\n\n💡 Tips: Jelaskan masalah dan solusi yang dilakukan"
+  },
+  "error_invalid_choice": {
+    "name": "Error: Pilihan Tidak Valid",
+    "template": "⚠️ *PILIHAN TIDAK VALID*\n\nSilakan ketik:\n• *ya* = Selesaikan tiket\n• *tidak* = Kembali edit catatan"
+  },
+  "success_process_cancelled": {
+    "name": "Success: Proses Dibatalkan",
+    "template": "✅ Proses dibatalkan"
+  },
+  "error_ticket_not_found": {
+    "name": "Error: Tiket Tidak Ditemukan",
+    "template": "❌ Tiket tidak ditemukan atau bukan milik Anda."
+  },
+  "error_format_transfer": {
+    "name": "Error: Format Transfer Salah",
+    "template": "❌ Format: transfer [nomor] [jumlah]\nContoh: transfer 6281234567890 50000"
+  },
+  "error_agent_data_failed": {
+    "name": "Error: Gagal Mengambil Data Agent",
+    "template": "❌ Terjadi kesalahan saat mengambil data agent. Silakan coba lagi."
+  },
+  "error_format_lokasi": {
+    "name": "Error: Format Lokasi Salah",
+    "template": "❌ Format: lokasi [ID_TIKET]\n\nContoh: lokasi UH4P8XJ"
+  },
+  "error_format_proses": {
+    "name": "Error: Format Proses Salah",
+    "template": "❌ Format: proses [ID_TIKET]\n\nContoh: proses ABC123"
+  },
+  "error_format_otw": {
+    "name": "Error: Format OTW Salah",
+    "template": "❌ Format: otw/mulai perjalanan [ID_TIKET]\n\nContoh:\n• otw ABC123\n• mulai perjalanan ABC123\n\nTips: Share lokasi setelah perintah"
+  },
+  "error_format_sampai": {
+    "name": "Error: Format Sampai Lokasi Salah",
+    "template": "❌ Format: sampai/sampai lokasi [ID_TIKET]\n\nContoh:\n• sampai ABC123\n• sampai lokasi ABC123"
+  },
+  "error_format_verifikasi": {
+    "name": "Error: Format Verifikasi Salah",
+    "template": "❌ Format: verifikasi [ID_TIKET] [OTP]\n\nContoh: verifikasi ABC123 456789"
+  },
+  "error_no_active_session": {
+    "name": "Error: Tidak Ada Sesi Aktif",
+    "template": "❌ *TIDAK ADA SESI AKTIF*\n\n📌 *Urutan yang benar:*\n1️⃣ proses [ID]\n2️⃣ otw [ID]\n3️⃣ sampai [ID]\n4️⃣ verifikasi [ID] [OTP]\n5️⃣ Upload foto\n6️⃣ done/lanjut/next ← Anda di sini\n\nSilakan mulai dari awal dengan *proses [ID_TIKET]*"
+  },
+  "error_not_photo_upload_phase": {
+    "name": "Error: Bukan Tahap Upload Foto",
+    "template": "❌ Saat ini tidak dalam tahap upload foto."
+  },
+  "error_format_selesai": {
+    "name": "Error: Format Selesai Salah",
+    "template": "❌ Format: selesai [ID_TIKET]\n\nContoh: selesai ABC123\n\n⚠️ Pastikan sudah upload minimal 2 foto!"
+  },
+  "error_lid_only": {
+    "name": "Error: Hanya untuk @lid",
+    "template": "⚠️ Perintah ini hanya untuk pengguna dengan format @lid"
+  },
+  "error_format_link": {
+    "name": "Error: Format Link Salah",
+    "template": "❌ Format: *link [nomor_hp_terdaftar]*\n\nContoh: *link 6285233047094*"
+  },
+  "error_format_verifikasi_lid": {
+    "name": "Error: Format Verifikasi LID Salah",
+    "template": "❌ Format: *verifikasi [kode]*\n\nContoh: *verifikasi 123456*"
+  },
+  "convo_tanya_jawab_unavailable": {
+    "name": "Percakapan: Tanya Jawab Tidak Tersedia",
+    "template": "Maaf, fitur tanya jawab otomatis sudah tidak tersedia.\n\nSilakan gunakan perintah berikut:\n• *menu* - Lihat menu utama\n• *bantuan* - Lihat panduan\n• Atau hubungi admin untuk bantuan lebih lanjut."
+  },
+  "panduan_laporan_cerdas": {
+    "name": "Panduan Laporan Cerdas",
+    "template": "📋 *PANDUAN LAPORAN CERDAS*\n\nHalo ${pushname}! Saya siap membantu Anda melaporkan gangguan.\n\n*Cara Cepat Melapor:*\nLangsung ketik keluhan Anda, contoh:\n• \"lapor wifi mati\"\n• \"lapor internet lemot\"\n• \"lapor tidak bisa browsing\"\n• \"lapor putus nyambung\"\n\n*Keuntungan:*\n✅ Otomatis deteksi jenis gangguan\n✅ Langsung dapat nomor tiket\n✅ Teknisi segera ditugaskan\n\n💡 *Tips:* Semakin detail laporan Anda, semakin cepat kami bisa membantu!\n\nSilakan langsung ketik keluhan Anda sekarang."
   }
 }

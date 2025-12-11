@@ -9,6 +9,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { deleteUserState } = require('../conversation-handler');
 
 /**
  * Helper function to save reports to file
@@ -76,7 +77,12 @@ async function handleConfirmReboot(userState, userReply, reply, sender, temp, gl
             reply(`⚠️ Maaf, terjadi kendala saat mencoba reboot modem. Silakan coba lagi nanti atau hubungi admin.`);
         }
         
-        delete temp[sender];
+        // Gunakan deleteUserState untuk konsistensi dan auto-cleanup
+        deleteUserState(sender);
+    } else if (['batal', 'cancel', 'ga jadi', 'gak jadi'].includes(userReply)) {
+        // Universal cancel commands
+        deleteUserState(sender);
+        reply('✅ Dibatalkan.');
     } else {
         reply("Silakan balas *'ya'* untuk melanjutkan reboot modem, atau *'batal'* untuk membatalkan.");
     }

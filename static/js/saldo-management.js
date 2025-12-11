@@ -2,6 +2,7 @@ let saldoTable, transactionTable;
 let allTransactions = [];
 let allSaldoData = [];
 let allTopupRequests = [];
+let refreshInterval = null; // Store interval ID for cleanup
 
 $(document).ready(function() {
     // Initialize DataTables
@@ -54,12 +55,127 @@ $(document).ready(function() {
     loadSaldoData();
     loadTransactions();
 
-    // Auto refresh every 30 seconds
-    setInterval(function() {
+    // Auto refresh every 30 seconds - Store interval ID for cleanup
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
+    refreshInterval = setInterval(function() {
         loadStatistics();
         loadTopupRequests();
     }, 30000);
+    
+    // Setup event listeners for buttons (to avoid CSP issues with onclick)
+    // Remove old listeners first to prevent memory leaks
+    setupButtonEventListeners();
 });
+
+// Cleanup on page unload
+$(window).on('beforeunload', function() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+    // Remove all event listeners with namespace
+    $(document).off('click.saldoManagement');
+});
+
+// Setup event listeners for all buttons
+// Use namespace to prevent memory leaks and allow easy cleanup
+function setupButtonEventListeners() {
+    // Remove old listeners first to prevent memory leaks
+    $(document).off('click.saldoManagement');
+    
+    // Button "Tambah Saldo Manual"
+    $(document).on('click.saldoManagement', '#btnAddSaldoManual', function() {
+        window.showAddSaldoModal();
+    });
+    
+    // Button "Tambah Saldo" in modal
+    $(document).on('click.saldoManagement', '#btnSubmitAddSaldo', function() {
+        window.addSaldoManual();
+    });
+    
+    // Button "Topup Saldo Agent"
+    $(document).on('click.saldoManagement', '#btnAddAgentSaldo', function() {
+        if (window.showAddAgentSaldoModal) {
+            window.showAddAgentSaldoModal();
+        }
+    });
+    
+    // Button "Topup Saldo" in agent modal
+    $(document).on('click.saldoManagement', '#btnSubmitAddAgentSaldo', function() {
+        if (window.addAgentSaldoManual) {
+            window.addAgentSaldoManual();
+        }
+    });
+    
+    // Button "Approve/Reject" in topup requests (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-verify-topup', function() {
+        const requestId = $(this).data('request-id');
+        const approved = $(this).data('approved') === true || $(this).data('approved') === 'true';
+        if (window.verifyTopup && requestId) {
+            window.verifyTopup(requestId, approved);
+        }
+    });
+    
+    // Button "Lihat Bukti" in topup requests (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-view-proof', function() {
+        const requestId = $(this).data('request-id');
+        const proofFile = $(this).data('proof-file');
+        if (window.viewTopupProof && requestId && proofFile) {
+            window.viewTopupProof(requestId, proofFile);
+        }
+    });
+    
+    // Button "Show Transactions" in user saldo table (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-show-transactions', function() {
+        const userId = $(this).data('user-id');
+        if (window.showUserTransactions && userId) {
+            window.showUserTransactions(userId);
+        }
+    });
+    
+    // Button "Add Saldo" in user saldo table (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-add-saldo-user', function() {
+        const userId = $(this).data('user-id');
+        if (window.showAddSaldoModal && userId) {
+            window.showAddSaldoModal(userId);
+        }
+    });
+    
+    // Button "Topup Agent" in agent saldo table (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-topup-agent', function() {
+        const agentId = $(this).data('agent-id');
+        const agentName = $(this).data('agent-name');
+        if (window.topupAgentSaldo && agentId && agentName) {
+            window.topupAgentSaldo(agentId, agentName);
+        }
+    });
+    
+    // Button "View Proof" in transaction table (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-view-transaction-proof', function() {
+        const transactionId = $(this).data('transaction-id');
+        if (window.viewProof && transactionId) {
+            window.viewProof(transactionId);
+        }
+    });
+    
+    // Button "Edit Voucher" (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-edit-voucher', function() {
+        const profile = $(this).data('voucher-profile');
+        if (window.editVoucher && profile) {
+            window.editVoucher(profile);
+        }
+    });
+    
+    // Button "Delete Voucher" (dynamic content)
+    $(document).on('click.saldoManagement', '.btn-delete-voucher', function() {
+        const profile = $(this).data('voucher-profile');
+        if (window.deleteVoucher && profile) {
+            window.deleteVoucher(profile);
+        }
+    });
+}
 
 function formatRupiah(amount) {
     return 'Rp ' + parseInt(amount).toLocaleString('id-ID');
@@ -160,7 +276,7 @@ function renderTopupRequests(requests) {
                             </small>
                             ${request.paymentProof ? `
                                 <div class="mt-2">
-                                    <button class="btn btn-info btn-sm" onclick="viewTopupProof('${request.id}', '${request.paymentProof}')" title="Lihat Bukti">
+                                    <button class="btn btn-info btn-sm btn-view-proof" data-request-id="${request.id.replace(/'/g, "\\'")}" data-proof-file="${(request.paymentProof || '').replace(/'/g, "\\'")}" title="Lihat Bukti">
                                         <i class="fas fa-image"></i> Lihat Bukti
                                     </button>
                                     <span class="badge badge-warning ml-2">
@@ -182,10 +298,10 @@ function renderTopupRequests(requests) {
                             `}
                         </div>
                         <div class="col-md-4 text-right">
-                            <button class="btn btn-success btn-sm" onclick="verifyTopup('${request.id}', true)">
+                            <button class="btn btn-success btn-sm btn-verify-topup" data-request-id="${request.id.replace(/'/g, "\\'")}" data-approved="true">
                                 <i class="fas fa-check"></i> Approve
                             </button>
-                            <button class="btn btn-danger btn-sm" onclick="verifyTopup('${request.id}', false)">
+                            <button class="btn btn-danger btn-sm btn-verify-topup" data-request-id="${request.id.replace(/'/g, "\\'")}" data-approved="false">
                                 <i class="fas fa-times"></i> Reject
                             </button>
                         </div>
@@ -233,6 +349,9 @@ function loadSaldoData() {
                 ? `<strong>${displayName}</strong><br><small class="text-muted">${phoneNumber}</small>`
                 : phoneNumber;
             
+            // Escape single quotes in user.id for onclick handler
+            const safeUserId = (user.id || '').replace(/'/g, "\\'");
+            
             saldoTable.row.add([
                 index + 1,
                 user.id,
@@ -240,10 +359,10 @@ function loadSaldoData() {
                 formatRupiah(user.saldo || 0),
                 formatDate(user.updated_at || new Date()),
                 `
-                    <button class="btn btn-sm btn-primary" onclick="showUserTransactions('${user.id}')">
+                    <button class="btn btn-sm btn-primary btn-show-transactions" data-user-id="${safeUserId}">
                         <i class="fas fa-history"></i>
                     </button>
-                    <button class="btn btn-sm btn-success" onclick="showAddSaldoModal('${user.id}')">
+                    <button class="btn btn-sm btn-success btn-add-saldo-user" data-user-id="${safeUserId}">
                         <i class="fas fa-plus"></i>
                     </button>
                 `
@@ -316,7 +435,8 @@ function renderTransactions(transactions) {
         }
         
         if (tx.hasProof) {
-            proofButton = `<button class="btn btn-sm btn-success" onclick="viewProof('${tx.id}')" title="Lihat Bukti Transfer">
+            const safeTxId = (tx.id || '').replace(/"/g, '&quot;');
+            proofButton = `<button class="btn btn-sm btn-success btn-view-transaction-proof" data-transaction-id="${safeTxId}" title="Lihat Bukti Transfer">
                 <i class="fas fa-file-image"></i> Lihat
             </button>`;
         }
@@ -337,7 +457,7 @@ function renderTransactions(transactions) {
 }
 
 // View topup proof from transaction (popup modal)
-function viewProof(transactionId) {
+window.viewProof = function(transactionId) {
     const proofUrl = `/api/saldo/transaction/${transactionId}/proof`;
     
     Swal.fire({
@@ -363,7 +483,7 @@ function viewProof(transactionId) {
             popup: 'animated fadeIn faster'
         }
     });
-}
+};
 
 function loadVouchers() {
     $.get('/api/saldo/vouchers', function(data) {
@@ -376,10 +496,10 @@ function loadVouchers() {
                 voucher.durasivc,
                 formatRupiah(voucher.hargavc),
                 `
-                    <button class="btn btn-sm btn-warning" onclick="editVoucher('${voucher.prof}')">
+                    <button class="btn btn-sm btn-warning btn-edit-voucher" data-voucher-profile="${(voucher.prof || '').replace(/"/g, '&quot;')}">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteVoucher('${voucher.prof}')">
+                    <button class="btn btn-sm btn-danger btn-delete-voucher" data-voucher-profile="${(voucher.prof || '').replace(/"/g, '&quot;')}">
                         <i class="fas fa-trash"></i>
                     </button>
                 `
@@ -392,12 +512,14 @@ function loadVouchers() {
     });
 }
 
-function showAddSaldoModal(userId = '') {
-    $('#addSaldoUserId').val(userId);
+// Make functions globally accessible for onclick handlers
+window.showAddSaldoModal = function(userId = '') {
+    console.log('[SHOW_ADD_SALDO_MODAL] Called with userId:', userId);
+    $('#addSaldoUserId').val(userId || '');
     $('#addSaldoModal').modal('show');
-}
+};
 
-function addSaldoManual() {
+window.addSaldoManual = function() {
     const userId = $('#addSaldoUserId').val();
     const amount = $('#addSaldoAmount').val();
     const description = $('#addSaldoDescription').val();
@@ -431,43 +553,11 @@ function addSaldoManual() {
     }).fail(function() {
         Swal.fire('Error', 'Gagal menambah saldo', 'error');
     });
-}
+};
 
-function verifyTopup(requestId, approved) {
-    const action = approved ? 'approve' : 'reject';
-    const title = approved ? 'Approve Topup?' : 'Reject Topup?';
-    const text = approved ? 'Saldo akan ditambahkan ke user' : 'Request topup akan ditolak';
-    
-    Swal.fire({
-        title: title,
-        text: text,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: approved ? 'Ya, Approve' : 'Ya, Reject',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            $.post('/api/saldo/verify-topup', {
-                requestId: requestId,
-                approved: approved
-            }, function(response) {
-                if (response.success) {
-                    Swal.fire('Sukses', `Topup berhasil di-${action}`, 'success');
-                    loadTopupRequests();
-                    loadSaldoData();
-                    loadTransactions();
-                    loadStatistics();
-                } else {
-                    Swal.fire('Error', response.message || 'Gagal memproses request', 'error');
-                }
-            }).fail(function() {
-                Swal.fire('Error', 'Gagal memproses request', 'error');
-            });
-        }
-    });
-}
+// verifyTopup function moved to end of file to avoid duplication
 
-function showUserTransactions(userId) {
+window.showUserTransactions = function(userId) {
     // Filter transactions for specific user
     const userTransactions = allTransactions.filter(tx => tx.userId === userId);
     
@@ -559,9 +649,9 @@ function addVoucher(data) {
     }).fail(function() {
         Swal.fire('Error', 'Gagal menambah voucher', 'error');
     });
-}
+};
 
-function deleteVoucher(profile) {
+window.deleteVoucher = function(profile) {
     Swal.fire({
         title: 'Hapus Voucher?',
         text: 'Voucher akan dihapus permanen',
@@ -586,9 +676,9 @@ function deleteVoucher(profile) {
             });
         }
     });
-}
+};
 
-function editVoucher(profile) {
+window.editVoucher = function(profile) {
     // Find voucher data
     $.get('/api/saldo/vouchers', function(vouchers) {
         const voucher = vouchers.find(v => v.prof === profile);
@@ -669,7 +759,7 @@ function getStatusBadge(status) {
     return badges[status] || '<span class="badge badge-secondary">Unknown</span>';
 }
 
-function viewTopupProof(requestId, proofFile) {
+window.viewTopupProof = function(requestId, proofFile) {
     const proofPath = `/temp/topup_proofs/${proofFile}`;
     Swal.fire({
         title: 'Bukti Transfer',
@@ -684,9 +774,9 @@ function viewTopupProof(requestId, proofFile) {
         width: '600px',
         confirmButtonText: 'Tutup'
     });
-}
+};
 
-function verifyTopup(requestId, approved) {
+window.verifyTopup = function(requestId, approved) {
     const title = approved ? 'Approve Topup?' : 'Reject Topup?';
     const text = approved ? 'Saldo akan ditambahkan ke user' : 'Request akan ditolak';
     
@@ -716,6 +806,8 @@ function verifyTopup(requestId, approved) {
                         'success'
                     );
                     loadTopupRequests();
+                    loadSaldoData();
+                    loadTransactions();
                     loadStatistics();
                 } else {
                     Swal.fire('Error', response.message || 'Gagal memverifikasi topup', 'error');

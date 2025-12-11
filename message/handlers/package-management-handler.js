@@ -3,17 +3,23 @@
  * Handles package changes and speed boost requests
  */
 
-const { convertRupiah } = require('../../lib/function');
+const convertRupiah = require('rupiah-format');
+const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
+const { getUserState, setUserState, deleteUserState } = require('./conversation-handler');
 
 /**
  * Handle package change request
  */
-async function handleUbahPaket({ sender, plainSenderNumber, pushname, reply, mess, global, temp }) {
+async function handleUbahPaket({ sender, plainSenderNumber, pushname, reply, mess, global, msg, raf }) {
     try {
-        const user = global.users.find(u => 
-            u.phone_number && 
-            u.phone_number.split('|').some(num => plainSenderNumber.includes(num))
-        );
+        // Find user with @lid support
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(plainSenderNumber, global.users);
+            return reply(verification.message);
+        }
         
         if (!user) {
             return reply(mess.userNotRegister);
@@ -68,11 +74,11 @@ async function handleUbahPaket({ sender, plainSenderNumber, pushname, reply, mes
 
         replyText += "\nSilakan balas dengan *nomor* paket yang Anda inginkan (contoh: `1`). Atau ketik *batal* untuk membatalkan.";
 
-        temp[sender] = {
+        setUserState(sender, {
             step: 'ASK_PACKAGE_CHOICE',
             user: user,
             options: availablePackages // The options are already ordered correctly
-        };
+        });
 
         return reply(replyText);
         
@@ -85,12 +91,16 @@ async function handleUbahPaket({ sender, plainSenderNumber, pushname, reply, mes
 /**
  * Handle speed boost request
  */
-async function handleRequestSpeedBoost({ sender, plainSenderNumber, pushname, reply, mess, global, temp }) {
+async function handleRequestSpeedBoost({ sender, plainSenderNumber, pushname, reply, mess, global, temp, msg, raf }) {
     try {
-        const user = global.users.find(u => 
-            u.phone_number && 
-            u.phone_number.split('|').some(num => plainSenderNumber.includes(num))
-        );
+        // Find user with @lid support
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(plainSenderNumber, global.users);
+            return reply(verification.message);
+        }
         
         if (!user) {
             return reply(mess.userNotRegister);
@@ -150,11 +160,11 @@ async function handleRequestSpeedBoost({ sender, plainSenderNumber, pushname, re
 
         replyText += "\nSilakan balas dengan *nomor* paket yang Anda inginkan (contoh: `1`). Atau ketik *batal* untuk membatalkan.";
 
-        temp[sender] = {
+        setUserState(sender, {
             step: 'SELECT_SOD_CHOICE',
             user: user,
             options: sodPackages
-        };
+        });
 
         return reply(replyText);
         

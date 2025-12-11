@@ -7,8 +7,9 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
-const backupPath = path.join(__dirname, '..', `database.backup.${Date.now()}.sqlite`);
+// All databases stored in database/ folder
+const dbPath = path.join(__dirname, '..', 'database', 'database.sqlite');
+const backupPath = path.join(__dirname, '..', 'backups', `database.backup.${Date.now()}.sqlite`);
 
 console.log('╔══════════════════════════════════════════════════════════╗');
 console.log('║          FIX DUPLICATE USER IDs TOOL                      ║');

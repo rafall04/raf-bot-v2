@@ -4,6 +4,7 @@
  */
 
 const { setUserState, getUserState, deleteUserState } = require('./conversation-handler');
+const { sendCustomerNotification } = require('./teknisi-workflow-handler');
 const fs = require('fs');
 const path = require('path');
 
@@ -63,7 +64,8 @@ async function handleMulaiPerjalanan(sender, ticketId, teknisiInfo, reply) {
         });
         
         // Notify customer that teknisi is on the way
-        if (report.pelangganId && global.raf) {
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (report.pelangganId && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
             const customerNotif = `🚗 *TEKNISI BERANGKAT*
 
 Teknisi sedang menuju lokasi Anda.
@@ -80,6 +82,10 @@ _Waktu dapat berubah tergantung kondisi lalu lintas_`;
             try {
                 await global.raf.sendMessage(report.pelangganId, { text: customerNotif });
             } catch (err) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    pelangganId: report.pelangganId,
+                    error: err.message
+                });
                 console.error('[JOURNEY_NOTIF] Failed to notify customer:', err);
             }
             
@@ -100,13 +106,25 @@ _Waktu dapat berubah tergantung kondisi lalu lintas_`;
                     
                     if (phoneJid === report.pelangganId) continue;
                     
-                    try {
-                        await global.raf.sendMessage(phoneJid, { text: customerNotif });
-                    } catch (err) {
-                        console.error(`[JOURNEY_NOTIF] Failed to notify ${phoneJid}:`, err);
+                    // PENTING: Cek connection state untuk setiap recipient
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(phoneJid, { text: customerNotif });
+                        } catch (err) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                phoneJid,
+                                error: err.message
+                            });
+                            console.error(`[JOURNEY_NOTIF] Failed to notify ${phoneJid}:`, err);
+                            // Continue to next recipient
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', phoneJid);
                     }
                 }
             }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', report.pelangganId);
         }
         
         return {
@@ -274,29 +292,8 @@ ${locationData.googleMapsUrl}
 • Untuk cek lokasi terbaru, ketik:
   *lokasi ${ticketId}*`;
 
-            try {
-                await global.raf.sendMessage(reportData.pelangganId, { text: customerMessage });
-            } catch (err) {
-                console.error('Failed to notify customer:', err);
-            }
-            
-            // Send to all phone numbers if multiple
-            if (reportData.pelangganPhone) {
-                const phones = reportData.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-                console.log(`[LOCATION_NOTIF] Sending to ${phones.length} phone numbers: ${phones.join(', ')}`);
-                
-                for (const phone of phones) {
-                    let phoneJid = formatPhoneToJid(phone);
-                    if (phoneJid !== reportData.pelangganId) {
-                        try {
-                            await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                            console.log(`[LOCATION_NOTIF] Sent to additional number: ${phoneJid}`);
-                        } catch (err) {
-                            console.error(`[LOCATION_NOTIF] Failed to notify ${phoneJid}:`, err);
-                        }
-                    }
-                }
-            }
+            // Send location notification without duplicates using consistent helper
+            await sendCustomerNotification(reportData, customerMessage);
         }
         
         return {

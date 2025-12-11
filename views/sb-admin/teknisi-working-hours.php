@@ -292,6 +292,22 @@
                                             </div>
                                         </div>
                                         
+                                        <hr>
+                                        
+                                        <!-- PSB Estimation Time -->
+                                        <div class="form-group">
+                                            <label class="font-weight-bold">
+                                                <i class="fas fa-car"></i> Estimasi Tiba Teknisi (PSB)
+                                            </label>
+                                            
+                                            <div class="mb-3">
+                                                <label for="psbEstimationTime">Estimasi Tiba Teknisi</label>
+                                                <input type="text" class="form-control" id="psbEstimationTime" name="psbEstimationTime" 
+                                                       placeholder="contoh: 30-60 menit" value="30-60 menit">
+                                                <small class="form-text text-muted">Estimasi waktu tiba teknisi yang akan dikirim ke pelanggan saat teknisi meluncur (untuk PSB). Contoh: "30-60 menit", "1-2 jam", dll.</small>
+                                            </div>
+                                        </div>
+                                        
                                         <div class="text-right">
                                             <button type="button" class="btn btn-secondary" onclick="loadSettings()">
                                                 <i class="fas fa-redo"></i> Reset
@@ -420,6 +436,13 @@
                     if (settings.holidayMessage) {
                         $('#holidayMessage').val(settings.holidayMessage);
                     }
+                    
+                    // PSB Estimation Time
+                    if (settings.psbEstimationTime) {
+                        $('#psbEstimationTime').val(settings.psbEstimationTime);
+                    } else {
+                        $('#psbEstimationTime').val('30-60 menit'); // Default value
+                    }
                 }
                 
                 // Update status
@@ -493,7 +516,8 @@
                     medium_priority: $('#mediumPriority').val()
                 },
                 outOfHoursMessage: $('#outOfHoursMessage').val() || 'Laporan Anda diterima di luar jam kerja. Akan diproses pada jam kerja berikutnya.',
-                holidayMessage: $('#holidayMessage').val() || 'Laporan Anda diterima pada hari libur. Akan diproses pada hari kerja berikutnya.'
+                holidayMessage: $('#holidayMessage').val() || 'Laporan Anda diterima pada hari libur. Akan diproses pada hari kerja berikutnya.',
+                psbEstimationTime: $('#psbEstimationTime').val() || '30-60 menit'
             };
             
             try {

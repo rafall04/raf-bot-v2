@@ -317,11 +317,21 @@ async function handleSaldoSteps({ userState, sender, chats, pushname, reply, set
                     agentNotif += `• Jangan konfirmasi sebelum terima uang\n`;
                     agentNotif += `• Gunakan PIN yang sudah terdaftar`;
                     
-                    await global.raf.sendMessage(agentPhone, { text: agentNotif });
-                    console.log('[TOPUP] Agent notified:', agentPhone);
-                } catch (error) {
-                    console.error('[TOPUP] Failed to notify agent:', error);
-                }
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(agentPhone, { text: agentNotif });
+                            console.log('[TOPUP] Agent notified:', agentPhone);
+                        } catch (error) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                agentPhone,
+                                error: error.message
+                            });
+                            console.error('[TOPUP] Failed to notify agent:', error);
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to agent', agentPhone);
+                    }
             }
             
             // Clear conversation state after notifications
@@ -345,12 +355,22 @@ async function handleSaldoSteps({ userState, sender, chats, pushname, reply, set
                         `${global.config.site_url_bot || 'http://localhost:3100'}/saldo-management`;
                     
                     // Send to all admins
+                    // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
                     for (const adminJid of adminRecipients) {
-                        try {
-                            await global.raf.sendMessage(adminJid, { text: adminMessage });
-                            console.log('[TOPUP] Admin notified:', adminJid);
-                        } catch (error) {
-                            console.error('[TOPUP] Failed to notify admin:', adminJid, error);
+                        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                            try {
+                                await global.raf.sendMessage(adminJid, { text: adminMessage });
+                                console.log('[TOPUP] Admin notified:', adminJid);
+                            } catch (error) {
+                                console.error('[SEND_MESSAGE_ERROR]', {
+                                    adminJid,
+                                    error: error.message
+                                });
+                                console.error('[TOPUP] Failed to notify admin:', adminJid, error);
+                                // Continue to next admin
+                            }
+                        } else {
+                            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to admin', adminJid);
                         }
                     }
                 }

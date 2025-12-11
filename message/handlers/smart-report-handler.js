@@ -7,6 +7,9 @@ const { isDeviceOnline, getDeviceOfflineMessage } = require('../../lib/device-st
 const { setUserState, getUserState, deleteUserState } = require('./conversation-handler');
 const { getResponseTimeMessage, isWithinWorkingHours } = require('../../lib/working-hours-helper');
 const { renderReport, errorMessage } = require('../../lib/templating');
+const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
+const { saveReports } = require('../../lib/database');
+const { hasActiveReport } = require('../../lib/report-helper');
 const fs = require('fs');
 const path = require('path');
 
@@ -25,46 +28,24 @@ function generateTicketId(length = 7) {
  * Handle GANGGUAN_MATI - Internet mati/putus total (HIGH Priority)
  * Auto-detect device status via GenieACS
  */
-async function handleGangguanMati({ sender, pushname, userPelanggan, reply, findUserByPhone }) {
+async function handleGangguanMati({ sender, pushname, userPelanggan, reply, findUserByPhone, msg, raf }) {
     try {
-        // Find user
-        // Get sender phone number without @s.whatsapp.net
-        const senderPhone = sender.replace('@s.whatsapp.net', '');
+        // Find user with @lid support
+        const plainSenderNumber = sender.split('@')[0];
         
-        // Find user with proper phone format matching
-        const user = findUserByPhone ? 
-            findUserByPhone(senderPhone) : 
-            global.users.find(u => {
-                if (!u.phone_number) return false;
-                
-                // Split multiple phone numbers
-                const phones = u.phone_number.split("|");
-                
-                // Check each phone number
-                return phones.some(phone => {
-                    const cleanPhone = phone.trim();
-                    
-                    // If sender has 62 prefix (6285233047094)
-                    if (senderPhone.startsWith('62')) {
-                        // Compare with phone converted to 62 format
-                        if (cleanPhone.startsWith('0')) {
-                            // Convert 085233047094 to 6285233047094
-                            return `62${cleanPhone.substring(1)}` === senderPhone;
-                        } else if (cleanPhone.startsWith('62')) {
-                            // Already has 62 prefix
-                            return cleanPhone === senderPhone;
-                        } else {
-                            // No prefix, add 62
-                            return `62${cleanPhone}` === senderPhone;
-                        }
-                    }
-                    
-                    // Direct match
-                    return cleanPhone === senderPhone;
-                });
-            });
+        // Use LID-aware user finder
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
-        console.log(`[USER_SEARCH] Sender: ${senderPhone}, Found: ${user ? user.name : 'NOT FOUND'}`);
+        console.log(`[USER_SEARCH] Sender: ${sender}, Found: ${user ? user.name : 'NOT FOUND'}`);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return {
+                success: false,
+                message: verification.message
+            };
+        }
         
         if (!user) {
             return { 
@@ -76,14 +57,8 @@ async function handleGangguanMati({ sender, pushname, userPelanggan, reply, find
             };
         }
         
-        // Check for duplicate/active report
-        const recentReport = global.reports.find(r => 
-            r.pelangganUserId === user.id &&
-            r.status !== 'selesai' &&
-            r.status !== 'completed' &&
-            r.status !== 'cancelled' &&
-            r.status !== 'dibatalkan'
-        );
+        // Check for duplicate/active report menggunakan helper function
+        const recentReport = hasActiveReport(user.id, global.reports);
         
         if (recentReport) {
             const statusText = recentReport.status === 'baru' ? 
@@ -236,7 +211,7 @@ Balas dengan *angka* (1/2/0)`
  * Handle Auto-Redirect from LEMOT to MATI when device is offline
  * This function is called automatically when user reports "lemot" but device is actually offline
  */
-async function handleGangguanMatiAutoRedirect({ sender, pushname, userPelanggan, reply, findUserByPhone, deviceStatus, targetUser, originalReport }) {
+async function handleGangguanMatiAutoRedirect({ sender, pushname, userPelanggan, reply, findUserByPhone, deviceStatus, targetUser, originalReport, msg, raf }) {
     try {
         const user = targetUser;  // User already found and passed from lemot handler
         const minutesAgo = deviceStatus.minutesAgo || 'lebih dari 30';
@@ -338,46 +313,24 @@ Balas dengan *angka* (1/2/3/0)`;
  * Handle GANGGUAN_LEMOT - Internet lambat (MEDIUM Priority)
  * Check device status and provide intelligent troubleshooting
  */
-async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, findUserByPhone }) {
+async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, findUserByPhone, msg, raf }) {
     try {
-        // Find user
-        // Get sender phone number without @s.whatsapp.net
-        const senderPhone = sender.replace('@s.whatsapp.net', '');
+        // Find user with @lid support
+        const plainSenderNumber = sender.split('@')[0];
         
-        // Find user with proper phone format matching
-        const user = findUserByPhone ? 
-            findUserByPhone(senderPhone) : 
-            global.users.find(u => {
-                if (!u.phone_number) return false;
-                
-                // Split multiple phone numbers
-                const phones = u.phone_number.split("|");
-                
-                // Check each phone number
-                return phones.some(phone => {
-                    const cleanPhone = phone.trim();
-                    
-                    // If sender has 62 prefix (6285233047094)
-                    if (senderPhone.startsWith('62')) {
-                        // Compare with phone converted to 62 format
-                        if (cleanPhone.startsWith('0')) {
-                            // Convert 085233047094 to 6285233047094
-                            return `62${cleanPhone.substring(1)}` === senderPhone;
-                        } else if (cleanPhone.startsWith('62')) {
-                            // Already has 62 prefix
-                            return cleanPhone === senderPhone;
-                        } else {
-                            // No prefix, add 62
-                            return `62${cleanPhone}` === senderPhone;
-                        }
-                    }
-                    
-                    // Direct match
-                    return cleanPhone === senderPhone;
-                });
-            });
+        // Use LID-aware user finder
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
-        console.log(`[USER_SEARCH] Sender: ${senderPhone}, Found: ${user ? user.name : 'NOT FOUND'}`);
+        console.log(`[USER_SEARCH] Sender: ${sender}, Found: ${user ? user.name : 'NOT FOUND'}`);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return {
+                success: false,
+                message: verification.message
+            };
+        }
         
         if (!user) {
             return { 
@@ -389,14 +342,8 @@ async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, fin
             };
         }
 
-        // Check if user already has active report
-        const laporanAktif = global.reports.find(
-            report => report.pelangganUserId === user.id &&
-                      (report.status === 'pending' || report.status === 'baru' || 
-                       report.status === 'process' || report.status === 'otw' || 
-                       report.status === 'on_location' || report.status === 'in_progress' ||
-                       report.status === 'diproses teknisi')
-        );
+        // Check if user already has active report menggunakan helper function
+        const laporanAktif = hasActiveReport(user.id, global.reports);
 
         if (laporanAktif) {
             return { 
@@ -421,13 +368,15 @@ async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, fin
                 findUserByPhone,
                 deviceStatus,  // Pass existing device status
                 targetUser: user,  // Pass user yang sudah ditemukan
-                originalReport: 'LEMOT'  // Track asal laporan
+                originalReport: 'LEMOT',  // Track asal laporan
+                msg,  // Pass msg for LID support
+                raf   // Pass raf for LID support
             });
             
             return result;
         }
         
-        // Device ONLINE - Continue with lemot troubleshooting
+        // Device ONLINE - Continue with lemot troubleshooting (NOT photo upload first!)
         // Get dynamic estimation for MEDIUM priority
         const estimasiLemot = getResponseTimeMessage('MEDIUM');
         
@@ -451,6 +400,7 @@ async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, fin
             }
         }
         
+        // Set state for troubleshooting response (NOT photo upload)
         setUserState(sender, {
             step: 'GANGGUAN_LEMOT_AWAITING_RESPONSE',
             targetUser: user,
@@ -514,7 +464,7 @@ Balas dengan angka atau contoh: *speedtest 5mbps*`
 /**
  * Handle follow-up response for GANGGUAN_MATI (Device OFFLINE)
  */
-async function handleGangguanMatiOfflineResponse({ sender, body, reply, findUserByPhone }) {
+async function handleGangguanMatiOfflineResponse({ sender, body, reply, findUserByPhone, msg, raf }) {
     const state = getUserState(sender);
     const response = body.toLowerCase().trim();
     
@@ -611,22 +561,32 @@ _Foto akan membantu teknisi membawa spare part yang tepat_`
             acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== ""
         );
 
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (const teknisi of teknisiAccounts) {
-            try {
-                let teknisiJid = teknisi.phone_number.trim();
-                if (!teknisiJid.endsWith('@s.whatsapp.net')) {
-                    if (teknisiJid.startsWith('0')) {
-                        teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
-                    } else if (teknisiJid.startsWith('62')) {
-                        teknisiJid = `${teknisiJid}@s.whatsapp.net`;
-                    } else {
-                        teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    let teknisiJid = teknisi.phone_number.trim();
+                    if (!teknisiJid.endsWith('@s.whatsapp.net')) {
+                        if (teknisiJid.startsWith('0')) {
+                            teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
+                        } else if (teknisiJid.startsWith('62')) {
+                            teknisiJid = `${teknisiJid}@s.whatsapp.net`;
+                        } else {
+                            teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+                        }
                     }
+                    await global.raf.sendMessage(teknisiJid, { text: notifMessage });
+                    console.log(`[REPORT] Notified teknisi: ${teknisi.username} (${teknisiJid})`);
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        teknisiJid: teknisi.phone_number,
+                        error: err.message
+                    });
+                    console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
+                    // Continue to next teknisi
                 }
-                await global.raf.sendMessage(teknisiJid, { text: notifMessage });
-                console.log(`[REPORT] Notified teknisi: ${teknisi.username} (${teknisiJid})`);
-            } catch (err) {
-                console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi.username);
             }
         }
 
@@ -638,21 +598,31 @@ _Foto akan membantu teknisi membawa spare part yang tepat_`
 
         const adminNotifMsg = `📊 *LAPORAN URGENT BARU*\n\n${notifMessage}\n\n_Notifikasi telah dikirim ke ${teknisiAccounts.length} teknisi._`;
 
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (const admin of adminAccounts) {
-            try {
-                let adminJid = admin.phone_number.trim();
-                if (!adminJid.endsWith('@s.whatsapp.net')) {
-                    if (adminJid.startsWith('0')) {
-                        adminJid = `62${adminJid.substring(1)}@s.whatsapp.net`;
-                    } else if (adminJid.startsWith('62')) {
-                        adminJid = `${adminJid}@s.whatsapp.net`;
-                    } else {
-                        adminJid = `62${adminJid}@s.whatsapp.net`;
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    let adminJid = admin.phone_number.trim();
+                    if (!adminJid.endsWith('@s.whatsapp.net')) {
+                        if (adminJid.startsWith('0')) {
+                            adminJid = `62${adminJid.substring(1)}@s.whatsapp.net`;
+                        } else if (adminJid.startsWith('62')) {
+                            adminJid = `${adminJid}@s.whatsapp.net`;
+                        } else {
+                            adminJid = `62${adminJid}@s.whatsapp.net`;
+                        }
                     }
+                    await global.raf.sendMessage(adminJid, { text: adminNotifMsg });
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        adminJid: admin.phone_number,
+                        error: err.message
+                    });
+                    console.error(`Failed to notify admin ${admin.username}:`, err.message);
+                    // Continue to next admin
                 }
-                await global.raf.sendMessage(adminJid, { text: adminNotifMsg });
-            } catch (err) {
-                console.error(`Failed to notify admin ${admin.username}:`, err.message);
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to admin', admin.username);
             }
         }
 
@@ -725,7 +695,7 @@ _Troubleshooting biasanya memakan waktu 5-10 menit_`
 /**
  * Handle follow-up response for GANGGUAN_MATI (Device ONLINE - WiFi issue)
  */
-async function handleGangguanMatiOnlineResponse({ sender, body, reply }) {
+async function handleGangguanMatiOnlineResponse({ sender, body, reply, msg, raf }) {
     const state = getUserState(sender);
     const response = body.toLowerCase().trim();
     
@@ -806,21 +776,31 @@ Untuk proses tiket, ketik:
             acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== ""
         );
 
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (const teknisi of teknisiAccounts) {
-            try {
-                let teknisiJid = teknisi.phone_number.trim();
-                if (!teknisiJid.endsWith('@s.whatsapp.net')) {
-                    if (teknisiJid.startsWith('0')) {
-                        teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
-                    } else if (teknisiJid.startsWith('62')) {
-                        teknisiJid = `${teknisiJid}@s.whatsapp.net`;
-                    } else {
-                        teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    let teknisiJid = teknisi.phone_number.trim();
+                    if (!teknisiJid.endsWith('@s.whatsapp.net')) {
+                        if (teknisiJid.startsWith('0')) {
+                            teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
+                        } else if (teknisiJid.startsWith('62')) {
+                            teknisiJid = `${teknisiJid}@s.whatsapp.net`;
+                        } else {
+                            teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+                        }
                     }
+                    await global.raf.sendMessage(teknisiJid, { text: notifMessage });
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        teknisiJid: teknisi.phone_number,
+                        error: err.message
+                    });
+                    console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
+                    // Continue to next teknisi
                 }
-                await global.raf.sendMessage(teknisiJid, { text: notifMessage });
-            } catch (err) {
-                console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi.username);
             }
         }
 
@@ -851,9 +831,288 @@ Terima kasih! 🙏`
 }
 
 /**
+ * Notify technicians about new ticket
+ */
+async function notifyTechnicians(report) {
+    const teknisiAccounts = global.accounts.filter(acc => acc.role === 'teknisi');
+    
+    for (let i = 0; i < teknisiAccounts.length; i++) {
+        const teknisi = teknisiAccounts[i];
+        if (!teknisi.phone_number) continue;
+        
+        // Add delay between notifications to prevent spam
+        if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        const teknisiJid = teknisi.phone_number.includes('@') ? 
+            teknisi.phone_number : 
+            `${teknisi.phone_number}@s.whatsapp.net`;
+
+        let message = `🚨 *TIKET BARU - ${report.priority === 'HIGH' ? 'URGENT!' : 'Normal'}*
+
+━━━━━━━━━━━━━━━━
+📋 ID: *${report.ticketId}*
+👤 Pelanggan: ${report.pelangganName}
+📱 No: ${report.pelangganPhone}
+📍 Alamat: ${report.pelangganAddress || 'Tidak ada'}
+━━━━━━━━━━━━━━━━
+
+*Masalah:* ${report.laporanText}
+*Device:* ${report.deviceOnline ? '🟢 Online' : '🔴 Offline'}
+*Troubleshoot:* ${report.troubleshootingDone ? '✅ Sudah' : '❌ Belum'}`;
+
+        // Add photo info if available
+        if (report.photoCount > 0) {
+            message += `\n*Foto Pelanggan:* 📸 ${report.photoCount} foto tersedia`;
+            
+            // Send text message first
+            await global.raf.sendMessage(teknisiJid, { text: message });
+            
+            // Send photos if available
+            if (report.photoBuffers && report.photoBuffers.length > 0) {
+                for (let j = 0; j < report.photoBuffers.length; j++) {
+                    await global.raf.sendMessage(teknisiJid, {
+                        image: report.photoBuffers[j],
+                        caption: `📸 Foto ${j + 1} dari ${report.photoCount} - Tiket ${report.ticketId}`
+                    });
+                    // Small delay between photos
+                    if (j < report.photoBuffers.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            }
+        } else {
+            // Send without photos
+            await global.raf.sendMessage(teknisiJid, { text: message });
+        }
+    }
+}
+
+/**
+ * Helper function to create LEMOT ticket after photo upload
+ */
+async function createLemotTicket(sender, state, reply) {
+    const ticketId = generateTicketId();
+    const speedInfo = state.speedTest ? `Speed test: ${state.speedTest} Mbps` : 'Belum speed test';
+    
+    // Get estimation time
+    const estimasi = state.estimatedTime || getResponseTimeMessage('MEDIUM');
+    const targetTime = state.targetTime || '';
+    
+    const newReport = {
+        ticketId: ticketId,
+        pelangganUserId: state.targetUser.id,
+        pelangganId: sender,
+        pelangganName: state.targetUser.name || 'Customer',
+        pelangganPhone: state.targetUser.phone_number,
+        pelangganAddress: state.targetUser.address || '',
+        pelangganSubscription: state.targetUser.subscription || 'Tidak terinfo',
+        laporanText: `Internet lemot/lambat - Device ONLINE\n${speedInfo}\nTroubleshooting sudah dilakukan.`,
+        status: 'baru',
+        priority: 'MEDIUM',
+        estimatedTime: estimasi,
+        targetTime: targetTime,
+        createdAt: new Date().toISOString(),
+        deviceOnline: true,
+        deviceStatus: state.deviceStatus || {},
+        issueType: 'LEMOT',
+        troubleshootingDone: true,
+        photoCount: state.uploadedPhotos ? state.uploadedPhotos.length : 0,
+        photos: state.uploadedPhotos ? state.uploadedPhotos.map(p => p.fileName) : [],
+        photoBuffers: state.photoBuffers || [] // Use separate buffer array
+    };
+
+    // Ensure global.reports is initialized (should be loaded from database.js)
+    if (!global.reports) {
+        console.error('[REPORT_CREATE] ERROR: global.reports not initialized! Loading from file...');
+        try {
+            const reportsPath = path.join(__dirname, '../../database/reports.json');
+            if (fs.existsSync(reportsPath)) {
+                const data = fs.readFileSync(reportsPath, 'utf8');
+                global.reports = JSON.parse(data) || [];
+            } else {
+                global.reports = [];
+            }
+        } catch (err) {
+            console.error('[REPORT_CREATE] Failed to load reports:', err);
+            global.reports = [];
+        }
+    }
+    
+    // Add new report
+    global.reports.push(newReport);
+    
+    // Save using proper function
+    saveReports();
+    console.log(`[REPORT_CREATE] Ticket ${ticketId} created for ${state.targetUser.name}`);
+    
+    // Clear state BEFORE notifying (important!)
+    deleteUserState(sender);
+    
+    // NOTIFY TECHNICIANS - THIS WAS MISSING!
+    await notifyTechnicians(newReport);
+    console.log(`[REPORT_CREATE] Technicians notified for ticket ${ticketId}`);
+    
+    // Clear photo buffers from saved data to prevent huge JSON files
+    // (buffers were only needed for sending to technicians)
+    const savedReportIndex = global.reports.length - 1;
+    if (global.reports[savedReportIndex]) {
+        delete global.reports[savedReportIndex].photoBuffers;
+        saveReports(); // Save again without buffers
+    }
+    
+    return {
+        success: true,
+        message: `✅ *TIKET SPEED ISSUE DIBUAT*
+
+📑 Nomor Tiket: *${ticketId}*
+⚠️ Prioritas: *MEDIUM*
+📉 Speed Test: *${speedInfo}*
+📷 Foto: *${state.uploadedPhotos ? state.uploadedPhotos.length : 0} file dilampirkan*
+⏰ Estimasi: *${estimasi}*
+${targetTime ? `📅 Target: *${targetTime}*` : ''}
+
+Teknisi akan menganalisis penyebab speed rendah.
+
+Terima kasih! 🙏`
+    };
+}
+
+/**
+ * Handle Photo Upload for LEMOT Report (After choosing "tetap lemot")
+ */
+async function handleLemotPhotoUpload({ sender, response, photoPath, photoBuffer, reply }) {
+    const state = getUserState(sender);
+    if (!state || state.step !== 'LEMOT_AWAITING_PHOTO') {
+        return { success: false };
+    }
+    
+    // Check if this is for ticket creation
+    const isForTicketCreation = state.wantToCreateTicket === true;
+    
+    // Handle text response (SKIP or LANJUT)
+    if (response) {
+        const lowerResponse = response.toLowerCase().trim();
+        
+        // Handle SKIP
+        if (lowerResponse === 'skip') {
+            console.log('[LEMOT_PHOTO] User skipped photo upload');
+            state.photoSkipped = true;
+            state.uploadedPhotos = [];
+            
+            // If for ticket creation, create ticket now
+            if (isForTicketCreation) {
+                return await createLemotTicket(sender, state, reply);
+            }
+            
+            // Otherwise go back to troubleshooting (shouldn't happen)
+            const stateToSave = { ...state };
+            delete stateToSave.photoBuffers; // Don't save buffers
+            setUserState(sender, {
+                ...stateToSave,
+                step: 'GANGGUAN_LEMOT_AWAITING_RESPONSE'
+            });
+            
+            return {
+                success: true,
+                message: `⏩ Upload foto dilewati.`
+            };
+        }
+        
+        // Handle LANJUT with photos
+        if (lowerResponse === 'lanjut' && state.uploadedPhotos && state.uploadedPhotos.length > 0) {
+            console.log(`[LEMOT_PHOTO] Processing ${state.uploadedPhotos.length} photos`);
+            
+            // If for ticket creation, create ticket now with photos
+            if (isForTicketCreation) {
+                return await createLemotTicket(sender, state, reply);
+            }
+            
+            // Otherwise shouldn't happen
+            const stateToSave = { ...state };
+            delete stateToSave.photoBuffers; // Don't save buffers
+            setUserState(sender, {
+                ...stateToSave,
+                step: 'GANGGUAN_LEMOT_AWAITING_RESPONSE'
+            });
+            
+            return {
+                success: true,
+                message: `✅ ${state.uploadedPhotos.length} foto berhasil diterima!`
+            };
+        }
+    }
+    
+    // Handle photo upload
+    if (photoPath) {
+        console.log('[LEMOT_PHOTO] Photo received:', photoPath);
+        
+        // Initialize photo array if not exists
+        if (!state.uploadedPhotos) {
+            state.uploadedPhotos = [];
+        }
+        
+        // Store photo info (fileName only, buffer kept separate)
+        state.uploadedPhotos.push({
+            fileName: photoPath
+            // DO NOT store buffer here to avoid huge JSON files!
+        });
+        
+        // Keep buffers in separate temporary array (not saved to JSON)
+        if (!state.photoBuffers) {
+            state.photoBuffers = [];
+        }
+        state.photoBuffers.push(photoBuffer);
+        
+        // Check if max photos reached
+        if (state.uploadedPhotos.length >= 3) {
+            // If for ticket creation, create ticket now with photos
+            if (isForTicketCreation) {
+                return await createLemotTicket(sender, state, reply);
+            }
+            
+            // Otherwise shouldn't happen
+            const stateToSave = { ...state };
+            delete stateToSave.photoBuffers; // Don't save buffers
+            setUserState(sender, {
+                ...stateToSave,
+                step: 'GANGGUAN_LEMOT_AWAITING_RESPONSE'
+            });
+            
+            return {
+                success: true,
+                message: `✅ 3 foto berhasil diterima (maksimal).`
+            };
+        } else {
+            // Update state and ask for more (but don't save buffers)
+            const stateToSave = { ...state };
+            delete stateToSave.photoBuffers; // Don't save buffers to state
+            setUserState(sender, stateToSave);
+            
+            return {
+                success: true,
+                message: `✅ Foto ${state.uploadedPhotos.length} berhasil diterima!
+
+📸 Anda bisa kirim foto lagi (maks 3 foto)
+⏩ Atau ketik *LANJUT* untuk melanjutkan troubleshooting`
+            };
+        }
+    }
+    
+    return {
+        success: false,
+        message: `⚠️ Silakan:
+• Kirim foto/screenshot bukti lemot
+• Ketik *SKIP* untuk lewati
+• Ketik *LANJUT* jika sudah kirim foto`
+    };
+}
+
+/**
  * Handle follow-up response for GANGGUAN_LEMOT
  */
-async function handleGangguanLemotResponse({ sender, body, reply }) {
+async function handleGangguanLemotResponse({ sender, body, reply, msg, raf }) {
     const state = getUserState(sender);
     const response = body.toLowerCase().trim();
     
@@ -952,9 +1211,41 @@ Balas dengan *angka* (1/2/0)`
         }
     }
     
-    // 1 = tetap lemot, buat tiket
+    // 1 = tetap lemot, ask for optional photo before creating ticket
     if (response === '1' || response.includes('tetap lemot') || response.includes('tetaplemot') || response.includes('masih lemot')) {
-        // CREATE MEDIUM PRIORITY TICKET
+        // Change state to photo upload before creating ticket
+        const stateToSave = { ...state };
+        delete stateToSave.photoBuffers; // Don't save buffers if any
+        setUserState(sender, {
+            ...stateToSave,
+            step: 'LEMOT_AWAITING_PHOTO',
+            wantToCreateTicket: true  // Flag to create ticket after photo
+        });
+        
+        return {
+            success: true,
+            message: `📸 *UPLOAD BUKTI (OPSIONAL)*
+
+Untuk mempercepat penanganan teknisi, Anda bisa kirim foto/screenshot:
+
+✅ *Yang bisa difoto:*
+• Screenshot hasil speedtest
+• Foto lampu indikator modem
+• Screenshot error/loading
+• Video buffering
+
+📌 *Cara:*
+• Kirim foto (maks 3) atau
+• Ketik *SKIP* untuk lewati
+• Ketik *LANJUT* jika sudah kirim foto
+
+⏳ Menunggu foto atau ketik SKIP...`
+        };
+    }
+    
+    // This code will be moved to photo upload handler
+    const OLD_TICKET_CREATION_DISABLED = false;
+    if (OLD_TICKET_CREATION_DISABLED) {
         const ticketId = generateTicketId();
         const speedInfo = state.speedTest ? `Speed test: ${state.speedTest} Mbps` : 'Belum speed test';
         
@@ -979,7 +1270,8 @@ Balas dengan *angka* (1/2/0)`
             deviceOnline: true,
             deviceStatus: state.deviceStatus || {},  // Include full device status
             issueType: 'LEMOT',
-            troubleshootingDone: true
+            troubleshootingDone: true,
+            uploadedPhotos: state.uploadedPhotos || []  // Include uploaded photos
         };
 
         if (!global.reports) global.reports = [];
@@ -1022,6 +1314,7 @@ Untuk proses tiket, ketik:
             acc.role === 'teknisi' && acc.phone_number && acc.phone_number.trim() !== ""
         );
 
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (let i = 0; i < teknisiAccounts.length; i++) {
             const teknisi = teknisiAccounts[i];
             
@@ -1030,20 +1323,29 @@ Untuk proses tiket, ketik:
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
             
-            try {
-                let teknisiJid = teknisi.phone_number.trim();
-                if (!teknisiJid.endsWith('@s.whatsapp.net')) {
-                    if (teknisiJid.startsWith('0')) {
-                        teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
-                    } else if (teknisiJid.startsWith('62')) {
-                        teknisiJid = `${teknisiJid}@s.whatsapp.net`;
-                    } else {
-                        teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    let teknisiJid = teknisi.phone_number.trim();
+                    if (!teknisiJid.endsWith('@s.whatsapp.net')) {
+                        if (teknisiJid.startsWith('0')) {
+                            teknisiJid = `62${teknisiJid.substring(1)}@s.whatsapp.net`;
+                        } else if (teknisiJid.startsWith('62')) {
+                            teknisiJid = `${teknisiJid}@s.whatsapp.net`;
+                        } else {
+                            teknisiJid = `62${teknisiJid}@s.whatsapp.net`;
+                        }
                     }
+                    await global.raf.sendMessage(teknisiJid, { text: notifMessage });
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        teknisiJid: teknisi.phone_number,
+                        error: err.message
+                    });
+                    console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
+                    // Continue to next teknisi
                 }
-                await global.raf.sendMessage(teknisiJid, { text: notifMessage });
-            } catch (err) {
-                console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi.username);
             }
         }
 
@@ -1148,5 +1450,6 @@ module.exports = {
     handleGangguanLemot,
     handleGangguanMatiOfflineResponse,
     handleGangguanMatiOnlineResponse,
+    handleLemotPhotoUpload,
     handleGangguanLemotResponse
 };

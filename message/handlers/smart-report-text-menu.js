@@ -6,6 +6,8 @@
 const { isDeviceOnline, getDeviceOfflineMessage } = require('../../lib/device-status');
 const { setUserState, getUserState, deleteUserState } = require('./conversation-handler');
 const { getResponseTimeMessage, isWithinWorkingHours } = require('../../lib/working-hours-helper');
+const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
+const { hasActiveReport } = require('../../lib/report-helper');
 const fs = require('fs');
 const path = require('path');
 
@@ -23,36 +25,17 @@ function generateTicketId(length = 7) {
 /**
  * Start report flow dengan menu interaktif
  */
-async function startReportFlow({ sender, pushname, reply }) {
+async function startReportFlow({ sender, pushname, reply, msg, raf }) {
     try {
-        // Check if user is registered
-        const senderPhone = sender.replace('@s.whatsapp.net', '');
-        const user = global.users.find(u => {
-            if (!u.phone_number) return false;
-            
-            const phones = u.phone_number.split("|");
-            
-            return phones.some(phone => {
-                const cleanPhone = phone.trim();
-                
-                // If sender has 62 prefix (6285233047094)
-                if (senderPhone.startsWith('62')) {
-                    if (cleanPhone.startsWith('0')) {
-                        // Convert 085233047094 to 6285233047094
-                        return `62${cleanPhone.substring(1)}` === senderPhone;
-                    } else if (cleanPhone.startsWith('62')) {
-                        // Already has 62 prefix
-                        return cleanPhone === senderPhone;
-                    } else {
-                        // No prefix, add 62
-                        return `62${cleanPhone}` === senderPhone;
-                    }
-                }
-                
-                // Direct match
-                return cleanPhone === senderPhone;
-            });
-        });
+        // Check if user is registered with @lid support
+        const plainSenderNumber = sender.split('@')[0];
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return { success: false, message: verification.message };
+        }
         
         if (!user) {
             return { 
@@ -61,13 +44,8 @@ async function startReportFlow({ sender, pushname, reply }) {
             };
         }
 
-        // Check for existing active report
-        const activeReport = global.reports.find(r => 
-            r.pelangganUserId === user.id &&
-            r.status !== 'selesai' &&
-            r.status !== 'cancelled' &&
-            r.status !== 'pending'
-        );
+        // Check for existing active report menggunakan helper function
+        const activeReport = hasActiveReport(user.id, global.reports);
 
         if (activeReport) {
             return {
@@ -168,36 +146,16 @@ Silakan balas dengan:
 /**
  * Handle Internet Mati with Troubleshooting Options
  */
-async function handleInternetMati({ sender, pushname, reply }) {
+async function handleInternetMati({ sender, pushname, reply, msg, raf }) {
     try {
-        // Get user data first
-        const senderPhone = sender.replace('@s.whatsapp.net', '');
-        const user = global.users.find(u => {
-            if (!u.phone_number) return false;
-            
-            const phones = u.phone_number.split("|");
-            
-            return phones.some(phone => {
-                const cleanPhone = phone.trim();
-                
-                // If sender has 62 prefix (6285233047094)
-                if (senderPhone.startsWith('62')) {
-                    if (cleanPhone.startsWith('0')) {
-                        // Convert 085233047094 to 6285233047094
-                        return `62${cleanPhone.substring(1)}` === senderPhone;
-                    } else if (cleanPhone.startsWith('62')) {
-                        // Already has 62 prefix
-                        return cleanPhone === senderPhone;
-                    } else {
-                        // No prefix, add 62
-                        return `62${cleanPhone}` === senderPhone;
-                    }
-                }
-                
-                // Direct match
-                return cleanPhone === senderPhone;
-            });
-        });
+        // Get user data with @lid support
+        const plainSenderNumber = sender.split('@')[0];
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return { success: false, message: verification.message };
+        }
         
         if (!user) {
             return {
@@ -285,36 +243,16 @@ async function handleInternetMati({ sender, pushname, reply }) {
 /**
  * Handle Internet Lemot with Auto-Redirect if Device Offline
  */
-async function handleInternetLemot({ sender, pushname, reply }) {
+async function handleInternetLemot({ sender, pushname, reply, msg, raf }) {
     try {
-        // Get user data first
-        const senderPhone = sender.replace('@s.whatsapp.net', '');
-        const user = global.users.find(u => {
-            if (!u.phone_number) return false;
-            
-            const phones = u.phone_number.split("|");
-            
-            return phones.some(phone => {
-                const cleanPhone = phone.trim();
-                
-                // If sender has 62 prefix (6285233047094)
-                if (senderPhone.startsWith('62')) {
-                    if (cleanPhone.startsWith('0')) {
-                        // Convert 085233047094 to 6285233047094
-                        return `62${cleanPhone.substring(1)}` === senderPhone;
-                    } else if (cleanPhone.startsWith('62')) {
-                        // Already has 62 prefix
-                        return cleanPhone === senderPhone;
-                    } else {
-                        // No prefix, add 62
-                        return `62${cleanPhone}` === senderPhone;
-                    }
-                }
-                
-                // Direct match
-                return cleanPhone === senderPhone;
-            });
-        });
+        // Get user data with @lid support
+        const plainSenderNumber = sender.split('@')[0];
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return { success: false, message: verification.message };
+        }
         
         if (!user) {
             return {
@@ -663,21 +601,29 @@ async function handleMatiPhotoUpload({ sender, response, photoPath, photoBuffer,
     if (photoPath) {
         console.log('[PHOTO_UPLOAD] Photo received:', photoPath);
         
-        // Save photo info in state (path and buffer)
+        // Save photo info in state (NO BUFFER!)
         if (!state.uploadedPhotos) {
             state.uploadedPhotos = [];
         }
-        // Store both filename and buffer for later sending
+        // Store filename only - buffer kept separate
         state.uploadedPhotos.push({
-            fileName: photoPath,
-            buffer: photoBuffer  // Store buffer for sending to teknisi
+            fileName: photoPath
+            // NO buffer here - will be stored separately!
         });
+        
+        // Keep buffers in separate array (NOT saved to state)
+        if (!state.photoBuffers) {
+            state.photoBuffers = [];
+        }
+        state.photoBuffers.push(photoBuffer);
         
         // Check if user wants to add more photos (max 3)
         if (state.uploadedPhotos.length < 3) {
             // Update state and ask if want to add more
-            // IMPORTANT: Use spread operator to preserve all existing state
-            setUserState(sender, { ...state });
+            // IMPORTANT: Save state WITHOUT buffers
+            const stateToSave = { ...state };
+            delete stateToSave.photoBuffers;  // Don't save buffers!
+            setUserState(sender, stateToSave);
             
             return {
                 success: true,
@@ -756,11 +702,11 @@ async function createReportTicket({ sender, state, reply }) {
             deviceOnline: state.deviceStatus?.online !== false,
             issueType: issueType,
             troubleshootingDone: state.troubleshootingDone || false,
-            // Extract just filenames for storage, keep buffers in state
+            // Extract just filenames for storage
             photos: state.uploadedPhotos ? state.uploadedPhotos.map(p => p.fileName || p) : [],
             photoCount: state.uploadedPhotos ? state.uploadedPhotos.length : 0,
-            // Keep photo buffers temporarily for sending
-            photoBuffers: state.uploadedPhotos ? state.uploadedPhotos.filter(p => p.buffer).map(p => p.buffer) : []
+            // Use separate photoBuffers array for sending
+            photoBuffers: state.photoBuffers || []
         };
 
         // Add to reports
@@ -861,73 +807,119 @@ async function notifyTechnicians(report) {
         // Add photo info if available with actual photos
         if (report.photoCount > 0) {
             message += `\n*Foto Pelanggan:* 📸 ${report.photoCount} foto tersedia`;
-            
-            // Send text message first
-            await global.raf.sendMessage(teknisiJid, { text: message });
-            
-            // Send photos if available using buffers or file paths
-            if (report.photoBuffers && report.photoBuffers.length > 0) {
-                // Send each photo using buffer
-                for (let j = 0; j < report.photoBuffers.length; j++) {
-                    await global.raf.sendMessage(teknisiJid, {
-                        image: report.photoBuffers[j],
-                        caption: `📸 Foto ${j + 1} dari ${report.photoCount} - Tiket ${report.ticketId}\nDari: ${report.pelangganName}`
-                    });
-                    // Small delay between photos
-                    if (j < report.photoBuffers.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            } else if (report.photos && report.photos.length > 0) {
-                // Fallback: try to read from disk if buffers not available
-                for (let j = 0; j < report.photos.length; j++) {
-                    const photoPath = path.join(__dirname, '../../uploads', report.photos[j]);
-                    if (fs.existsSync(photoPath)) {
-                        await global.raf.sendMessage(teknisiJid, {
-                            image: { url: photoPath },
-                            caption: `📸 Foto ${j + 1} dari ${report.photoCount} - Tiket ${report.ticketId}`
-                        });
-                        if (j < report.photos.length - 1) {
-                            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                // Send text message first
+                await global.raf.sendMessage(teknisiJid, { text: message });
+                
+                // Send photos if available using buffers or file paths
+                if (report.photoCount > 0) {
+                    if (report.photoBuffers && report.photoBuffers.length > 0) {
+                        // Send each photo using buffer
+                        for (let j = 0; j < report.photoBuffers.length; j++) {
+                            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                                try {
+                                    await global.raf.sendMessage(teknisiJid, {
+                                        image: report.photoBuffers[j],
+                                        caption: `📸 Foto ${j + 1} dari ${report.photoCount} - Tiket ${report.ticketId}\nDari: ${report.pelangganName}`
+                                    });
+                                    // Small delay between photos
+                                    if (j < report.photoBuffers.length - 1) {
+                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                                    }
+                                } catch (photoErr) {
+                                    console.error('[SEND_MESSAGE_ERROR]', {
+                                        teknisiJid,
+                                        type: 'image',
+                                        photoIndex: j + 1,
+                                        error: photoErr.message
+                                    });
+                                    // Continue to next photo
+                                }
+                            }
+                        }
+                    } else if (report.photos && report.photos.length > 0) {
+                        // Fallback: try to read from disk if buffers not available
+                        for (let j = 0; j < report.photos.length; j++) {
+                            const photoPath = path.join(__dirname, '../../uploads', report.photos[j]);
+                            if (fs.existsSync(photoPath) && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                                try {
+                                    await global.raf.sendMessage(teknisiJid, {
+                                        image: { url: photoPath },
+                                        caption: `📸 Foto ${j + 1} dari ${report.photoCount} - Tiket ${report.ticketId}`
+                                    });
+                                    if (j < report.photos.length - 1) {
+                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                                    }
+                                } catch (photoErr) {
+                                    console.error('[SEND_MESSAGE_ERROR]', {
+                                        teknisiJid,
+                                        type: 'image',
+                                        photoIndex: j + 1,
+                                        error: photoErr.message
+                                    });
+                                    // Continue to next photo
+                                }
+                            }
                         }
                     }
+                    
+                    // Send action message after photos
+                    const actionMessage = `\n*AKSI YANG TERSEDIA:*
+━━━━━━━━━━━━━━━━
+1️⃣ Untuk memproses tiket:
+   Ketik: *proses ${report.ticketId}*
+   
+2️⃣ Setelah proses, mulai perjalanan:
+   Ketik: *otw ${report.ticketId}*
+   
+3️⃣ Saat sampai lokasi:
+   Ketik: *sampai ${report.ticketId}*
+   
+━━━━━━━━━━━━━━━━
+⚠️ *PENTING:* Minta kode OTP ke pelanggan saat tiba di lokasi`;
+                    
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(teknisiJid, { text: actionMessage });
+                        } catch (actionErr) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                teknisiJid,
+                                error: actionErr.message
+                            });
+                        }
+                    }
+                } else {
+                    message += `\n*Foto:* ❌ Tidak ada`;
+                    message += `\n\n*AKSI YANG TERSEDIA:*
+━━━━━━━━━━━━━━━━
+1️⃣ Untuk memproses tiket:
+   Ketik: *proses ${report.ticketId}*
+   
+2️⃣ Setelah proses, mulai perjalanan:
+   Ketik: *otw ${report.ticketId}*
+   
+3️⃣ Saat sampai lokasi:
+   Ketik: *sampai ${report.ticketId}*
+   
+━━━━━━━━━━━━━━━━
+⚠️ *PENTING:* Minta kode OTP ke pelanggan saat tiba di lokasi`;
+                    
+                    // Send message without photos
+                    await global.raf.sendMessage(teknisiJid, { text: message });
                 }
+            } catch (err) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    teknisiJid,
+                    error: err.message
+                });
+                console.error(`Failed to notify teknisi ${teknisi.username}:`, err.message);
             }
-            
-            // Send action message after photos
-            const actionMessage = `\n*AKSI YANG TERSEDIA:*
-━━━━━━━━━━━━━━━━
-1️⃣ Untuk memproses tiket:
-   Ketik: *proses ${report.ticketId}*
-   
-2️⃣ Setelah proses, mulai perjalanan:
-   Ketik: *otw ${report.ticketId}*
-   
-3️⃣ Saat sampai lokasi:
-   Ketik: *sampai ${report.ticketId}*
-   
-━━━━━━━━━━━━━━━━
-⚠️ *PENTING:* Minta kode OTP ke pelanggan saat tiba di lokasi`;
-            
-            await global.raf.sendMessage(teknisiJid, { text: actionMessage });
         } else {
-            message += `\n*Foto:* ❌ Tidak ada`;
-            message += `\n\n*AKSI YANG TERSEDIA:*
-━━━━━━━━━━━━━━━━
-1️⃣ Untuk memproses tiket:
-   Ketik: *proses ${report.ticketId}*
-   
-2️⃣ Setelah proses, mulai perjalanan:
-   Ketik: *otw ${report.ticketId}*
-   
-3️⃣ Saat sampai lokasi:
-   Ketik: *sampai ${report.ticketId}*
-   
-━━━━━━━━━━━━━━━━
-⚠️ *PENTING:* Minta kode OTP ke pelanggan saat tiba di lokasi`;
-            
-            // Send message without photos
-            await global.raf.sendMessage(teknisiJid, { text: message });
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi.username);
         }
     }
 }

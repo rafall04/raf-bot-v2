@@ -10,37 +10,29 @@ class MonitoringController {
         this.updateInterval = null;
         this.trafficPeriod = '5m';
         this.alerts = [];
-        this.currentInterface = 'ether1'; // Store current interface selection
-        this.isConnected = false; // Track connection status
-        this.mikrotikConnected = false; // Track MikroTik connection status
-        this.useSocketIO = false; // Disable Socket.IO by default to avoid errors
-        this.socketErrorLogged = false; // Track if error was logged
+        this.currentInterface = 'ether1';
+        this.isConnected = false;
+        this.mikrotikConnected = false;
+        this.useSocketIO = false;
+        this.socketErrorLogged = false;
         
         this.init();
     }
     
     init() {
-        // Only initialize Socket.IO if enabled
         if (this.useSocketIO) {
             this.connectSocket();
         } else {
-            console.log('[Monitoring] Socket.IO disabled, using REST API polling only');
-            // Set as connected for REST API mode
             this.isConnected = true;
         }
         
-        // Initialize charts
         this.initCharts();
-        
-        // Start update loop
         this.startUpdateLoop();
-        
-        // Bind events
         this.bindEvents();
+        this.initClickableStatCards();
     }
     
     connectSocket() {
-        // Use relative URL so it works on any host
         const socketUrl = window.location.protocol + '//' + window.location.hostname + 
                          (window.location.port ? ':' + window.location.port : '');
         
@@ -48,14 +40,13 @@ class MonitoringController {
             auth: {
                 token: localStorage.getItem('token')
             },
-            transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+            transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             reconnectionAttempts: 5
         });
         
-        // Socket event handlers
         this.socket.on('connect', () => {
             console.log('Connected to monitoring server via Socket.IO');
             this.isConnected = true;
@@ -65,12 +56,11 @@ class MonitoringController {
         this.socket.on('disconnect', () => {
             console.log('Disconnected from monitoring server');
             this.isConnected = false;
-            this.mikrotikConnected = false; // Also reset MikroTik status
+            this.mikrotikConnected = false;
             this.updateConnectionStatus('disconnected');
         });
         
         this.socket.on('connect_error', (error) => {
-            // Don't spam console with connection errors
             if (!this.socketErrorLogged) {
                 console.warn('Socket.IO connection failed. Falling back to polling mode.');
                 this.socketErrorLogged = true;
@@ -95,7 +85,6 @@ class MonitoringController {
     }
     
     initCharts() {
-        // Initialize traffic chart
         const ctx = document.getElementById('traffic-chart');
         if (!ctx) return;
         
@@ -140,14 +129,16 @@ class MonitoringController {
                 }
             }
         });
-        
-        // Fetch and update traffic history
-        this.fetchTrafficHistory();
     }
     
     async fetchTrafficHistory() {
-        // Don't fetch history if not connected
-        if (!this.isConnected) {
+        if (!this.mikrotikConnected) {
+            if (this.trafficChart) {
+                const emptyData = new Array(this.trafficChart.data.labels.length || 20).fill(0);
+                this.trafficChart.data.datasets[0].data = emptyData;
+                this.trafficChart.data.datasets[1].data = emptyData;
+                this.trafficChart.update();
+            }
             return;
         }
         
@@ -157,20 +148,11 @@ class MonitoringController {
                 const result = await response.json();
                 const history = result.data;
                 
-                // Don't show disconnection on initial load - wait for actual status
-                // if (!this.mikrotikConnected) {
-                //     this.handleDisconnection();
-                //     return;
-                // }
-                
-                // Update chart with history data
                 if (this.trafficChart && history) {
-                    // Reset to normal state when connected
                     this.trafficChart.options.plugins.title = {
                         display: false
                     };
                     
-                    // Re-enable animations when connected
                     this.trafficChart.options.animation = {
                         duration: 750
                     };
@@ -193,45 +175,48 @@ class MonitoringController {
     }
     
     startUpdateLoop() {
-        // Initial load
-        this.fetchMonitoringData();
-        this.fetchTrafficHistory();
-        
-        // Update every 5 seconds
-        this.updateInterval = setInterval(() => {
-            // Only fetch data if connected
-            if (this.isConnected) {
-                this.fetchMonitoringData();
+        if (document.readyState === 'complete') {
+            this.startUpdateLoopImmediate();
+        } else {
+            window.addEventListener('load', () => {
+                this.startUpdateLoopImmediate();
+            });
+        }
+    }
+    
+    startUpdateLoopImmediate() {
+        setTimeout(() => {
+            this.fetchUserStatsFromStats();
+            this.fetchMonitoringData();
+            
+            if (this.trafficChart) {
                 this.fetchTrafficHistory();
-            } else {
-                // If not connected, just update UI to show disconnected state
-                this.handleDisconnection();
             }
-        }, 5000);
+            
+            this.updateInterval = setInterval(() => {
+                this.fetchUserStatsFromStats();
+                this.fetchMonitoringData();
+                
+                if (this.trafficChart && this.mikrotikConnected) {
+                    this.fetchTrafficHistory();
+                }
+            }, 5000);
+        }, 1000);
     }
     
     async fetchMonitoringData() {
         try {
-            // Get selected interface from selector or use stored value
             const interfaceSelector = document.getElementById('interface-selector');
             let selectedInterface = '';
             
             if (interfaceSelector && interfaceSelector.value) {
                 selectedInterface = interfaceSelector.value;
-                this.currentInterface = selectedInterface; // Update stored value
+                this.currentInterface = selectedInterface;
             } else {
-                // Use stored value if selector not ready
                 selectedInterface = this.currentInterface || 'ether1';
             }
             
-            // Build URL with interface parameter
             const url = `/api/monitoring/live?interface=${encodeURIComponent(selectedInterface)}`;
-            
-            // Debug log only on interface change (uncomment for troubleshooting)
-            // if (this.lastDebuggedInterface !== selectedInterface) {
-            //     console.log('[DEBUG] Fetching URL:', url);
-            //     this.lastDebuggedInterface = selectedInterface;
-            // }
             
             const response = await fetch(url, {
                 method: 'GET',
@@ -243,61 +228,69 @@ class MonitoringController {
             });
             
             if (!response.ok) {
-                throw new Error('Failed to fetch monitoring data');
+                console.error('[Monitoring] HTTP Error:', response.status, response.statusText);
+                throw new Error(`Failed to fetch monitoring data: ${response.status}`);
             }
             
             const result = await response.json();
             
-            // Check if we have an error response  
-            if (result.status === 503 || result.error) {
-                console.error('[Monitoring] MikroTik Error:', result.message || result.error);
-                // Only set as disconnected if explicitly told so
-                if (result.message && result.message.includes('not connected')) {
-                    this.mikrotikConnected = false;
-                    this.handleDisconnection(); 
-                }
+            if (result.status === 503 || result.error || !result.data) {
+                console.error('[Monitoring] MikroTik Error:', result.message || result.error || 'No data received');
+                this.mikrotikConnected = false;
+                this.handleDisconnection();
                 return;
             }
             
             const data = result.data;
             
-            // Only update if we have valid data
             if (data) {
-                this.mikrotikConnected = true; // Set MikroTik as connected
-                // Debug interface mismatch (uncomment for troubleshooting)
-                // const expectedInterface = document.getElementById('interface-selector')?.value || 
-                //                          document.getElementById('interface-selector')?.getAttribute('data-selected') || 
-                //                          'ether1';
-                // if (data.selectedInterface && data.selectedInterface !== expectedInterface) {
-                //     // Only warn once per mismatch
-                //     if (!this.lastMismatchWarning || this.lastMismatchWarning !== data.selectedInterface) {
-                //         console.warn('[Monitoring] Interface mismatch: Expected', expectedInterface, 'but got', data.selectedInterface);
-                //         this.lastMismatchWarning = data.selectedInterface;
-                //     }
-                // }
+                if (data.mikrotik && (data.mikrotik.connected === true || data.mikrotik.cpu !== undefined)) {
+                    this.mikrotikConnected = true;
+                } else {
+                    this.mikrotikConnected = false;
+                }
                 
-                // Update all dashboard elements with real data
-                this.updateSystemHealth(data.systemHealth);
+                if (data.systemHealth) {
+                    this.updateSystemHealth(data.systemHealth);
+                }
                 
-                // Fetch WhatsApp status from /api/stats instead
                 this.fetchWhatsAppStatus();
                 
-                this.updateMikroTikStatus(data.mikrotik);
-                this.updateTrafficData(data.traffic);
-                this.updateResourceBars(data.resources);
-                this.updateAlerts(data.alerts);
-                this.updateUserStats(data.users);
+                if (data.mikrotik) {
+                    this.updateMikroTikStatus(data.mikrotik);
+                }
                 
-                // Populate interface selector if available
+                if (data.traffic) {
+                    this.updateTrafficData(data.traffic);
+                }
+                
+                if (data.resources) {
+                    this.updateResourceBars(data.resources);
+                }
+                
+                if (data.alerts) {
+                    this.updateAlerts(data.alerts);
+                }
+                
+                if (data.users) {
+                    this.updateUserStats(data.users);
+                }
+                this.fetchUserStatsFromStats();
+                
                 if (data.interfaces) {
                     this.populateInterfaceSelector(data.interfaces);
                 }
+            } else {
+                console.error('[Monitoring] No data received from API');
+                this.mikrotikConnected = false;
+                this.handleDisconnection();
+                return;
             }
             
         } catch (error) {
-            console.error('Error fetching monitoring data:', error);
-            this.mikrotikConnected = false; // Set as disconnected on error
-            this.handleDisconnection(); // Handle disconnection state
+            console.error('[Monitoring] Error fetching monitoring data:', error);
+            this.mikrotikConnected = false;
+            this.handleDisconnection();
         }
     }
     
@@ -306,8 +299,7 @@ class MonitoringController {
         const statusEl = document.getElementById('health-status');
         const boxEl = document.getElementById('health-status-box');
         
-        // Don't trust the hardcoded 95% - calculate based on actual checks
-        let actualScore = 95; // Default
+        let actualScore = 95;
         if (health.checks) {
             const totalChecks = Object.keys(health.checks).length;
             const passedChecks = Object.values(health.checks).filter(v => v === true).length;
@@ -319,9 +311,7 @@ class MonitoringController {
         if (scoreEl) scoreEl.textContent = `${actualScore}%`;
         if (statusEl) statusEl.textContent = actualScore >= 75 ? 'Healthy' : 'Degraded';
         
-        // Update box color based on score
         if (boxEl) {
-            // Keep gradient style, just update if there's an error
             if (actualScore < 50) {
                 boxEl.className = 'modern-card gradient-green error';
             } else {
@@ -337,11 +327,9 @@ class MonitoringController {
             });
             if (response.ok) {
                 const data = await response.json();
-                // Use the botStatus from /api/stats which is working correctly
                 const isConnected = data.botStatus || false;
                 this.updateWhatsAppStatus({ connected: isConnected });
                 
-                // Also update health check if element exists
                 const healthChecks = document.querySelector('.health-checks');
                 if (healthChecks) {
                     const waCheck = healthChecks.querySelector('[data-check="whatsapp"]');
@@ -359,28 +347,28 @@ class MonitoringController {
     
     updateWhatsAppStatus(wa) {
         const statusEl = document.getElementById('wa-status');
-        // JANGAN SENTUH bot_status_value! Itu untuk widget bawah!
-        // const botStatusEl = document.getElementById('bot_status_value');
-        
-        // HANYA update widget atas (wa-status)
         if (statusEl) {
             statusEl.textContent = wa.connected ? 'Online' : 'Offline';
         }
-        // JANGAN UPDATE bot_status_value dari sini!
-        // if (botStatusEl) {
-        //     botStatusEl.textContent = wa.connected ? 'Online' : 'Offline';
-        // }
     }
     
     updateMikroTikStatus(mikrotik) {
         const cpuEl = document.getElementById('mikrotik-cpu');
         const tempEl = document.getElementById('mikrotik-temp');
         
-        if (cpuEl) cpuEl.textContent = `${mikrotik.cpu || 0}%`;
-        if (tempEl) tempEl.textContent = `${mikrotik.temperature || 0}°C`;
+        if (!mikrotik) {
+            if (cpuEl) cpuEl.textContent = '0%';
+            if (tempEl) tempEl.textContent = '0°C';
+            return;
+        }
         
-        // Update MikroTik connection status
-        if (mikrotik && mikrotik.connected !== undefined) {
+        const cpuValue = mikrotik.cpu !== undefined && mikrotik.cpu !== null ? mikrotik.cpu : 0;
+        const tempValue = mikrotik.temperature !== undefined && mikrotik.temperature !== null ? mikrotik.temperature : 0;
+        
+        if (cpuEl) cpuEl.textContent = `${cpuValue}%`;
+        if (tempEl) tempEl.textContent = `${tempValue}°C`;
+        
+        if (mikrotik.connected !== undefined) {
             this.mikrotikConnected = mikrotik.connected;
         }
     }
@@ -391,27 +379,34 @@ class MonitoringController {
         const dlTotal = document.getElementById('total-download');
         const ulTotal = document.getElementById('total-upload');
         
-        // Only update if connected to MikroTik
-        if (!this.mikrotikConnected) {
-            // Show N/A when disconnected
+        if (!traffic) {
             if (dlCurrent) dlCurrent.textContent = `N/A`;
             if (ulCurrent) ulCurrent.textContent = `N/A`;
             if (dlTotal) dlTotal.textContent = `Total: N/A`;
             if (ulTotal) ulTotal.textContent = `Total: N/A`;
-            return; // Don't update chart when disconnected
+            return;
         }
         
-        // Update current rates
-        if (dlCurrent) dlCurrent.textContent = `${traffic.download.current || 0} Mbps`;
-        if (ulCurrent) ulCurrent.textContent = `${traffic.upload.current || 0} Mbps`;
+        if (!this.mikrotikConnected) {
+            if (dlCurrent) dlCurrent.textContent = `N/A`;
+            if (ulCurrent) ulCurrent.textContent = `N/A`;
+            if (dlTotal) dlTotal.textContent = `Total: N/A`;
+            if (ulTotal) ulTotal.textContent = `Total: N/A`;
+            return;
+        }
         
-        // Update total traffic with interface-specific data
-        if (dlTotal) dlTotal.textContent = `Total: ${traffic.download.total || 0} GB`;
-        if (ulTotal) ulTotal.textContent = `Total: ${traffic.upload.total || 0} GB`;
+        const downloadCurrent = traffic.download?.current !== undefined && traffic.download?.current !== null ? traffic.download.current : 0;
+        const uploadCurrent = traffic.upload?.current !== undefined && traffic.upload?.current !== null ? traffic.upload.current : 0;
+        const downloadTotal = traffic.download?.total !== undefined && traffic.download?.total !== null ? traffic.download.total : 0;
+        const uploadTotal = traffic.upload?.total !== undefined && traffic.upload?.total !== null ? traffic.upload.total : 0;
         
-        // Also update the traffic chart with current data (only when connected)
+        if (dlCurrent) dlCurrent.textContent = `${downloadCurrent} Mbps`;
+        if (ulCurrent) ulCurrent.textContent = `${uploadCurrent} Mbps`;
+        
+        if (dlTotal) dlTotal.textContent = `Total: ${downloadTotal} GB`;
+        if (ulTotal) ulTotal.textContent = `Total: ${uploadTotal} GB`;
+        
         if (this.trafficChart && this.mikrotikConnected) {
-            // Clear any disconnection message
             if (this.trafficChart.options.plugins.title && this.trafficChart.options.plugins.title.display) {
                 this.trafficChart.options.plugins.title.display = false;
                 this.trafficChart.options.animation = {
@@ -421,27 +416,32 @@ class MonitoringController {
             
             const now = new Date().toLocaleTimeString();
             
-            // Keep only last 20 data points
             if (this.trafficChart.data.labels.length >= 20) {
                 this.trafficChart.data.labels.shift();
                 this.trafficChart.data.datasets[0].data.shift();
                 this.trafficChart.data.datasets[1].data.shift();
             }
             
-            // Add new data point
             this.trafficChart.data.labels.push(now);
-            this.trafficChart.data.datasets[0].data.push(traffic.download.current);
-            this.trafficChart.data.datasets[1].data.push(traffic.upload.current);
+            this.trafficChart.data.datasets[0].data.push(downloadCurrent);
+            this.trafficChart.data.datasets[1].data.push(uploadCurrent);
             
-            // Update chart
-            this.trafficChart.update('none'); // 'none' for no animation to avoid flicker
+            this.trafficChart.update('none');
         }
     }
     
     updateResourceBars(resources) {
-        this.updateProgressBar('cpu', resources.cpu);
-        this.updateProgressBar('memory', resources.memory);
-        this.updateProgressBar('disk', resources.disk);
+        if (!resources) {
+            return;
+        }
+        
+        const cpuValue = resources.cpu !== undefined && resources.cpu !== null ? resources.cpu : 0;
+        const memoryValue = resources.memory !== undefined && resources.memory !== null ? resources.memory : 0;
+        const diskValue = resources.disk !== undefined && resources.disk !== null ? resources.disk : 0;
+        
+        this.updateProgressBar('cpu', cpuValue);
+        this.updateProgressBar('memory', memoryValue);
+        this.updateProgressBar('disk', diskValue);
         
         const queueBar = document.getElementById('queue-bar');
         const queueText = document.getElementById('queue-text');
@@ -455,28 +455,57 @@ class MonitoringController {
     }
     
     updateUserStats(users) {
-        // Update total users count - ONLY PPPoE users
+        if (!users) {
+            return;
+        }
+        
         const totalUsersEl = document.getElementById('total-users');
         if (totalUsersEl) {
-            // Only count PPPoE active users, not hotspot
-            const total = users.pppoe?.active || 0;
+            const total = users.pppoe?.active !== undefined && users.pppoe?.active !== null 
+                ? users.pppoe.active 
+                : 0;
             totalUsersEl.textContent = total;
+        }
+        
+        const hotspotUsersEl = document.getElementById('hotspot-users-count');
+        if (hotspotUsersEl) {
+            const hotspotTotal = users.hotspot?.active !== undefined && users.hotspot?.active !== null
+                ? users.hotspot.active
+                : 0;
+            hotspotUsersEl.textContent = hotspotTotal;
+        }
+    }
+    
+    async fetchUserStatsFromStats() {
+        try {
+            const response = await fetch('/api/stats', {
+                credentials: 'same-origin'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                const totalUsersEl = document.getElementById('total-users');
+                if (totalUsersEl && data.pppStats && !data.pppStats.error) {
+                    const pppOnline = data.pppStats.online;
+                    if (typeof pppOnline === 'number' && pppOnline >= 0) {
+                        totalUsersEl.textContent = pppOnline;
+                    }
+                }
+                
+                const hotspotUsersEl = document.getElementById('hotspot-users-count');
+                if (hotspotUsersEl && data.hotspotStats && !data.hotspotStats.error) {
+                    const hotspotActive = data.hotspotStats.active;
+                    if (typeof hotspotActive === 'number' && hotspotActive >= 0) {
+                        hotspotUsersEl.textContent = hotspotActive;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Monitoring] Failed to fetch user stats from /api/stats:', error);
         }
     }
 
-    updateProgressBar(type, value) {
-        const bar = document.getElementById(`${type}-bar`);
-        const text = document.getElementById(`${type}-text`);
-        
-        if (bar) {
-            bar.style.width = `${value}%`;
-            // Update color based on value
-            bar.className = `progress-bar ${value > 80 ? 'bg-danger' : value > 60 ? 'bg-warning' : 'bg-primary'}`;
-        }
-        if (text) text.textContent = `${value}%`;
-    }
-    
-    
     formatBytesPerSec(bytesPerSec) {
         if (bytesPerSec < 1024) return bytesPerSec + ' B/s';
         if (bytesPerSec < 1048576) return (bytesPerSec / 1024).toFixed(2) + ' KB/s';
@@ -496,43 +525,41 @@ class MonitoringController {
         const selector = document.getElementById('interface-selector');
         if (!selector) return;
         
-        // Keep current selection if exists
         const currentSelection = selector.value || selector.getAttribute('data-selected');
         
-        // Only setup once
         if (!selector.hasAttribute('data-initialized')) {
-            // Add change event listener only once
             selector.addEventListener('change', (e) => {
-                console.log(`[Monitoring] Interface changed to: ${e.target.value}`);
-                // Store selection in both data attribute and property
-                this.currentInterface = e.target.value;
-                selector.setAttribute('data-selected', e.target.value);
-                // Clear any cached data and force immediate update
+                const newInterface = e.target.value;
+                this.currentInterface = newInterface;
+                selector.setAttribute('data-selected', newInterface);
+                
+                if (this.trafficChart) {
+                    this.trafficChart.data.labels = [];
+                    this.trafficChart.data.datasets[0].data = [];
+                    this.trafficChart.data.datasets[1].data = [];
+                    this.trafficChart.update('none');
+                }
+                
                 this.lastData = null;
                 this.fetchMonitoringData();
-                // Also update chart title to show current interface
+                
                 const chartTitle = document.querySelector('.panel-header h5');
                 if (chartTitle) {
-                    chartTitle.innerHTML = `<i class="fas fa-chart-line me-2"></i>Network Traffic Monitor - ${e.target.value}`;
+                    chartTitle.innerHTML = `<i class="fas fa-chart-line me-2"></i>Network Traffic Monitor - ${newInterface}`;
                 }
             });
             selector.setAttribute('data-initialized', 'true');
         }
         
-        // Only repopulate if empty (first load)
         if (selector.options.length === 0) {
-            // Add all interfaces as options
             interfaces.forEach(iface => {
                 const option = document.createElement('option');
-                // Escape special characters in value
                 option.value = iface.name;
                 const status = iface.running ? '●' : '○';
-                // Display name might have special chars, that's OK
                 option.textContent = `${status} ${iface.name} (${iface.type})`;
                 selector.appendChild(option);
             });
             
-            // Set initial selection
             if (currentSelection && selector.querySelector(`option[value="${currentSelection}"]`)) {
                 selector.value = currentSelection;
                 selector.setAttribute('data-selected', currentSelection);
@@ -543,7 +570,6 @@ class MonitoringController {
                 this.currentInterface = 'ether1';
             }
         } else {
-            // Just update the status indicators without changing selection
             const currentValue = selector.value;
             for (let i = 0; i < selector.options.length; i++) {
                 const option = selector.options[i];
@@ -553,7 +579,6 @@ class MonitoringController {
                     option.textContent = `${status} ${iface.name} (${iface.type})`;
                 }
             }
-            // Ensure value is maintained
             selector.value = currentValue;
         }
     }
@@ -603,8 +628,42 @@ class MonitoringController {
         console.error('[MikroTik Error]:', message);
     }
     
+    // Initialize clickable stat cards
+    initClickableStatCards() {
+        // Add click event to PPPoE stat card
+        const pppoeCard = document.getElementById('pppoe-stat-card');
+        if (pppoeCard) {
+            pppoeCard.addEventListener('click', () => {
+                this.showPPPoEUsers();
+            });
+        }
+        
+        // Add click event to Hotspot stat card
+        const hotspotCard = document.getElementById('hotspot-stat-card');
+        if (hotspotCard) {
+            hotspotCard.addEventListener('click', () => {
+                this.showHotspotUsers();
+            });
+        }
+    }
+    
     // Show Hotspot Users in Modal
     async showHotspotUsers() {
+        const modal = $('#userListModal');
+        $('#userListTitle').text('Hotspot Active Users');
+        
+        // Show modal immediately with loading indicator
+        const loadingContent = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Memuat data hotspot users...</p>
+            </div>
+        `;
+        $('#userListContent').html(loadingContent);
+        modal.modal('show');
+        
         try {
             const response = await fetch('/api/monitoring/live', {
                 credentials: 'same-origin'
@@ -612,9 +671,6 @@ class MonitoringController {
             const result = await response.json();
             
             if (result.data?.users?.hotspot) {
-                const modal = $('#userListModal');
-                $('#userListTitle').text('Hotspot Active Users');
-                
                 const sessions = result.data.users.hotspot.sessions || [];
                 
                 // Use card-based layout for mobile
@@ -661,15 +717,32 @@ class MonitoringController {
                 
                 content += '</div>';
                 $('#userListContent').html(content);
-                modal.modal('show');
+            } else {
+                $('#userListContent').html('<div class="alert alert-warning text-center">Data tidak tersedia</div>');
             }
         } catch (error) {
             console.error('Error fetching hotspot users:', error);
+            $('#userListContent').html('<div class="alert alert-danger text-center">Error memuat data: ' + error.message + '</div>');
         }
     }
     
     // Show PPPoE Users in Modal
     async showPPPoEUsers() {
+        const modal = $('#userListModal');
+        $('#userListTitle').text('PPPoE Active Users');
+        
+        // Show modal immediately with loading indicator
+        const loadingContent = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Memuat data PPPoE users...</p>
+            </div>
+        `;
+        $('#userListContent').html(loadingContent);
+        modal.modal('show');
+        
         try {
             const response = await fetch('/api/monitoring/live', {
                 credentials: 'same-origin'
@@ -677,9 +750,6 @@ class MonitoringController {
             const result = await response.json();
             
             if (result.data?.users?.pppoe) {
-                const modal = $('#userListModal');
-                $('#userListTitle').text('PPPoE Active Users');
-                
                 const sessions = result.data.users.pppoe.sessions || [];
                 
                 // Use card-based layout for mobile
@@ -726,10 +796,12 @@ class MonitoringController {
                 
                 content += '</div>';
                 $('#userListContent').html(content);
-                modal.modal('show');
+            } else {
+                $('#userListContent').html('<div class="alert alert-warning text-center">Data tidak tersedia</div>');
             }
         } catch (error) {
             console.error('Error fetching PPPoE users:', error);
+            $('#userListContent').html('<div class="alert alert-danger text-center">Error memuat data: ' + error.message + '</div>');
         }
     }
     
@@ -836,19 +908,14 @@ class MonitoringController {
         const bar = document.getElementById(`${type}-bar`);
         const text = document.getElementById(`${type}-text`);
         
-        if (bar && text) {
-            bar.style.width = value + '%';
-            text.textContent = value + '%';
-            
-            // Update color based on value
-            bar.className = 'progress-bar';
-            if (value < 60) {
-                bar.classList.add('bg-success');
-            } else if (value < 80) {
-                bar.classList.add('bg-warning');
-            } else {
-                bar.classList.add('bg-danger');
-            }
+        if (bar) {
+            bar.style.width = `${value}%`;
+            // PENTING: Jangan ubah class karena monitoring-widget.php menggunakan progress-fill, bukan progress-bar
+            // Class sudah ada di HTML (progress-fill cpu-fill, progress-fill memory-fill, dll)
+            // Hanya update width, warna akan di-handle oleh CSS berdasarkan class yang sudah ada
+        }
+        if (text) {
+            text.textContent = `${value}%`;
         }
     }
     
@@ -992,6 +1059,30 @@ class MonitoringController {
         if (ulCurrent) ulCurrent.textContent = `N/A`;
         if (dlTotal) dlTotal.textContent = `Total: N/A`;
         if (ulTotal) ulTotal.textContent = `Total: N/A`;
+        
+        // PENTING: Jangan set PPPoE Active dan Hotspot Active menjadi 0 ketika disconnected
+        // Biarkan fetchUserStatsFromStats() yang mengupdate dari /api/stats
+        // Ini memastikan data tetap konsisten dengan dashboard cards meskipun mikrotik tidak terdeteksi di monitoring live
+        
+        // PENTING: Update CPU Usage dan Temperature menjadi 0 atau N/A ketika disconnected
+        const mikrotikCpu = document.getElementById('mikrotik-cpu');
+        if (mikrotikCpu) {
+            mikrotikCpu.textContent = '0%';
+        }
+        
+        const mikrotikTemp = document.getElementById('mikrotik-temp');
+        if (mikrotikTemp) {
+            mikrotikTemp.textContent = '0°C';
+        }
+        
+        // PENTING: Update resource bars menjadi 0 ketika disconnected
+        this.updateProgressBar('cpu', 0);
+        this.updateProgressBar('memory', 0);
+        this.updateProgressBar('disk', 0);
+        
+        // PENTING: Tetap fetch user stats dari /api/stats meskipun mikrotik tidak terdeteksi di monitoring live
+        // Ini memastikan data user stats tetap konsisten dengan dashboard cards
+        this.fetchUserStatsFromStats();
         
         // Stop chart updates and show disconnected state
         if (this.trafficChart) {
@@ -1177,19 +1268,42 @@ class MonitoringController {
     }
 }
 
-// Initialize controller when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+// PENTING: Pindahkan inisialisasi ke after page load
+// Ini memastikan login tidak terasa berat karena monitoring tidak langsung start
+function initializeMonitoringController() {
     // Check if monitoring section exists
     const monitoringSection = document.getElementById('monitoring-section');
+    
     if (monitoringSection) {
-        console.log('[Monitoring] Initializing monitoring controller...');
+        // Check if controller already exists
+        if (window.monitoringController) {
+            return;
+        }
         
         // Create controller instance
         // Note: useSocketIO is already set to false in constructor
         // This prevents Socket.IO connection attempts
-        window.monitoringController = new MonitoringController();
-    } else {
-        console.log('[Monitoring] Monitoring section not found, skipping initialization');
+        try {
+            window.monitoringController = new MonitoringController();
+        } catch (error) {
+            console.error('[Monitoring] Error creating controller:', error);
+        }
+    }
+}
+
+// Try to initialize immediately if DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeMonitoringController();
+    });
+} else {
+    initializeMonitoringController();
+}
+
+// Also try on window load as backup
+window.addEventListener('load', () => {
+    if (!window.monitoringController) {
+        initializeMonitoringController();
     }
 });
 

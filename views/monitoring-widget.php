@@ -11,7 +11,7 @@
 <!-- Compact Status Cards -->
 <div class="row mb-3">
     <!-- System Health -->
-    <div class="col-md-3 col-6">
+    <div class="col-lg-2 col-md-4 col-6 mb-3">
         <div class="modern-card gradient-green" id="health-status-box">
             <div class="card-icon">
                 <i class="fas fa-heartbeat"></i>
@@ -24,7 +24,7 @@
     </div>
     
     <!-- WhatsApp Bot -->
-    <div class="col-md-3 col-6">
+    <div class="col-lg-2 col-md-4 col-6 mb-3">
         <div class="modern-card gradient-blue">
             <div class="card-icon">
                 <i class="fab fa-whatsapp"></i>
@@ -37,7 +37,7 @@
     </div>
     
     <!-- CPU Usage -->
-    <div class="col-md-3 col-6">
+    <div class="col-lg-2 col-md-4 col-6 mb-3">
         <div class="modern-card gradient-orange" id="mikrotik-status-box">
             <div class="card-icon">
                 <i class="fas fa-microchip"></i>
@@ -50,14 +50,27 @@
     </div>
     
     <!-- PPPoE Active Card -->
-    <div class="col-md-3 col-6">
-        <div class="modern-card gradient-purple">
+    <div class="col-lg-3 col-md-6 col-6 mb-3">
+        <div class="modern-card gradient-purple clickable-stat-card" id="pppoe-stat-card" data-stat-type="pppoe" style="cursor: pointer;" title="Klik untuk melihat detail PPPoE users">
             <div class="card-icon">
                 <i class="fas fa-ethernet"></i>
             </div>
             <div class="card-content">
                 <h2 id="total-users">0</h2>
                 <p>PPPoE Active</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Hotspot Active Card -->
+    <div class="col-lg-3 col-md-6 col-6 mb-3">
+        <div class="modern-card gradient-info clickable-stat-card" id="hotspot-stat-card" data-stat-type="hotspot" style="cursor: pointer;" title="Klik untuk melihat detail Hotspot users">
+            <div class="card-icon">
+                <i class="fas fa-wifi"></i>
+            </div>
+            <div class="card-content">
+                <h2 id="hotspot-users-count">0</h2>
+                <p>Hotspot Active</p>
             </div>
         </div>
     </div>

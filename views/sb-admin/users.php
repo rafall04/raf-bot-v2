@@ -268,8 +268,57 @@
         .form-control-sm { font-size: 0.875rem; padding: .375rem .75rem; height: calc(1.5em + .75rem + 2px); border-radius: 6px; border: 1px solid #e5e7eb; }
         .btn-sm { padding: .375rem .75rem; font-size: .875rem; border-radius: 6px; }
         .modal-body { max-height: calc(100vh - 200px); overflow-y: auto; }
-        .select2-container--bootstrap .select2-selection--single { height: calc(1.5em + .75rem + 2px)!important; padding: .375rem .75rem!important; border-radius: 6px!important; }
-        .select2-container--bootstrap .select2-selection--single .select2-selection__rendered { line-height: 1.5 !important; }
+        
+        /* Select2 Fix - ODC, ODP, dan Peta Blank Putih */
+        .select2-container--bootstrap .select2-selection--single { 
+            height: calc(1.5em + .75rem + 2px)!important; 
+            padding: .375rem .75rem!important; 
+            border-radius: 6px!important; 
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            border: 1px solid #ced4da !important;
+        }
+        .select2-container--bootstrap .select2-selection--single .select2-selection__rendered { 
+            line-height: 1.5 !important; 
+            color: #495057 !important;
+            color: #212529 !important;
+        }
+        .select2-container--bootstrap .select2-selection--single .select2-selection__rendered * {
+            color: #212529 !important;
+        }
+        .select2-container--bootstrap .select2-selection--single .select2-selection__placeholder {
+            color: #6c757d !important;
+        }
+        /* Select2 Dropdown */
+        .select2-container--bootstrap .select2-dropdown {
+            background-color: #ffffff !important;
+            border: 1px solid #ced4da !important;
+        }
+        .select2-container--bootstrap .select2-results__option {
+            color: #212529 !important;
+            background-color: #ffffff !important;
+        }
+        .select2-container--bootstrap .select2-results__option--highlighted {
+            background-color: #007bff !important;
+            color: #ffffff !important;
+        }
+        .select2-container--bootstrap .select2-results__option[aria-selected="true"] {
+            background-color: #e7f3ff !important;
+            color: #212529 !important;
+        }
+        /* Select2 Search Input */
+        .select2-container--bootstrap .select2-search--dropdown .select2-search__field {
+            color: #212529 !important;
+            background-color: #ffffff !important;
+            border: 1px solid #ced4da !important;
+        }
+        /* Force text color untuk semua elemen select2 */
+        .select2-container--bootstrap * {
+            color: inherit !important;
+        }
+        .select2-container--bootstrap .select2-selection--single .select2-selection__rendered {
+            color: #212529 !important;
+        }
         .phone-number-item { margin-bottom: 0.5rem; }
         #edit-ssid-container .form-group, #edit-ssid-passwd-container .form-group { margin-bottom: 0.75rem; }
         .loading-spinner-container { text-align: center; padding: 20px; }
@@ -478,15 +527,7 @@
     <?php include '_navbar.php'; ?>
         <div id="content-wrapper" class="d-flex flex-column">
             <div id="content">
-                <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-                    <form class="form-inline"><button type="button" id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3"><i class="fa fa-bars"></i></button></form>
-                    <ul class="navbar-nav ml-auto">
-                        <li class="nav-item dropdown no-arrow">
-                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown"><span id="username-placeholder" class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span><img class="img-profile rounded-circle" id="userPhoto" src="/static/img/undraw_profile.svg" onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTgiIGZpbGw9IiNlMGUwZTAiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjE1IiByPSI1IiBmaWxsPSIjYWFhIi8+PHBhdGggZD0iTTIwIDI0YzUgMCA5IDMgOSA2djZINDF2LTZjMC0zIDQtNiA5LTZ6IiBmaWxsPSIjYWFhIi8+PC9zdmc+'"></a>
-                            <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown"><a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal"><i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>Logout</a></div>
-                        </li>
-                    </ul>
-                </nav>
+                <?php include 'topbar.php'; ?>
 
                 <div class="container-fluid">
                     <div class="dashboard-header">
@@ -615,7 +656,16 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3"><label for="create_name" class="form-label">Nama <span class="text-danger">*</span></label><input type="text" class="form-control form-control-sm" id="create_name" name="name" required/></div>
-                            <div class="mb-3"><div class="d-flex justify-content-between align-items-center"><h6>Nomor Telepon</h6><button class="btn btn-primary btn-sm py-0 px-1" type="button" onclick="addNumberField('create_number_container')"><i class="fas fa-plus"></i></button></div><div id="create_number_container" class="mt-1 d-flex flex-column" style="gap: 0.25rem;"></div></div>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6>Nomor Telepon</h6>
+                                    <button class="btn btn-primary btn-sm py-0 px-1" type="button" onclick="addNumberField('create_number_container')" title="Tambah Nomor HP"><i class="fas fa-plus"></i></button>
+                                </div>
+                                <div id="create_number_container" class="mt-1 d-flex flex-column" style="gap: 0.25rem;"></div>
+                                <small class="form-text text-muted d-block mt-2">
+                                    Maksimal <span class="max-phone-limit-display">3</span> nomor sesuai konfigurasi.
+                                </small>
+                            </div>
                             
                             <div class="mb-3">
                                 <label for="create_device_id" class="form-label">Device ID</label>
@@ -672,7 +722,16 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3"><label for="edit_name" class="form-label">Nama <span class="text-danger">*</span></label><input type="text" class="form-control form-control-sm" id="edit_name" name="name" required/></div>
-                            <div class="mb-3"><div class="d-flex justify-content-between align-items-center"><h6>Nomor Telepon</h6><button class="btn btn-primary btn-sm py-0 px-1" type="button" onclick="addNumberField('edit_number_container')"><i class="fas fa-plus"></i></button></div><div id="edit_number_container" class="mt-1 d-flex flex-column" style="gap: 0.25rem;"></div></div>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6>Nomor Telepon</h6>
+                                    <button class="btn btn-primary btn-sm py-0 px-1" type="button" onclick="addNumberField('edit_number_container')" title="Tambah Nomor HP"><i class="fas fa-plus"></i></button>
+                                </div>
+                                <div id="edit_number_container" class="mt-1 d-flex flex-column" style="gap: 0.25rem;"></div>
+                                <small class="form-text text-muted d-block mt-2">
+                                    Maksimal <span class="max-phone-limit-display">3</span> nomor sesuai konfigurasi.
+                                </small>
+                            </div>
                             
                             <div class="mb-3">
                                 <label for="edit_device_id_modal" class="form-label">Device ID</label>
@@ -860,7 +919,7 @@
         // PASTIKAN HALAMAN INI DIAKSES MELALUI HTTPS JIKA BUKAN DARI LOCALHOST
         // Geolocation API membutuhkan konteks aman (HTTPS) untuk berfungsi dengan baik di banyak browser.
         if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-            console.warn("PERINGATAN: Halaman ini diakses melalui HTTP. Fitur geolokasi mungkin tidak berfungsi atau tidak meminta izin. Silakan gunakan HTTPS.");
+            // Warning: HTTP access - geolocation may not work
         }
 
         let createUserMapInstance = null;
@@ -869,31 +928,9 @@
         let editUserMarker = null;
         let currentUsername = "Admin";
         
-        // Decode JWT to get current user info
-        (function() {
-            try {
-                const token = document.cookie.split('; ').find(row => row.startsWith('token='));
-                if (token) {
-                    const jwtToken = token.split('=')[1];
-                    const base64Url = jwtToken.split('.')[1];
-                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                    const payload = JSON.parse(atob(base64));
-                    
-                    // Update username display
-                    if (payload.name) {
-                        document.getElementById('username-placeholder').textContent = payload.name;
-                        currentUsername = payload.name;
-                    }
-                    
-                    // Update photo
-                    if (payload.photo) {
-                        document.getElementById('userPhoto').src = payload.photo;
-                    }
-                }
-            } catch(e) {
-                console.error('Error decoding JWT:', e);
-            }
-        })();
+        // Update user header dengan helper function (menggunakan name dari JWT)
+        // Script helper akan otomatis memprioritaskan payload.name
+        // Tidak perlu manual decode karena sudah di-handle oleh helper
         let allOdcList = [];
         let allOdpList = [];
         let dataTableInstance = null;
@@ -926,12 +963,12 @@
             // Prevent too frequent calls
             const now = Date.now();
             if (now - lastPppoeFetch < MIN_FETCH_INTERVAL) {
-                console.log(`[fetchActivePppoeUsers] Too soon, last fetch was ${(now - lastPppoeFetch) / 1000}s ago`);
+                // PPPoE fetch skipped - too soon
                 return;
             }
             
             if (pppoeLoadingInProgress) {
-                console.log("[fetchActivePppoeUsers] Already loading PPPoE data, skipping...");
+                // PPPoE fetch skipped - already loading
                 return;
             }
             
@@ -967,7 +1004,7 @@
                         }
                     });
                     
-                    console.log(`[fetchActivePppoeUsers] Loaded ${activePppoeUsersMap.size} PPPoE users`);
+                    // PPPoE users loaded successfully
                     
                     // Update button to show success
                     $('#pppoeStatusText').html(`<i class="fas fa-check"></i> ${activePppoeUsersMap.size} Online`);
@@ -1015,12 +1052,9 @@
                     throw new Error(`Gagal mengambil data aset jaringan: ${response.status} ${response.statusText}. Server: ${errorText.substring(0,100)}`);
                 }
                 const result = await response.json();
-                console.log("[fetchNetworkAssets UsersPage] Raw API response for network assets:", result);
                 if (result.status === 200 && Array.isArray(result.data)) {
                     allOdpList = result.data.filter(asset => asset.type === 'ODP');
                     allOdcList = result.data.filter(asset => asset.type === 'ODC');
-                    console.log("ODP List fetched:", allOdpList.length);
-                    console.log("ODC List fetched:", allOdcList.length);
                     return true;
                 } else {
                     console.error("Data aset jaringan tidak valid dari server:", result);
@@ -1062,6 +1096,37 @@
             });
 
             selectElement.val(currentValue || '').trigger('change.select2');
+            
+            // Force update select2 untuk memastikan text terlihat setelah value di-set
+            // Gunakan multiple timeout untuk memastikan select2 sudah ter-render
+            setTimeout(() => {
+                const $container = selectElement.next('.select2-container');
+                if ($container.length) {
+                    const $rendered = $container.find('.select2-selection__rendered');
+                    if ($rendered.length) {
+                        $rendered.css({
+                            'color': '#212529 !important',
+                            'background-color': 'transparent'
+                        });
+                        // Force update text content jika perlu
+                        const selectedText = selectElement.find('option:selected').text();
+                        if (selectedText && selectedText !== '-- Pilih ODC --') {
+                            $rendered.text(selectedText);
+                        }
+                    }
+                }
+            }, 100);
+            
+            // Double check setelah 200ms
+            setTimeout(() => {
+                const $container = selectElement.next('.select2-container');
+                if ($container.length) {
+                    const $rendered = $container.find('.select2-selection__rendered');
+                    if ($rendered.length) {
+                        $rendered.css('color', '#212529');
+                    }
+                }
+            }, 200);
         }
 
         function populateOdpDropdowns(selectElementId, selectedOdpIdToSet = null, odcIdFilter = null) {
@@ -1133,6 +1198,26 @@
                 selectElement.val('').trigger('change.select2');
             }
             selectElement.prop('disabled', !odcIdFilter);
+            
+            // Force update select2 untuk memastikan text terlihat setelah value di-set
+            setTimeout(() => {
+                const $container = selectElement.next('.select2-container');
+                const $rendered = $container.find('.select2-selection__rendered');
+                if ($rendered.length) {
+                    $rendered.css({
+                        'color': '#212529',
+                        'background-color': 'transparent'
+                    });
+                }
+            }, 50);
+            
+            // Force update select2 untuk memastikan text terlihat
+            setTimeout(() => {
+                const $rendered = selectElement.next('.select2-container').find('.select2-selection__rendered');
+                if ($rendered.length) {
+                    $rendered.css('color', '#212529');
+                }
+            }, 100);
         }
 
         function populateOdcFilterDropdown() {
@@ -1188,7 +1273,7 @@
             .then(data => {
                 if (data.status === 200 && data.data && data.data.username) {
                     currentUsername = data.data.username;
-                    $('#username-placeholder').text(currentUsername);
+                    // User name sudah di-handle oleh topbar.php via /api/me
                 }
             }).catch(err => console.warn("Could not fetch user data: ", err));
 
@@ -1254,7 +1339,7 @@
         }
 
         function processSuccessfulGeolocationUserModal(position, contextMessage, displayTarget, mapUpdaterFn, buttonContainer, originalIcon) {
-            console.log(`${contextMessage} - Coords: Lat=${position.coords.latitude}, Lng=${position.coords.longitude}, Accuracy=${position.coords.accuracy}m`);
+            // GPS location obtained
             const userLat = position.coords.latitude;
             const userLng = position.coords.longitude;
 
@@ -1275,7 +1360,7 @@
                  accuracyType = "success";
             }
             // Log to console for successful geolocation
-            console.log(accuracyMessage);
+            // GPS accuracy logged
 
             if (buttonContainer && originalIcon) {
                 buttonContainer.innerHTML = originalIcon;
@@ -1299,10 +1384,12 @@
 
             const viewLat = (initialLat && !isNaN(parseFloat(initialLat))) ? parseFloat(initialLat) : defaultLat;
             const viewLng = (initialLng && !isNaN(parseFloat(initialLng))) ? parseFloat(initialLng) : defaultLng;
-            const viewZoom = (initialLat && initialLng && !isNaN(parseFloat(initialLat)) && !isNaN(parseFloat(initialLng))) ? 17 : defaultZoom;
+            // Pastikan viewZoom tidak melebihi maxZoom (18 untuk satellite)
+            const calculatedZoom = (initialLat && initialLng && !isNaN(parseFloat(initialLat)) && !isNaN(parseFloat(initialLng))) ? 18 : defaultZoom;
+            const viewZoom = Math.min(calculatedZoom, 18); // Maksimal 18 untuk mencegah error
 
-            const osmMaxZoom = 19;
-            const satelliteMaxZoom = 20;
+            const osmMaxZoom = 22;
+            const satelliteMaxZoom = 18; // Esri World Imagery hanya support sampai level 18
 
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: osmMaxZoom,
@@ -1310,7 +1397,9 @@
             });
             const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: satelliteMaxZoom,
-                attribution: 'Tiles &copy; Esri'
+                maxNativeZoom: 18, // Esri World Imagery hanya support sampai level 18
+                attribution: 'Tiles &copy; Esri',
+                errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Transparent 1x1 pixel
             });
 
             mapInstance = L.map(mapId, {
@@ -1373,7 +1462,7 @@
                         .on(container, 'click', L.DomEvent.preventDefault)
                         .on(container, 'click', function () {
                             container.innerHTML = loadingIconHTML;
-                            console.log("Meminta lokasi GPS Anda..."); // Log to console, no modal here
+                            // Requesting GPS location
                             if (navigator.geolocation) {
                                 navigator.geolocation.getCurrentPosition(
                                     (position) => processSuccessfulGeolocationUserModal(position, "Tombol GPS", displayGlobalUserMessage, updateMarkerAndInputsUser, container, originalIconHTML),
@@ -1394,7 +1483,7 @@
             new GpsControl().addTo(mapInstance);
 
             if (!isEditMode || (!initialLat || !initialLng)) {
-                 console.log("Mencoba mendapatkan lokasi GPS awal..."); // Log to console, no modal here
+                 // Attempting to get initial GPS location
                  if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         (position) => processSuccessfulGeolocationUserModal(position, "Inisialisasi Peta", displayGlobalUserMessage, updateMarkerAndInputsUser),
@@ -1402,7 +1491,7 @@
                             if (!markerInstance) {
                                 handleGeolocationErrorUserModal(error, "Gagal Inisialisasi Peta", displayGlobalUserMessage, defaultLat, defaultLng, updateMarkerAndInputsUser);
                             } else {
-                                console.warn("Inisialisasi GPS gagal, namun marker sudah ada dari data awal.");
+                                // GPS initialization failed, but marker exists from initial data
                             }
                         },
                         geolocationOptions
@@ -1431,6 +1520,7 @@
             $('#createUserForm')[0].reset();
             $('#create_number_container').empty();
             addNumberField('create_number_container', "", true);
+            updatePhoneAddButtonState('create_number_container');
             populateOdcDropdowns('create_connected_odc');
             populateOdpDropdowns('create_connected_odp', null);
             initializeUserMapWithGPS('createUserMap', 'create_latitude', 'create_longitude', null, null, false);
@@ -1453,17 +1543,78 @@
             const deviceId = $('#edit_device_id_modal').val(); 
             let existingBulkData = $(this).data('bulk-ssids') || []; 
             // Ensure existingBulkData is an array of strings
-            if (typeof existingBulkData === 'string') { 
-                existingBulkData = existingBulkData.split(',').filter(Boolean).map(String); 
-            } else if (!Array.isArray(existingBulkData)) {
+            // Handle different formats: string JSON, comma-separated string, or array
+            if (typeof existingBulkData === 'string') {
+                // Try to parse as JSON first
+                try {
+                    const parsed = JSON.parse(existingBulkData);
+                    if (Array.isArray(parsed)) {
+                        existingBulkData = parsed.map(idx => String(idx));
+                    } else {
+                        // If not array, try comma-separated string
+                        existingBulkData = existingBulkData.split(',').filter(Boolean).map(String);
+                    }
+                } catch (e) {
+                    // If JSON parse fails, try comma-separated string
+                    existingBulkData = existingBulkData.split(',').filter(Boolean).map(String);
+                }
+            } else if (Array.isArray(existingBulkData)) {
+                // Normalize array values to strings
+                existingBulkData = existingBulkData.map(idx => String(idx));
+            } else {
                 existingBulkData = [];
             }
+            
+            // Bulk SSIDs loaded for edit modal
 
 
             $('#edit_connected_odc').off('change', editOdcChangeHandler);
             populateOdcDropdowns('edit_connected_odc', preselectOdcId);
             populateOdpDropdowns('edit_connected_odp', connectedOdpId, preselectOdcId);
             $('#edit_connected_odc').on('change', editOdcChangeHandler);
+            
+            // Force update select2 untuk memastikan text terlihat setelah modal dibuka
+            setTimeout(() => {
+                $('#edit_connected_odc, #edit_connected_odp').each(function() {
+                    const $container = $(this).next('.select2-container');
+                    if ($container.length) {
+                        const $rendered = $container.find('.select2-selection__rendered');
+                        if ($rendered.length) {
+                            $rendered.css('color', '#212529');
+                        }
+                    }
+                });
+            }, 200);
+            
+            // Force update select2 untuk memastikan text terlihat setelah modal dibuka
+            setTimeout(() => {
+                $('#edit_connected_odc, #edit_connected_odp').each(function() {
+                    const $container = $(this).next('.select2-container');
+                    if ($container.length) {
+                        const $rendered = $container.find('.select2-selection__rendered');
+                        if ($rendered.length) {
+                            $rendered.css({
+                                'color': '#212529 !important',
+                                'background-color': 'transparent'
+                            });
+                        }
+                    }
+                });
+            }, 150);
+            
+            // Force update select2 untuk memastikan text terlihat setelah modal dibuka
+            setTimeout(() => {
+                $('#edit_connected_odc, #edit_connected_odp').each(function() {
+                    const $container = $(this).next('.select2-container');
+                    const $rendered = $container.find('.select2-selection__rendered');
+                    if ($rendered.length) {
+                        $rendered.css({
+                            'color': '#212529',
+                            'background-color': 'transparent'
+                        });
+                    }
+                });
+            }, 100);
             initializeUserMapWithGPS('editUserMap', 'edit_latitude', 'edit_longitude', lat, lng, true);
             
             // Populate bulk SSID for edit modal on open with existing data
@@ -1491,17 +1642,30 @@
             const id = $(this).data('id');
             const device_id = $(this).data('device_id') || "";
             let bulkData = $(this).data('bulk');
+            
+            // Handle different formats of bulk data
+            // jQuery data() automatically parses JSON from data-attribute, so bulkData might already be an array
+            // But we also need to handle if it's still a string
             if (typeof bulkData === 'string') {
                 try {
+                    // If it's a string, try to parse it
                     bulkData = JSON.parse(bulkData);
                 } catch (e) {
                     console.error("Failed to parse bulk data JSON:", e, bulkData);
                     bulkData = [];
                 }
             }
+            
+            // Ensure it's an array and all values are strings (for comparison with ssid.id)
             if (!Array.isArray(bulkData)) {
                 bulkData = [];
+            } else {
+                // Normalize all values to strings for consistent comparison
+                bulkData = bulkData.map(idx => String(idx));
             }
+            
+            // Debug log untuk verifikasi
+            // User bulk SSIDs loaded
             const initialPaidStatusForEdit = $(this).data('paid') === true || String($(this).data('paid')).toLowerCase() === 'true';
             
             const connectedOdpId = $(this).data('connected_odp_id') || "";
@@ -1530,6 +1694,7 @@
             } else {
                  addNumberField("edit_number_container", "", true);
             }
+            updatePhoneAddButtonState('edit_number_container');
 
             $('#editModal #edit_address').val($(this).data('address'));
             $('#editModal #edit_subscription').val($(this).data('subscription')).trigger('change');
@@ -1572,7 +1737,7 @@
         }
         
         async function fetchAndCacheDeviceData(singleDeviceIdToFetch = null) {
-            console.log(`[fetchAndCacheDeviceData] Called. Single Device ID to fetch: ${singleDeviceIdToFetch}`);
+            // Fetching device data
 
             let deviceIdsToProcess = new Set();
             let forceRedraw = false;
@@ -1584,7 +1749,7 @@
 
             // Only fetch metrics if a filter is active OR if a single device ID is explicitly requested
             if (!isFilterActive && !singleDeviceIdToFetch) {
-                console.log("[fetchAndCacheDeviceData] No filter active and no single device requested, skipping batch fetch for metrics.");
+                // Device data fetch skipped - no filter active
                 deviceDataCache.clear(); // Clear cached data if no filter is active
                 if (dataTableInstance) dataTableInstance.rows().invalidate('data').draw('page'); // Redraw to clear values in table
                 return;
@@ -1630,12 +1795,12 @@
             const uniqueDeviceIds = Array.from(deviceIdsToProcess);
 
             if (uniqueDeviceIds.length === 0) {
-                console.log("[fetchAndCacheDeviceData] No unique device IDs found for batch fetch based on current filters.");
+                // Device data fetch skipped - no unique device IDs found
                 if (forceRedraw && dataTableInstance) dataTableInstance.rows().invalidate('data').draw('page');
                 return;
             }
 
-            console.log(`[fetchAndCacheDeviceData] Initiating batch fetch for ${uniqueDeviceIds.length} devices: ${JSON.stringify(uniqueDeviceIds)}`);
+            // Batch fetching device data
 
             if (dataTableInstance && forceRedraw) {
                 dataTableInstance.rows().invalidate('data').draw('page');
@@ -1665,7 +1830,7 @@
                         };
                         deviceDataCache.set(metric.deviceId, formattedMetrics);
                     });
-                    console.log(`[fetchAndCacheDeviceData] Batch fetch completed. Cached data for ${result.data.length} devices.`);
+                    // Device data batch fetch completed
                 } else {
                     console.error("[fetchAndCacheDeviceData] Invalid batch metrics data:", result);
                     uniqueDeviceIds.forEach(id => {
@@ -1830,7 +1995,7 @@
             if (connectedDevicesRefreshInterval) {
                 clearInterval(connectedDevicesRefreshInterval);
                 connectedDevicesRefreshInterval = null;
-                console.log('[CONNECTED_DEVICES] Auto-refresh stopped - modal closed');
+                    // Connected devices auto-refresh stopped
             }
         });
 
@@ -1858,7 +2023,7 @@
                     // We don't need to reload DataTable via AJAX if it's already loaded.
                     // Just re-run the draw and then fetch device data based on current filters.
                     dataTableInstance.draw(); // Re-apply current filters and redraw
-                    console.log("[refreshAllData] DataTables redraw triggered. Initiating device metrics fetch for filtered data.");
+                    // DataTables redraw triggered
                     
                     // Only fetch GenieACS data if a filter is actually active
                     if (isFilterActive) {
@@ -1950,7 +2115,7 @@
                     dataSrc: 'data', // Ensure this matches your backend response structure { data: [...] }
                     complete: function(xhr, status) {
                         if (status === 'success') {
-                            console.log("Users data loaded successfully. Initial column visibility set.");
+                            // Users data loaded successfully
                              // Initially hide the columns
                             toggleDeviceMetricColumns(false);
                             // Set refresh button state
@@ -2098,7 +2263,7 @@
                             // MODIFIED: All action buttons within a single flex container for horizontal layout
                             let actionButtonsHtml = `
                                 <div class="device-action-group">
-                                    <button class="btn btn-info btn-sm btn-edit" data-id="${row.id}" data-name="${row.name || ''}" data-phone_number="${row.phone_number || ''}" data-device_id="${deviceIdForActions}" data-address="${row.address || ''}" data-subscription="${row.subscription || ''}" data-paid="${row.paid || false}" data-send_invoice="${row.send_invoice || false}" data-pppoe_username="${row.pppoe_username || ''}" data-pppoe_password="${row.pppoe_password || ''}" data-latitude="${row.latitude || ''}" data-longitude="${row.longitude || ''}" data-connected_odp_id="${row.connected_odp_id || ''}" data-bulk='${JSON.stringify(row.bulk || [])}' data-toggle="modal" data-target="#editModal" title="Edit User"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-info btn-sm btn-edit" data-id="${row.id}" data-name="${row.name || ''}" data-phone_number="${row.phone_number || ''}" data-device_id="${deviceIdForActions}" data-address="${row.address || ''}" data-subscription="${row.subscription || ''}" data-paid="${row.paid || false}" data-send_invoice="${row.send_invoice || false}" data-pppoe_username="${row.pppoe_username || ''}" data-pppoe_password="${row.pppoe_password || ''}" data-latitude="${row.latitude || ''}" data-longitude="${row.longitude || ''}" data-connected_odp_id="${row.connected_odp_id || ''}" data-bulk='${JSON.stringify(Array.isArray(row.bulk) ? row.bulk : (typeof row.bulk === 'string' ? JSON.parse(row.bulk) : []))}' data-toggle="modal" data-target="#editModal" title="Edit User"><i class="fas fa-edit"></i></button>
                                     <button class="btn btn-dark btn-sm btn-manage-credentials" data-id="${row.id}" data-username="${row.username || ''}" data-toggle="modal" data-target="#credentialsModal" title="Kelola Kredensial"><i class="fas fa-key"></i></button>`;
                             
                             // Add send invoice button if user has send_invoice enabled and is paid
@@ -2157,6 +2322,21 @@
             if (!selectedOdcId) {
                 $('#edit_connected_odp').val(null).trigger('change.select2');
             }
+            // Force update select2 untuk memastikan text terlihat setelah value di-set
+            setTimeout(() => {
+                const $container = $(this).next('.select2-container');
+                if ($container.length) {
+                    const $rendered = $container.find('.select2-selection__rendered');
+                    if ($rendered.length) {
+                        $rendered.css('color', '#212529');
+                        // Force update text content jika perlu
+                        const selectedText = $(this).find('option:selected').text();
+                        if (selectedText && selectedText !== '-- Pilih ODC --') {
+                            $rendered.text(selectedText);
+                        }
+                    }
+                }
+            }, 100);
         }
 
         // Function to update the state of the "Refresh Data" button
@@ -2183,13 +2363,51 @@
             }
         });
         
+        // Initialize max phone limit from config
+        let maxPhoneLimit = 3; // Default
+        
+        // Load max phone limit from config
+        fetch('/api/stats/config')
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
+            .then(data => {
+                // Handle response format from /api/stats/config: { data: { ...global.config, ...global.cronConfig } }
+                let configData = null;
+                if (data && data.data) {
+                    configData = data.data; // Format: { data: { accessLimit: 5, ... } }
+                } else if (data && typeof data === 'object') {
+                    configData = data; // Fallback: direct format
+                }
+                
+                // Simpan config data ke window untuk digunakan di tempat lain
+                if (configData) {
+                    window.configData = configData;
+                }
+                
+                if (configData && configData.accessLimit !== undefined && configData.accessLimit !== null) {
+                    const loadedLimit = parseInt(configData.accessLimit);
+                    if (!isNaN(loadedLimit) && loadedLimit > 0) {
+                        maxPhoneLimit = loadedLimit;
+                        // Update UI to show max limit
+                        updatePhoneLimitUI();
+                    }
+                }
+            })
+            .catch(err => {
+                // Silently fail, use default
+            });
+
         $(document).ready(function() {
             // Add performance monitoring if DEBUG
             if (DEBUG) {
                 const originalFetch = window.fetch;
                 window.fetch = function() {
                     apiCallCount++;
-                    console.log(`[API] Call #${apiCallCount} to:`, arguments[0]);
+                    // API call made
                     return originalFetch.apply(this, arguments);
                 };
                 
@@ -2220,7 +2438,7 @@
                     return;
                 }
 
-                console.log('Attempting to delete all users...');
+                // Attempting to delete all users
 
                 fetch('/api/admin/delete-all-users', {
                     method: 'POST',
@@ -2231,11 +2449,11 @@
                     body: JSON.stringify({ password: password })
                 })
                 .then(response => {
-                    console.log('Received response from server:', response);
+                    // Received response from server
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Parsed response data:', data);
+                    // Parsed response data
                     if (data.status === 200) {
                         displayGlobalUserMessage('All users have been deleted successfully.', 'success', true);
                         $('#deleteAllUsersModal').modal('hide');
@@ -2434,6 +2652,21 @@
                 if (!selectedOdcId) {
                     $('#create_connected_odp').val(null).trigger('change.select2');
                 }
+                // Force update select2 untuk memastikan text terlihat setelah value di-set
+                setTimeout(() => {
+                    const $container = $(this).next('.select2-container');
+                    if ($container.length) {
+                        const $rendered = $container.find('.select2-selection__rendered');
+                        if ($rendered.length) {
+                            $rendered.css('color', '#212529');
+                            // Force update text content jika perlu
+                            const selectedText = $(this).find('option:selected').text();
+                            if (selectedText && selectedText !== '-- Pilih ODC --') {
+                                $rendered.text(selectedText);
+                            }
+                        }
+                    }
+                }, 100);
             });
 
             $('#edit_connected_odc').on('change', editOdcChangeHandler);
@@ -2485,12 +2718,23 @@
             }
 
             const fieldCount = container.querySelectorAll('.phone-number-item').length;
+            
+            // Check if max limit reached
+            if (fieldCount >= maxPhoneLimit) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Maksimal Nomor HP',
+                    text: `Maksimal ${maxPhoneLimit} nomor HP sesuai konfigurasi.`
+                });
+                return;
+            }
+            
             // Only disable the delete button if it's the *only* field and it's the first time being added
             const disableDelete = fieldCount === 0 && isFirstCallForContainer; 
 
             const newFieldHtml = `
                 <div class="d-flex todo_field phone-number-item ${id}" style="gap: 0.25rem; margin-top: ${fieldCount > 0 ? '0.25rem' : '0'};">
-                    <input type="number" class="form-control form-control-sm" style="width: 100%;" name="phone_number_${id}" value="${value}" placeholder="Contoh: 6281234567890" />
+                    <input type="text" class="form-control form-control-sm" style="width: 100%;" name="phone_number_${id}" value="${value}" placeholder="Masukkan nomor HP di sini" />
                     <button class="btn btn-danger btn-sm py-0 px-1 btn-delete-phone" type="button" data-container="${containerId}" data-field="${id}" ${disableDelete ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </div>`;
             container.insertAdjacentHTML("beforeend", newFieldHtml);
@@ -2502,6 +2746,38 @@
                 if (deleteButton) {
                     deleteButton.disabled = (allCurrentFields.length === 1);
                 }
+            });
+            
+            // Update add button disabled state
+            updatePhoneAddButtonState(containerId);
+        }
+        
+        function updatePhoneAddButtonState(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            // Find the add button for this container
+            // The add button is typically near the container
+            const containerParent = container.closest('.mb-3');
+            if (containerParent) {
+                const addButton = containerParent.querySelector('button[onclick*="addNumberField"]');
+                if (addButton) {
+                    const fieldCount = container.querySelectorAll('.phone-number-item').length;
+                    addButton.disabled = fieldCount >= maxPhoneLimit;
+                    if (addButton.disabled) {
+                        addButton.title = `Maksimal ${maxPhoneLimit} nomor HP sesuai konfigurasi`;
+                    } else {
+                        addButton.title = 'Tambah Nomor HP';
+                    }
+                }
+            }
+        }
+        
+        function updatePhoneLimitUI() {
+            // Update max limit text in UI if exists
+            const maxLimitElements = document.querySelectorAll('.max-phone-limit-display');
+            maxLimitElements.forEach(el => {
+                el.textContent = maxPhoneLimit;
             });
         }
 
@@ -2519,6 +2795,9 @@
                 const lastFieldDeleteButton = container.querySelector('.phone-number-item button.btn-danger');
                 if (lastFieldDeleteButton) lastFieldDeleteButton.disabled = true;
             }
+            
+            // Update add button state after deletion
+            updatePhoneAddButtonState(containerId);
         }
         
         // Event delegation for phone delete buttons
@@ -2572,7 +2851,40 @@
                     data[key] = value;
                 }
             });
+            
+            // Validate phone numbers limit
+            if (phoneNumbers.length > maxPhoneLimit) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validasi Gagal',
+                    text: `Maksimal ${maxPhoneLimit} nomor HP sesuai konfigurasi. Anda memasukkan ${phoneNumbers.length} nomor.`
+                });
+                submitButton.prop('disabled', false).html(originalButtonText);
+                return;
+            }
+            
             data.phone_number = phoneNumbers.join('|');
+            
+            // PENTING: Jika tidak ada SSID yang dicentang, otomatis set default SSID dari config (atau SSID 1 sebagai fallback)
+            if (bulkSSIDs.length === 0) {
+                // Ambil default SSID dari config, fallback ke '1' jika tidak ada
+                const defaultSSID = (window.configData && window.configData.defaultBulkSSID) 
+                    ? String(window.configData.defaultBulkSSID) 
+                    : '1';
+                bulkSSIDs = [defaultSSID];
+                
+                // Auto-check checkbox SSID default di form jika ada
+                // Format ID checkbox: create_bulk_1 atau edit_bulk_1 (dash di containerId diganti underscore)
+                const containerId = isEditForm ? 'edit-bulk-container' : 'create-bulk-container';
+                const checkboxId = containerId.replace(/-/g, '_') + '_bulk_' + defaultSSID;
+                const defaultSSIDCheckbox = $(`#${checkboxId}, [name="bulk_${defaultSSID}"]`);
+                if (defaultSSIDCheckbox.length > 0) {
+                    defaultSSIDCheckbox.prop('checked', true);
+                    console.log(`[USER_FORM] Auto-checked SSID ${defaultSSID} checkbox: #${checkboxId}`);
+                }
+                console.log(`[USER_FORM] Tidak ada SSID yang dicentang, otomatis set SSID ${defaultSSID} (dari config)`);
+            }
+            
             data.bulk = bulkSSIDs;
             if(isEditForm && data.hasOwnProperty('id_user_to_edit')) {
                 delete data.id_user_to_edit;
@@ -2602,11 +2914,7 @@
             submitButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
 
             // DEBUG: Log data being sent
-            console.log('[USER_EDIT_DEBUG] Form type:', isEditForm ? 'EDIT' : 'CREATE');
-            console.log('[USER_EDIT_DEBUG] User ID:', userId);
-            console.log('[USER_EDIT_DEBUG] URL:', url);
-            console.log('[USER_EDIT_DEBUG] Data being sent:', JSON.stringify(data, null, 2));
-            console.log('[USER_EDIT_DEBUG] Paid status:', data.paid);
+            // User edit form submission
 
             try { // Use try-catch for the fetch operation
                 const response = await fetch(url, {
@@ -2619,10 +2927,7 @@
                 let result;
                 if (contentType && contentType.indexOf("application/json") !== -1) {
                     result = await response.json();
-                    // DEBUG: Log server response
-                    console.log('[USER_EDIT_DEBUG] Response status:', response.status);
-                    console.log('[USER_EDIT_DEBUG] Response OK:', response.ok);
-                    console.log('[USER_EDIT_DEBUG] Server response:', result);
+                    // User edit response received
                 } else {
                     const textData = await response.text();
                     console.error("Server tidak merespons dengan JSON (User Form). Respons mentah:", textData);
@@ -2695,8 +3000,26 @@
                     if (json.data.ssid.length === 0) {
                         bulkContainer.innerHTML = '<small class="text-muted">Tidak ada SSID yang ditemukan untuk Device ID ini.</small>';
                     } else {
+                        // Ensure existingBulkSSIDs is an array of strings for consistent comparison
+                        let normalizedBulkSSIDs = Array.isArray(existingBulkSSIDs) 
+                            ? existingBulkSSIDs.map(idx => String(idx))
+                            : [];
+                        
+                        // PENTING: Jika tidak ada bulk yang di-set, otomatis set default SSID dari config (atau SSID 1 sebagai fallback)
+                        if (normalizedBulkSSIDs.length === 0) {
+                            // Ambil default SSID dari config, fallback ke '1' jika tidak ada
+                            const defaultSSID = (window.configData && window.configData.defaultBulkSSID) 
+                                ? String(window.configData.defaultBulkSSID) 
+                                : '1';
+                            normalizedBulkSSIDs = [defaultSSID];
+                            console.log(`[populateBulkSSIDContainer] Tidak ada bulk existing, otomatis set SSID ${defaultSSID} (dari config)`);
+                        }
+                        
                         bulkContainer.innerHTML = `<label class="form-label">Samakan SSID</label><div class="">` + json.data.ssid.map((ssid, i) => {
-                            const isChecked = existingBulkSSIDs.includes(String(ssid.id)); 
+                            // Compare as strings for consistency
+                            const ssidIdStr = String(ssid.id);
+                            const isChecked = normalizedBulkSSIDs.includes(ssidIdStr);
+                            
                             return `
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input" id="${containerId.replace('-', '_')}_bulk_${ssid.id}" name="bulk_${ssid.id}" value="${ssid.id}" ${isChecked ? 'checked' : ''}/>
@@ -2935,7 +3258,7 @@
 
                 } else if (actionType === 'print') {
                     // For printing, we always generate a new invoice with the selected method
-                    console.log(`Generating a new invoice for ${userName} with method ${method} for printing.`);
+                    // Generating invoice for printing
                     
                     const generateResponse = await fetch('/api/send-invoice-manual', {
                         method: 'POST',

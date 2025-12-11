@@ -101,8 +101,9 @@ router.post('/accounts', adminOnly, async (req, res) => {
         
         console.log(`[POST /api/accounts] New account created: ${username} (${role})`);
         
-        res.json({ 
+        res.status(201).json({ 
             success: true, 
+            status: 201,
             message: 'Akun berhasil ditambahkan!',
             data: {
                 id: newAccount.id,
@@ -179,10 +180,11 @@ router.post('/accounts/:id', adminOnly, async (req, res) => {
         // Save to file
         saveAccounts();
         
-        console.log(`[POST /api/accounts/${accountId}] Account updated: ${account.username}`);
+        // Only log on error, not on every update
         
-        res.json({ 
+        res.status(200).json({ 
             success: true, 
+            status: 200,
             message: 'Akun berhasil diperbarui!',
             data: {
                 id: account.id,

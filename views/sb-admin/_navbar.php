@@ -1,8 +1,45 @@
 <?php
 $current_page = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+
+function isActive($page, $current) {
+    $pages = is_array($page) ? $page : [$page];
+    foreach ($pages as $p) {
+        if ($current == $p || $current == $p . '.php') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function isParentActive($pages, $current) {
+    foreach ($pages as $page) {
+        if (isActive($page, $current)) {
+            return true;
+        }
+    }
+    return false;
+}
 ?>
+<style>
+#accordionSidebar .collapse-inner .collapse-item {
+    display: flex !important;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#accordionSidebar .collapse-inner .collapse-item span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#accordionSidebar .collapse-inner .collapse-item i {
+    flex-shrink: 0;
+}
+</style>
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
-    <!-- Sidebar - Brand -->
     <a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
         <div class="sidebar-brand-icon rotate-n-15">
             <i class="fas fa-robot"></i>
@@ -10,325 +47,239 @@ $current_page = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
         <div class="sidebar-brand-text mx-3">RAF BOT<sup>WIFI</sup></div>
     </a>
 
-    <!-- Divider -->
     <hr class="sidebar-divider my-0">
 
-    <!-- Dashboard -->
-    <li class="nav-item <?php echo ($current_page == '/' || $current_page == '/index.php') ? 'active' : ''; ?>">
+    <li class="nav-item <?php echo isActive('/', $current_page) ? 'active' : ''; ?>">
         <a class="nav-link" href="/">
             <i class="fas fa-fw fa-tachometer-alt"></i>
             <span>Dashboard</span>
         </a>
     </li>
 
-    <!-- Divider -->
     <hr class="sidebar-divider">
 
-    <!-- Heading - Pelanggan -->
-    <div class="sidebar-heading">
-        Pelanggan
-    </div>
-
-    <!-- Nav Item - Users -->
-    <li class="nav-item <?php echo ($current_page == '/users.php' || $current_page == '/users') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/users">
+    <li class="nav-item <?php echo isParentActive(['/users', '/packages', '/package-requests'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePelanggan" aria-expanded="<?php echo isParentActive(['/users', '/packages', '/package-requests'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapsePelanggan">
             <i class="fas fa-fw fa-users"></i>
-            <span>Data Pelanggan</span>
+            <span>Pelanggan</span>
         </a>
+        <div id="collapsePelanggan" class="collapse <?php echo isParentActive(['/users', '/packages', '/package-requests'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingPelanggan" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/users', $current_page) ? 'active' : ''; ?>" href="/users">
+                    <i class="fas fa-fw fa-user mr-2"></i>
+                    <span>Data Pelanggan</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/packages', $current_page) ? 'active' : ''; ?>" href="/packages">
+                    <i class="fas fa-fw fa-box-open mr-2"></i>
+                    <span>Paket Langganan</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/package-requests', $current_page) ? 'active' : ''; ?>" href="/package-requests">
+                    <i class="fas fa-fw fa-sync-alt mr-2"></i>
+                    <span>Request Ubah Paket</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Nav Item - Packages -->
-    <li class="nav-item <?php echo ($current_page == '/packages.php' || $current_page == '/packages') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/packages">
-            <i class="fas fa-fw fa-box-open"></i>
-            <span>Paket Langganan</span>
+    <li class="nav-item <?php echo isParentActive(['/payment-status', '/saldo-management', '/transaction', '/payment-method', '/invoice-settings', '/pembayaran/otorisasi'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePembayaran" aria-expanded="<?php echo isParentActive(['/payment-status', '/saldo-management', '/transaction', '/payment-method', '/invoice-settings', '/pembayaran/otorisasi'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapsePembayaran">
+            <i class="fas fa-fw fa-money-bill-wave"></i>
+            <span>Pembayaran</span>
         </a>
+        <div id="collapsePembayaran" class="collapse <?php echo isParentActive(['/payment-status', '/saldo-management', '/transaction', '/payment-method', '/invoice-settings', '/pembayaran/otorisasi'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingPembayaran" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/payment-status', $current_page) ? 'active' : ''; ?>" href="/payment-status">
+                    <i class="fas fa-fw fa-money-check-alt mr-2"></i>
+                    <span>Status Pembayaran</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/saldo-management', $current_page) ? 'active' : ''; ?>" href="/saldo-management">
+                    <i class="fas fa-fw fa-wallet mr-2"></i>
+                    <span>Saldo & Voucher</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/transaction', $current_page) ? 'active' : ''; ?>" href="/transaction">
+                    <i class="fas fa-fw fa-exchange-alt mr-2"></i>
+                    <span>Transaksi</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/payment-method', $current_page) ? 'active' : ''; ?>" href="/payment-method">
+                    <i class="fas fa-fw fa-credit-card mr-2"></i>
+                    <span>Metode Pembayaran</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/invoice-settings', $current_page) ? 'active' : ''; ?>" href="/invoice-settings">
+                    <i class="fas fa-fw fa-file-invoice mr-2"></i>
+                    <span>Pengaturan Invoice</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/pembayaran/otorisasi', $current_page) ? 'active' : ''; ?>" href="/pembayaran/otorisasi">
+                    <i class="fas fa-fw fa-user-shield mr-2"></i>
+                    <span>Otorisasi Pembayaran</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Nav Item - Package Requests -->
-    <li class="nav-item <?php echo ($current_page == '/package-requests.php' || $current_page == '/package-requests') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/package-requests">
-            <i class="fas fa-fw fa-sync-alt"></i>
-            <span>Request Ubah Paket</span>
-        </a>
-    </li>
-
-    <!-- Divider -->
-    <hr class="sidebar-divider">
-
-    <!-- Heading - Pembayaran -->
-    <div class="sidebar-heading">
-        Pembayaran
-    </div>
-
-    <!-- Nav Item - Payment Status -->
-    <li class="nav-item <?php echo ($current_page == '/payment-status.php' || $current_page == '/payment-status') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/payment-status">
-            <i class="fas fa-fw fa-money-check-alt"></i>
-            <span>Status Pembayaran</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Saldo Management -->
-    <li class="nav-item <?php echo ($current_page == '/saldo-management.php' || $current_page == '/saldo-management') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/saldo-management">
-            <i class="fas fa-fw fa-wallet"></i>
-            <span>Saldo & Voucher</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Agent Management -->
-    <li class="nav-item <?php echo ($current_page == '/agent-management.php' || $current_page == '/agent-management') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/agent-management">
+    <li class="nav-item <?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseAgent" aria-expanded="<?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseAgent">
             <i class="fas fa-fw fa-store"></i>
-            <span>Agent & Outlet</span>
+            <span>Agent & Reseller</span>
         </a>
+        <div id="collapseAgent" class="collapse <?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingAgent" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-management', $current_page) ? 'active' : ''; ?>" href="/agent-management">
+                    <i class="fas fa-fw fa-store mr-2"></i>
+                    <span>Agent & Outlet</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-voucher-management', $current_page) ? 'active' : ''; ?>" href="/agent-voucher-management">
+                    <i class="fas fa-fw fa-ticket-alt mr-2"></i>
+                    <span>Agent Voucher</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Nav Item - Authorization -->
-    <li class="nav-item <?php echo ($current_page == '/pembayaran/otorisasi.php' || $current_page == '/pembayaran/otorisasi') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/pembayaran/otorisasi">
-            <i class="fas fa-fw fa-user-shield"></i>
-            <span>Otorisasi Pembayaran</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Transaction -->
-    <li class="nav-item <?php echo ($current_page == '/transaction.php' || $current_page == '/transaction') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/transaction">
-            <i class="fas fa-fw fa-exchange-alt"></i>
-            <span>Transaksi</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Payment Method -->
-    <li class="nav-item <?php echo ($current_page == '/payment-method.php' || $current_page == '/payment-method') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/payment-method">
-            <i class="fas fa-fw fa-credit-card"></i>
-            <span>Metode Pembayaran</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Invoice Settings -->
-    <li class="nav-item <?php echo ($current_page == '/invoice-settings.php' || $current_page == '/invoice-settings') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/invoice-settings">
-            <i class="fas fa-fw fa-file-invoice"></i>
-            <span>Pengaturan Invoice</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Saldo -->
-    <li class="nav-item <?php echo ($current_page == '/atm.php' || $current_page == '/atm') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/atm">
-            <i class="fas fa-fw fa-wallet"></i>
-            <span>Saldo</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Voucher -->
-    <li class="nav-item <?php echo ($current_page == '/voucher.php' || $current_page == '/voucher') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/voucher">
-            <i class="fas fa-fw fa-ticket-alt"></i>
-            <span>Voucher</span>
-        </a>
-    </li>
-
-    <!-- Divider -->
-    <hr class="sidebar-divider">
-
-    <!-- Heading - Layanan -->
-    <div class="sidebar-heading">
-        Layanan
-    </div>
-
-    <!-- Nav Item - Tickets -->
-    <li class="nav-item <?php echo ($current_page == '/tiket.php' || $current_page == '/tiket') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/tiket">
+    <li class="nav-item <?php echo isParentActive(['/tiket', '/speed-requests', '/speed-boost-config', '/kompensasi', '/psb-rekap'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseLayanan" aria-expanded="<?php echo isParentActive(['/tiket', '/speed-requests', '/speed-boost-config', '/kompensasi', '/psb-rekap'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseLayanan">
             <i class="fas fa-fw fa-headset"></i>
-            <span>Tiket Support</span>
+            <span>Layanan</span>
         </a>
+        <div id="collapseLayanan" class="collapse <?php echo isParentActive(['/tiket', '/speed-requests', '/speed-boost-config', '/kompensasi', '/psb-rekap'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingLayanan" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/tiket', $current_page) ? 'active' : ''; ?>" href="/tiket">
+                    <i class="fas fa-fw fa-headset mr-2"></i>
+                    <span>Tiket Support</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/speed-requests', $current_page) ? 'active' : ''; ?>" href="/speed-requests">
+                    <i class="fas fa-fw fa-rocket mr-2"></i>
+                    <span>Speed Boost Request</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/speed-boost-config', $current_page) ? 'active' : ''; ?>" href="/speed-boost-config">
+                    <i class="fas fa-fw fa-tachometer-alt mr-2"></i>
+                    <span>Speed Boost Config</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/kompensasi', $current_page) ? 'active' : ''; ?>" href="/kompensasi">
+                    <i class="fas fa-fw fa-gift mr-2"></i>
+                    <span>Kompensasi</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/psb-rekap', $current_page) ? 'active' : ''; ?>" href="/psb-rekap">
+                    <i class="fas fa-fw fa-clipboard-list mr-2"></i>
+                    <span>Rekap PSB</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Nav Item - Speed Requests -->
-    <li class="nav-item <?php echo ($current_page == '/speed-requests.php' || $current_page == '/speed-requests') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/speed-requests">
-            <i class="fas fa-fw fa-rocket"></i>
-            <span>Speed Boost Request</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Speed Boost Config -->
-    <li class="nav-item <?php echo ($current_page == '/speed-boost-config.php' || $current_page == '/speed-boost-config') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/speed-boost-config">
-            <i class="fas fa-fw fa-tachometer-alt"></i>
-            <span>Speed Boost Config</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Compensation -->
-    <li class="nav-item <?php echo ($current_page == '/kompensasi.php' || $current_page == '/kompensasi') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/kompensasi">
-            <i class="fas fa-fw fa-gift"></i>
-            <span>Kompensasi</span>
-        </a>
-    </li>
-
-    <!-- Divider -->
-    <hr class="sidebar-divider">
-
-    <!-- Heading - Jaringan -->
-    <div class="sidebar-heading">
-        Jaringan
-    </div>
-
-    <!-- Nav Item - Network Map -->
-    <li class="nav-item <?php echo ($current_page == '/map-viewer.php' || $current_page == '/map-viewer') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/map-viewer">
-            <i class="fas fa-fw fa-map-marked-alt"></i>
-            <span>Peta Jaringan</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Network Assets -->
-    <li class="nav-item <?php echo ($current_page == '/network-assets.php' || $current_page == '/network-assets') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/network-assets">
-            <i class="fas fa-fw fa-boxes"></i>
-            <span>Manajemen Aset</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Static IP -->
-    <li class="nav-item <?php echo ($current_page == '/statik.php' || $current_page == '/statik') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/statik">
+    <li class="nav-item <?php echo isParentActive(['/map-viewer', '/network-assets', '/statik'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseJaringan" aria-expanded="<?php echo isParentActive(['/map-viewer', '/network-assets', '/statik'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseJaringan">
             <i class="fas fa-fw fa-network-wired"></i>
-            <span>IP Statik</span>
+            <span>Jaringan</span>
         </a>
+        <div id="collapseJaringan" class="collapse <?php echo isParentActive(['/map-viewer', '/network-assets', '/statik'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingJaringan" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/map-viewer', $current_page) ? 'active' : ''; ?>" href="/map-viewer">
+                    <i class="fas fa-fw fa-map-marked-alt mr-2"></i>
+                    <span>Peta Jaringan</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/network-assets', $current_page) ? 'active' : ''; ?>" href="/network-assets">
+                    <i class="fas fa-fw fa-boxes mr-2"></i>
+                    <span>Manajemen Aset</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/statik', $current_page) ? 'active' : ''; ?>" href="/statik">
+                    <i class="fas fa-fw fa-network-wired mr-2"></i>
+                    <span>IP Statik</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Divider -->
-    <hr class="sidebar-divider">
-
-    <!-- Heading - Komunikasi -->
-    <div class="sidebar-heading">
-        Komunikasi
-    </div>
-
-    <!-- Nav Item - Broadcast -->
-    <li class="nav-item <?php echo ($current_page == '/broadcast.php' || $current_page == '/broadcast') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/broadcast">
-            <i class="fas fa-fw fa-bullhorn"></i>
-            <span>Broadcast WhatsApp</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Announcements -->
-    <li class="nav-item <?php echo ($current_page == '/announcements.php' || $current_page == '/announcements') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/announcements">
-            <i class="fas fa-fw fa-volume-up"></i>
-            <span>Pengumuman</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - News -->
-    <li class="nav-item <?php echo ($current_page == '/news.php' || $current_page == '/news') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/news">
-            <i class="fas fa-fw fa-newspaper"></i>
-            <span>Berita & Promo</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Message Templates -->
-    <li class="nav-item <?php echo ($current_page == '/templates.php' || $current_page == '/templates') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/templates">
-            <i class="fas fa-fw fa-file-alt"></i>
-            <span>Template Pesan</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - WiFi Templates -->
-    <li class="nav-item <?php echo ($current_page == '/wifi-templates.php' || $current_page == '/wifi-templates') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/wifi-templates">
+    <li class="nav-item <?php echo isParentActive(['/broadcast', '/announcements', '/news', '/templates', '/wifi-templates'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseKomunikasi" aria-expanded="<?php echo isParentActive(['/broadcast', '/announcements', '/news', '/templates', '/wifi-templates'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseKomunikasi">
             <i class="fas fa-fw fa-comments"></i>
-            <span>Template Command WiFi</span>
+            <span>Komunikasi</span>
         </a>
+        <div id="collapseKomunikasi" class="collapse <?php echo isParentActive(['/broadcast', '/announcements', '/news', '/templates', '/wifi-templates'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingKomunikasi" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/broadcast', $current_page) ? 'active' : ''; ?>" href="/broadcast">
+                    <i class="fas fa-fw fa-bullhorn mr-2"></i>
+                    <span>Broadcast WhatsApp</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/announcements', $current_page) ? 'active' : ''; ?>" href="/announcements">
+                    <i class="fas fa-fw fa-volume-up mr-2"></i>
+                    <span>Pengumuman</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/news', $current_page) ? 'active' : ''; ?>" href="/news">
+                    <i class="fas fa-fw fa-newspaper mr-2"></i>
+                    <span>Berita & Promo</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/templates', $current_page) ? 'active' : ''; ?>" href="/templates">
+                    <i class="fas fa-fw fa-file-alt mr-2"></i>
+                    <span>Template Pesan</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/wifi-templates', $current_page) ? 'active' : ''; ?>" href="/wifi-templates">
+                    <i class="fas fa-fw fa-comments mr-2"></i>
+                    <span>Template Command WiFi</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Divider -->
-    <hr class="sidebar-divider">
-
-    <!-- Heading - Monitoring -->
-    <div class="sidebar-heading">
-        Monitoring & Log
-    </div>
-
-    <!-- Nav Item - WiFi Logs -->
-    <li class="nav-item <?php echo ($current_page == '/wifi-logs.php' || $current_page == '/wifi-logs') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/wifi-logs">
-            <i class="fas fa-fw fa-wifi"></i>
-            <span>Log Perubahan WiFi</span>
+    <li class="nav-item <?php echo isParentActive(['/wifi-logs', '/login-logs', '/activity-logs'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseMonitoring" aria-expanded="<?php echo isParentActive(['/wifi-logs', '/login-logs', '/activity-logs'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseMonitoring">
+            <i class="fas fa-fw fa-chart-line"></i>
+            <span>Monitoring</span>
         </a>
+        <div id="collapseMonitoring" class="collapse <?php echo isParentActive(['/wifi-logs', '/login-logs', '/activity-logs'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingMonitoring" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/wifi-logs', $current_page) ? 'active' : ''; ?>" href="/wifi-logs">
+                    <i class="fas fa-fw fa-wifi mr-2"></i>
+                    <span>Log Perubahan WiFi</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/login-logs', $current_page) ? 'active' : ''; ?>" href="/login-logs">
+                    <i class="fas fa-fw fa-sign-in-alt mr-2"></i>
+                    <span>Log Login</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/activity-logs', $current_page) ? 'active' : ''; ?>" href="/activity-logs">
+                    <i class="fas fa-fw fa-history mr-2"></i>
+                    <span>Log Aktivitas</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Divider -->
-    <hr class="sidebar-divider">
-
-    <!-- Heading - Sistem -->
-    <div class="sidebar-heading">
-        Sistem
-    </div>
-
-    <!-- Nav Item - Accounts -->
-    <li class="nav-item <?php echo ($current_page == '/accounts.php' || $current_page == '/accounts') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/accounts">
-            <i class="fas fa-fw fa-users-cog"></i>
-            <span>Akun Admin</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Config -->
-    <li class="nav-item <?php echo ($current_page == '/config.php' || $current_page == '/config') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/config">
+    <li class="nav-item <?php echo isParentActive(['/accounts', '/config', '/parameter-management', '/cron', '/teknisi-working-hours', '/migrate'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseSistem" aria-expanded="<?php echo isParentActive(['/accounts', '/config', '/parameter-management', '/cron', '/teknisi-working-hours', '/migrate'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseSistem">
             <i class="fas fa-fw fa-cogs"></i>
-            <span>Konfigurasi</span>
+            <span>Sistem</span>
         </a>
+        <div id="collapseSistem" class="collapse <?php echo isParentActive(['/accounts', '/config', '/parameter-management', '/cron', '/teknisi-working-hours', '/migrate'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingSistem" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/accounts', $current_page) ? 'active' : ''; ?>" href="/accounts">
+                    <i class="fas fa-fw fa-users-cog mr-2"></i>
+                    <span>Akun Admin</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/config', $current_page) ? 'active' : ''; ?>" href="/config">
+                    <i class="fas fa-fw fa-cogs mr-2"></i>
+                    <span>Konfigurasi</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/parameter-management', $current_page) ? 'active' : ''; ?>" href="/parameter-management">
+                    <i class="fas fa-fw fa-sliders-h mr-2"></i>
+                    <span>Parameter Management</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/cron', $current_page) ? 'active' : ''; ?>" href="/cron">
+                    <i class="fas fa-fw fa-clock mr-2"></i>
+                    <span>Cron Jobs</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/teknisi-working-hours', $current_page) ? 'active' : ''; ?>" href="/teknisi-working-hours">
+                    <i class="fas fa-fw fa-business-time mr-2"></i>
+                    <span>Jam Kerja Teknisi</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/migrate', $current_page) ? 'active' : ''; ?>" href="/migrate">
+                    <i class="fas fa-fw fa-database mr-2"></i>
+                    <span>Migrasi Database</span>
+                </a>
+            </div>
+        </div>
     </li>
 
-    <!-- Nav Item - Parameter Management -->
-    <li class="nav-item <?php echo ($current_page == '/parameter-management.php' || $current_page == '/parameter-management') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/parameter-management">
-            <i class="fas fa-fw fa-sliders-h"></i>
-            <span>Parameter Management</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Cron -->
-    <li class="nav-item <?php echo ($current_page == '/cron.php' || $current_page == '/cron') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/cron">
-            <i class="fas fa-fw fa-clock"></i>
-            <span>Cron Jobs</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Teknisi Working Hours -->
-    <li class="nav-item <?php echo ($current_page == '/teknisi-working-hours.php' || $current_page == '/teknisi-working-hours') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/teknisi-working-hours">
-            <i class="fas fa-fw fa-business-time"></i>
-            <span>Jam Kerja Teknisi</span>
-        </a>
-    </li>
-
-    <!-- Nav Item - Migrate DB -->
-    <li class="nav-item <?php echo ($current_page == '/migrate.php' || $current_page == '/migrate') ? 'active' : ''; ?>">
-        <a class="nav-link" href="/migrate">
-            <i class="fas fa-fw fa-database"></i>
-            <span>Migrasi Database</span>
-        </a>
-    </li>
-
-    <!-- Divider -->
     <hr class="sidebar-divider d-none d-md-block">
 
-    <!-- Sidebar Toggler (Sidebar) -->
     <div class="text-center d-none d-md-inline">
         <button class="rounded-circle border-0" id="sidebarToggle"></button>
     </div>

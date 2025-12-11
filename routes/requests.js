@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadJSON, saveJSON } = require('../lib/database');
 const { handlePaidStatusChange, sendTechnicianNotification } = require('../lib/approval-logic');
+const { logActivity } = require('../lib/activity-logger');
 const { rateLimit, validateInput } = require('../lib/security');
 const { withLock } = require('../lib/request-lock');
 
@@ -18,6 +19,12 @@ function ensureAdmin(req, res, next) {
 
 // Helper function untuk mendapatkan harga package
 function getPackagePrice(packageName) {
+    // Handle null or undefined packageName
+    if (!packageName || typeof packageName !== 'string') {
+        console.warn('[getPackagePrice] packageName is null, undefined, or not a string:', packageName);
+        return 0;
+    }
+    
     // First, try to find the package in the database
     const packagesDb = loadJSON('database/packages.json');
     const packageData = packagesDb.find(pkg => pkg.name === packageName);
@@ -97,14 +104,24 @@ async function broadcastToAdmins(message, excludePhoneNumbers = []) {
     });
     
     // Send message to all admin recipients
+    // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
     const { delay } = await import('@whiskeysockets/baileys');
     for (const recipientJid of recipientsToSend) {
-        try {
-            if (typeof delay === 'function') await delay(1000);
-            await global.raf.sendMessage(recipientJid, { text: message });
-            console.log(`[BROADCAST_TO_ADMINS_SUCCESS] Message sent to ${recipientJid}`);
-        } catch (error) {
-            console.error(`[BROADCAST_TO_ADMINS_ERROR] Failed to send to ${recipientJid}:`, error.message);
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                if (typeof delay === 'function') await delay(1000);
+                await global.raf.sendMessage(recipientJid, { text: message });
+                console.log(`[BROADCAST_TO_ADMINS_SUCCESS] Message sent to ${recipientJid}`);
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    recipientJid,
+                    error: error.message
+                });
+                console.error(`[BROADCAST_TO_ADMINS_ERROR] Failed to send to ${recipientJid}:`, error.message);
+                // Continue to next recipient
+            }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', recipientJid);
         }
     }
     
@@ -113,19 +130,12 @@ async function broadcastToAdmins(message, excludePhoneNumbers = []) {
 
 // GET /api/requests
 router.get('/', async (req, res) => {
-    console.log('[GET /api/requests] Request received');
-    console.log('[GET /api/requests] Headers:', JSON.stringify(req.headers));
-    console.log('[GET /api/requests] Cookies:', JSON.stringify(req.cookies));
-    console.log('[GET /api/requests] User:', req.user ? `${req.user.username} (${req.user.role})` : 'NOT AUTHENTICATED');
-    
     if (!req.user) {
-        console.log('[GET /api/requests] No user found in request, returning 401');
         return res.status(401).json({ status: 401, message: "Unauthorized" });
     }
     
     try {
         const allRequests = loadJSON('database/requests.json');
-        console.log(`[GET /api/requests] Total requests in database: ${allRequests.length}`);
         
         let filteredRequests = [];
         
@@ -133,13 +143,10 @@ router.get('/', async (req, res) => {
         if (req.user.role === 'teknisi') {
             // Teknisi hanya bisa lihat request yang dia buat
             filteredRequests = allRequests.filter(r => String(r.requested_by_teknisi_id) === String(req.user.id));
-            console.log(`[GET /api/requests] Filtered for teknisi ${req.user.id}: ${filteredRequests.length} requests`);
         } else if (['admin', 'owner', 'superadmin'].includes(req.user.role)) {
             // Admin bisa lihat semua requests
             filteredRequests = allRequests;
-            console.log(`[GET /api/requests] Admin/Owner access, showing all ${filteredRequests.length} requests`);
         } else {
-            console.log(`[GET /api/requests] Invalid role: ${req.user.role}`);
             return res.status(403).json({ status: 403, message: "Akses ditolak" });
         }
         
@@ -151,9 +158,6 @@ router.get('/', async (req, res) => {
                 (request.updated_by === 'system' ? null : global.accounts.find(a => String(a.id) === String(request.updated_by))) 
                 : null;
             
-            // Debug log
-            console.log(`[ENRICH_REQUEST] Request ID: ${request.id}, Teknisi ID: ${request.requested_by_teknisi_id}, Found: ${requestorAccount ? requestorAccount.username : 'NOT FOUND'}`);
-            
             // Determine the actual current status of the user
             const currentUserPaidStatus = user ? user.paid : false;
             
@@ -163,11 +167,14 @@ router.get('/', async (req, res) => {
             const isIncomePositive = request.status === 'approved' && request.newStatus === true;
             const isIncomeNegative = request.status === 'approved' && request.newStatus === false;
             
+            // Safely get package price - handle null/undefined subscription
+            const packagePrice = user && user.subscription ? getPackagePrice(user.subscription) : 0;
+            
             return {
                 ...request,
                 requestorName: requestorAccount ? (requestorAccount.name || requestorAccount.username) : `Teknisi ID ${request.requested_by_teknisi_id}`,
                 packageName: user?.subscription || 'N/A',
-                packagePrice: user ? getPackagePrice(user.subscription) : 0,
+                packagePrice: packagePrice,
                 updated_by_name: request.updated_by === 'system' ? 'Sistem' : 
                                 (updatedByAccount ? (updatedByAccount.name || updatedByAccount.username) : 
                                 (request.updated_by ? `ID: ${request.updated_by}` : '-')),
@@ -178,20 +185,19 @@ router.get('/', async (req, res) => {
             };
         });
         
-        console.log(`[GET /api/requests] Returning ${enrichedRequests.length} enriched requests`);
-        console.log('[GET /api/requests] Sample request:', enrichedRequests.length > 0 ? JSON.stringify(enrichedRequests[0], null, 2) : 'No requests');
+        console.log(`[REQUESTS] ${req.user.username} (${req.user.role}): ${enrichedRequests.length} requests`);
         
         return res.status(200).json({ 
             status: 200, 
             data: enrichedRequests 
         });
     } catch (error) {
-        console.error('[API_REQUESTS_GET_ERROR]', error);
+        console.error('[REQUESTS] Error:', error.message);
         return res.status(500).json({ status: 500, message: "Terjadi kesalahan server" });
     }
 });
 
-// POST /api/requests - with rate limiting
+// POST /api/requests - with rate limiting and locking
 router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
     if (!req.user || req.user.role !== 'teknisi') {
         return res.status(403).json({ status: 403, message: "Akses ditolak. Hanya teknisi yang dapat mengakses fitur ini." });
@@ -208,95 +214,113 @@ router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
             message: `Input validation error: ${error.message}` 
         });
     }
-    const user = global.users.find(u => String(u.id) === String(userId));
-    if (!user) {
-        return res.status(404).json({ status: 404, message: "User tidak ditemukan." });
-    }
-    const allRequests = loadJSON('database/requests.json');
-    const existingPendingRequest = allRequests.find(r => String(r.userId) === String(userId) && r.status === 'pending');
-    if (existingPendingRequest) {
-        // Cek apakah request sudah expired (lebih dari 7 hari)
-        const requestAge = Date.now() - new Date(existingPendingRequest.created_at).getTime();
-        const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-        
-        if (requestAge > sevenDaysInMs) {
-            // Auto-cancel request yang sudah expired
-            existingPendingRequest.status = 'cancelled_by_system';
-            existingPendingRequest.updated_at = new Date().toISOString();
-            existingPendingRequest.updated_by = 'system';
-            saveJSON('database/requests.json', allRequests);
-            console.log(`[REQUEST_AUTO_CANCEL] Request ID ${existingPendingRequest.id} auto-cancelled karena expired (>7 hari).`);
-        } else {
-            // Cek apakah status user saat ini sudah sama dengan yang diajukan
-            if (user.paid === newStatus) {
-                // Jika status sudah sama, auto-cancel request lama
-                existingPendingRequest.status = 'cancelled_by_system';
-                existingPendingRequest.updated_at = new Date().toISOString();
-                existingPendingRequest.updated_by = 'system';
-                existingPendingRequest.cancel_reason = 'Status pelanggan sudah sesuai dengan pengajuan';
-                saveJSON('database/requests.json', allRequests);
-                console.log(`[REQUEST_AUTO_CANCEL] Request ID ${existingPendingRequest.id} auto-cancelled karena status sudah sesuai.`);
-            } else {
-                const conflictingTechnicianId = existingPendingRequest.requested_by_teknisi_id;
-                if (String(conflictingTechnicianId) === String(req.user.id)) {
-                    return res.status(409).json({ status: 409, message: `Anda sudah memiliki pengajuan yang sedang menunggu untuk pelanggan ${user.name}. Harap batalkan atau tunggu hingga pengajuan tersebut diproses.` });
+    
+    // Use lock to prevent race condition when creating request for same user
+    try {
+        return await withLock(`create-request-${userId}`, async () => {
+            const user = global.users.find(u => String(u.id) === String(userId));
+            if (!user) {
+                return res.status(404).json({ status: 404, message: "User tidak ditemukan." });
+            }
+            
+            const allRequests = loadJSON('database/requests.json');
+            const existingPendingRequest = allRequests.find(r => String(r.userId) === String(userId) && r.status === 'pending');
+            
+            if (existingPendingRequest) {
+                // Cek apakah request sudah expired (lebih dari 7 hari)
+                const requestAge = Date.now() - new Date(existingPendingRequest.created_at).getTime();
+                const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+                
+                if (requestAge > sevenDaysInMs) {
+                    // Auto-cancel request yang sudah expired
+                    existingPendingRequest.status = 'cancelled_by_system';
+                    existingPendingRequest.updated_at = new Date().toISOString();
+                    existingPendingRequest.updated_by = 'system';
+                    saveJSON('database/requests.json', allRequests);
+                    console.log(`[REQUEST_AUTO_CANCEL] Request ID ${existingPendingRequest.id} auto-cancelled karena expired (>7 hari).`);
                 } else {
-                    const conflictingTechnician = global.accounts.find(acc => String(acc.id) === String(conflictingTechnicianId));
-                    const conflictingTechnicianName = conflictingTechnician ? conflictingTechnician.username : 'teknisi lain';
-                    const requestDate = new Date(existingPendingRequest.created_at).toLocaleString('id-ID');
-                    return res.status(409).json({ status: 409, message: `Gagal: Pelanggan ${user.name} sudah memiliki pengajuan aktif yang dibuat oleh ${conflictingTechnicianName} pada ${requestDate}. Hubungi admin untuk memproses atau membatalkan pengajuan tersebut.` });
+                    // Cek apakah status user saat ini sudah sama dengan yang diajukan
+                    if (user.paid === newStatus) {
+                        // Jika status sudah sama, auto-cancel request lama
+                        existingPendingRequest.status = 'cancelled_by_system';
+                        existingPendingRequest.updated_at = new Date().toISOString();
+                        existingPendingRequest.updated_by = 'system';
+                        existingPendingRequest.cancel_reason = 'Status pelanggan sudah sesuai dengan pengajuan';
+                        saveJSON('database/requests.json', allRequests);
+                        console.log(`[REQUEST_AUTO_CANCEL] Request ID ${existingPendingRequest.id} auto-cancelled karena status sudah sesuai.`);
+                    } else {
+                        const conflictingTechnicianId = existingPendingRequest.requested_by_teknisi_id;
+                        if (String(conflictingTechnicianId) === String(req.user.id)) {
+                            return res.status(409).json({ status: 409, message: `Anda sudah memiliki pengajuan yang sedang menunggu untuk pelanggan ${user.name}. Harap batalkan atau tunggu hingga pengajuan tersebut diproses.` });
+                        } else {
+                            const conflictingTechnician = global.accounts.find(acc => String(acc.id) === String(conflictingTechnicianId));
+                            const conflictingTechnicianName = conflictingTechnician ? conflictingTechnician.username : 'teknisi lain';
+                            const requestDate = new Date(existingPendingRequest.created_at).toLocaleString('id-ID');
+                            return res.status(409).json({ status: 409, message: `Gagal: Pelanggan ${user.name} sudah memiliki pengajuan aktif yang dibuat oleh ${conflictingTechnicianName} pada ${requestDate}. Hubungi admin untuk memproses atau membatalkan pengajuan tersebut.` });
+                        }
+                    }
                 }
             }
-        }
+            
+            const newRequest = {
+                id: Date.now(),
+                userId: userId,
+                userName: user.name,
+                newStatus: newStatus,
+                status: 'pending',
+                created_at: new Date().toISOString(),
+                updated_at: null,
+                updated_by: null,
+                requested_by_teknisi_id: req.user.id
+            };
+            allRequests.push(newRequest);
+            saveJSON('database/requests.json', allRequests);
+            console.log(`[REQUEST_CREATE_LOG] Teknisi ID ${req.user.id} (${req.user.username}) membuat pengajuan baru untuk User ID ${userId} (${user.name}).`);
+            
+            // Broadcast ke semua admin dan owner
+            const teknisiName = req.user.name || req.user.username;
+            const statusText = newStatus ? "SUDAH BAYAR" : "BELUM BAYAR";
+            // Safely get package price - handle null/undefined subscription
+            const packagePrice = user && user.subscription ? getPackagePrice(user.subscription) : 0;
+            const priceText = packagePrice > 0 ? `Rp ${packagePrice.toLocaleString('id-ID')}` : 'Tidak diketahui';
+            const currentDate = new Date().toLocaleString('id-ID', { 
+                dateStyle: 'medium', 
+                timeStyle: 'short', 
+                timeZone: 'Asia/Jakarta' 
+            });
+            
+            const messageToAdmins = `🔔 *PENGAJUAN PEMBAYARAN BARU* 🔔\n\n` +
+                `Teknisi *${teknisiName}* telah mengajukan perubahan status pembayaran:\n\n` +
+                `📋 *Detail Pengajuan:*\n` +
+                `• ID Request: #${newRequest.id}\n` +
+                `• Waktu: ${currentDate}\n\n` +
+                `👤 *Data Pelanggan:*\n` +
+                `• Nama: ${user.name}\n` +
+                `• Paket: ${user.subscription || 'Tidak ada'}\n` +
+                `• Harga: ${priceText}\n` +
+                `• Telepon: ${user.phone_number || 'Tidak ada'}\n` +
+                `• Alamat: ${user.address || 'Tidak ada'}\n\n` +
+                `💰 *Status Pembayaran:*\n` +
+                `• Status Saat Ini: ${user.paid ? 'SUDAH BAYAR' : 'BELUM BAYAR'}\n` +
+                `• Status Diajukan: *${statusText}*\n\n` +
+                `⚠️ *PERHATIAN:*\n` +
+                `Mohon segera ditinjau dan diproses di panel admin.\n` +
+                `Pengajuan ini akan otomatis dibatalkan jika tidak diproses dalam 7 hari.\n\n` +
+                `🔗 *Link Panel Admin:*\n` +
+                `${global.config.site_url_bot || 'http://localhost:3100'}/pembayaran/requests`;
+            
+            await broadcastToAdmins(messageToAdmins);
+            return res.status(201).json({ status: 201, message: "Pengajuan perubahan status berhasil dibuat dan sedang menunggu persetujuan.", data: newRequest });
+        });
+    } catch (error) {
+        console.error('[CREATE_REQUEST_LOCK_ERROR]', error);
+        return res.status(500).json({ 
+            status: 500,
+            message: error.message === `Could not acquire lock for create-request-${userId}`
+                ? 'Request sedang diproses. Silakan coba lagi.'
+                : 'Terjadi kesalahan saat memproses request'
+        });
     }
-    const newRequest = {
-        id: Date.now(),
-        userId: userId,
-        userName: user.name,
-        newStatus: newStatus,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: null,
-        updated_by: null,
-        requested_by_teknisi_id: req.user.id
-    };
-    allRequests.push(newRequest);
-    saveJSON('database/requests.json', allRequests);
-    console.log(`[REQUEST_CREATE_LOG] Teknisi ID ${req.user.id} (${req.user.username}) membuat pengajuan baru untuk User ID ${userId} (${user.name}).`);
-    
-    // Broadcast ke semua admin dan owner
-    const teknisiName = req.user.name || req.user.username;
-    const statusText = newStatus ? "SUDAH BAYAR" : "BELUM BAYAR";
-    const packagePrice = getPackagePrice(user.subscription);
-    const priceText = packagePrice > 0 ? `Rp ${packagePrice.toLocaleString('id-ID')}` : 'Tidak diketahui';
-    const currentDate = new Date().toLocaleString('id-ID', { 
-        dateStyle: 'medium', 
-        timeStyle: 'short', 
-        timeZone: 'Asia/Jakarta' 
-    });
-    
-    const messageToAdmins = `🔔 *PENGAJUAN PEMBAYARAN BARU* 🔔\n\n` +
-        `Teknisi *${teknisiName}* telah mengajukan perubahan status pembayaran:\n\n` +
-        `📋 *Detail Pengajuan:*\n` +
-        `• ID Request: #${newRequest.id}\n` +
-        `• Waktu: ${currentDate}\n\n` +
-        `👤 *Data Pelanggan:*\n` +
-        `• Nama: ${user.name}\n` +
-        `• Paket: ${user.subscription || 'Tidak ada'}\n` +
-        `• Harga: ${priceText}\n` +
-        `• Telepon: ${user.phone_number || 'Tidak ada'}\n` +
-        `• Alamat: ${user.address || 'Tidak ada'}\n\n` +
-        `💰 *Status Pembayaran:*\n` +
-        `• Status Saat Ini: ${user.paid ? 'SUDAH BAYAR' : 'BELUM BAYAR'}\n` +
-        `• Status Diajukan: *${statusText}*\n\n` +
-        `⚠️ *PERHATIAN:*\n` +
-        `Mohon segera ditinjau dan diproses di panel admin.\n` +
-        `Pengajuan ini akan otomatis dibatalkan jika tidak diproses dalam 7 hari.\n\n` +
-        `🔗 *Link Panel Admin:*\n` +
-        `${global.config.site_url_bot || 'http://localhost:3100'}/pembayaran/requests`;
-    
-    await broadcastToAdmins(messageToAdmins);
-    return res.status(201).json({ status: 201, message: "Pengajuan perubahan status berhasil dibuat dan sedang menunggu persetujuan.", data: newRequest });
 });
 
 // POST /api/request/cancel - with rate limiting
@@ -340,14 +364,24 @@ router.post('/cancel', rateLimit('cancel-request', 5, 60000), async (req, res) =
         const teknisiPembuat = global.accounts.find(acc => String(acc.id) === String(requestToUpdate.requested_by_teknisi_id));
         const namaTeknisi = teknisiPembuat ? (teknisiPembuat.name || teknisiPembuat.username) : `ID ${requestToUpdate.requested_by_teknisi_id}`;
         const messageToOwner = `🔔 *Info: Pengajuan Dibatalkan Teknisi* 🔔\n\nTeknisi *${namaTeknisi}* telah membatalkan pengajuan perubahan status pembayaran untuk pelanggan:\n\n👤 *Nama Pelanggan:* ${namaPelanggan}\n🆔 *ID Request:* ${requestToUpdate.id}\n⏰ *Waktu Pembatalan:* ${new Date(requestToUpdate.updated_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}\n\nStatus pengajuan kini: Dibatalkan oleh Teknisi.`;
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (const singleOwnerNum of global.config.ownerNumber) {
             const { delay } = await import('@whiskeysockets/baileys');
             const ownerNumberJid = singleOwnerNum.endsWith('@s.whatsapp.net') ? singleOwnerNum : `${singleOwnerNum}@s.whatsapp.net`;
-            try {
-                await delay(1000);
-                await global.raf.sendMessage(ownerNumberJid, { text: messageToOwner });
-            } catch (error) {
-                console.error(`[REQUEST_CANCEL_NOTIF_OWNER_ERROR] Gagal kirim notif pembatalan ke owner ${ownerNumberJid}:`, error);
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    await delay(1000);
+                    await global.raf.sendMessage(ownerNumberJid, { text: messageToOwner });
+                } catch (error) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        ownerNumberJid,
+                        error: error.message
+                    });
+                    console.error(`[REQUEST_CANCEL_NOTIF_OWNER_ERROR] Gagal kirim notif pembatalan ke owner ${ownerNumberJid}:`, error);
+                    // Continue to next owner
+                }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to owner', ownerNumberJid);
             }
         }
     }
@@ -445,7 +479,29 @@ router.post('/approve-paid-change', rateLimit('approve-request', 20, 60000), asy
                     });
                 });
             }
+                    const oldPaidStatus = userToUpdate.paid;
                     userToUpdate.paid = (newPaidStatus === 1);
+                    
+                    // Log activity
+                    try {
+                        await logActivity({
+                            userId: req.user.id,
+                            username: req.user.username,
+                            role: req.user.role,
+                            actionType: 'UPDATE',
+                            resourceType: 'payment',
+                            resourceId: userToUpdate.id.toString(),
+                            resourceName: userToUpdate.name,
+                            description: `Approved payment request for user ${userToUpdate.name}`,
+                            oldValue: { paid: oldPaidStatus },
+                            newValue: { paid: userToUpdate.paid },
+                            ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                            userAgent: req.headers['user-agent']
+                        });
+                    } catch (logErr) {
+                        console.error('[ACTIVITY_LOG_ERROR] Failed to log payment approval:', logErr);
+                    }
+                    
                     if (userToUpdate.paid === true) {
                         // handlePaidStatusChange now handles invoice PDF sending based on send_invoice flag
                         await handlePaidStatusChange(userToUpdate, {

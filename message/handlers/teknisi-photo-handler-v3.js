@@ -200,6 +200,17 @@ async function handleTeknisiPhotoUpload(sender, fileName, buffer, reply) {
             };
         }
         
+        // For single photo, provide immediate response
+        if (currentCount === 1) {
+            // Send immediate response for first photo
+            const immediateMessage = getResponseMessage(currentCount);
+            if (reply) {
+                await reply(immediateMessage).catch(err => {
+                    console.error('[PHOTO_IMMEDIATE_REPLY_ERROR]', err);
+                });
+            }
+        }
+        
         // Create promise for this upload
         return new Promise((resolve) => {
             // Add to pending resolvers

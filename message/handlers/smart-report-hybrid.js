@@ -7,6 +7,7 @@
 const { isDeviceOnline, getDeviceOfflineMessage } = require('../../lib/device-status');
 const { setUserState, getUserState, deleteUserState } = require('./conversation-handler');
 const { getResponseTimeMessage, isWithinWorkingHours } = require('../../lib/working-hours-helper');
+const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
 const fs = require('fs');
 const path = require('path');
 
@@ -25,15 +26,20 @@ function generateTicketId(length = 7) {
  * Handle Direct Internet Mati Report
  * Langsung proses tanpa menu
  */
-async function handleDirectMatiReport({ sender, pushname, reply }) {
+async function handleDirectMatiReport({ sender, pushname, reply, msg, raf }) {
     try {
-        // Check user registration
-        const user = global.users.find(u => 
-            u.phone_number && u.phone_number.split("|").some(num =>
-                num.trim() === sender.replace('@s.whatsapp.net', '') || 
-                `62${num.trim().substring(1)}` === sender.replace('@s.whatsapp.net', '')
-            )
-        );
+        // Check user registration with @lid support
+        const plainSenderNumber = sender.split('@')[0];
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return {
+                success: false,
+                message: verification.message
+            };
+        }
         
         if (!user) {
             return {
@@ -121,15 +127,20 @@ async function handleDirectMatiReport({ sender, pushname, reply }) {
  * Handle Direct Internet Lemot Report
  * Langsung masuk troubleshooting
  */
-async function handleDirectLemotReport({ sender, pushname, reply }) {
+async function handleDirectLemotReport({ sender, pushname, reply, msg, raf }) {
     try {
-        // Check user registration
-        const user = global.users.find(u => 
-            u.phone_number && u.phone_number.split("|").some(num =>
-                num.trim() === sender.replace('@s.whatsapp.net', '') || 
-                `62${num.trim().substring(1)}` === sender.replace('@s.whatsapp.net', '')
-            )
-        );
+        // Check user registration with @lid support
+        const plainSenderNumber = sender.split('@')[0];
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Handle @lid users who need verification
+        if (!user && sender.includes('@lid')) {
+            const verification = createLidVerification(sender.split('@')[0], global.users);
+            return {
+                success: false,
+                message: verification.message
+            };
+        }
         
         if (!user) {
             return {

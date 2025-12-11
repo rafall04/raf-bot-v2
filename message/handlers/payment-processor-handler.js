@@ -40,12 +40,25 @@ async function handleTopupSaldoPayment({ sender, pushname, command, q, from, msg
         email: sender,
     });
     
-    let text = `*GO TO PAY*\n\n- Sub Total: Rp. ${res.subTotal}\n- Biaya admin: Rp. ${res.fee}\n- Total dibayarkan: Rp. ${res.total}\nSilahkan simpan QR ini, pergi ke aplikasi ewallet/bank virtual anda, lalu scan QR ini dengan aplikasi ewallet/bank virtual anda lalu bayarkan!`;
+    // Gunakan template system untuk info QRIS payment
+    const { renderTemplate } = require('../../lib/templating');
+    const text = renderTemplate('qris_payment_info', {
+        sub_total: res.subTotal.toLocaleString('id-ID'),
+        biaya_admin: res.fee.toLocaleString('id-ID'),
+        total_bayar: res.total.toLocaleString('id-ID')
+    });
     
     await addPayment(reff, res.id, sender, command, number, 'QRIS', `Topup ${number} to ${sender}`);
     
     let qrr = await qr.imageSync(res.qrString, { type: "png", ec_level: 'H' });
-    await raf.sendMessage(from, { image: qrr, caption: text }, { quoted: msg });
+    
+    try {
+        if (global.whatsappConnectionState === 'open') {
+            await raf.sendMessage(from, { image: qrr, caption: text }, { quoted: msg, skipDuplicateCheck: true });
+        }
+    } catch (error) {
+        console.error('[QRIS_PAYMENT] Error sending QRIS payment info:', error);
+    }
 }
 
 /**
@@ -71,7 +84,8 @@ async function processVoucherPurchase(sender, pushname, price, replyFunc, helper
     const hargavc123 = checkhargavc(profvc123);
 
     // Cek saldo pengguna
-    if (checkATMuser(sender) < hargavc123) {
+    const currentSaldo = await checkATMuser(sender);
+    if (currentSaldo < hargavc123) {
         await replyFunc(`Saldo Anda tidak mencukupi untuk melakukan pembelian voucher seharga ${convertRupiah.convert(hargavc123)}. Silakan top up saldo terlebih dahulu.`);
         return;
     }
@@ -84,7 +98,7 @@ async function processVoucherPurchase(sender, pushname, price, replyFunc, helper
 
         // Konfirmasi pengurangan saldo
         confirmATM(sender, hargavc123);
-        const currentSaldoAfterPurchase = checkATMuser(sender);
+        const currentSaldoAfterPurchase = await checkATMuser(sender);
         const formattedSaldoAfterPurchase = convertRupiah.convert(currentSaldoAfterPurchase);
 
         // Pesan sukses

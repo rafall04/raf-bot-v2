@@ -206,24 +206,9 @@ class CommandCenter {
     }
 
     async testWiFiCommands() {
-        console.log('\nTest WiFi Commands:');
-        console.log('[1] Test Name Change');
-        console.log('[2] Test Password Change');
-        console.log('[3] Test History');
-        console.log('[4] Run All Tests');
-        
-        const choice = await this.promptUser('Select test');
-        
-        const testFiles = {
-            '1': 'test/test-wifi-name-change.js',
-            '2': 'test/test-wifi-password-change.js',
-            '3': 'test/test-wifi-history.js',
-            '4': 'test/test-wifi-complete-fix.js'
-        };
-        
-        if (testFiles[choice]) {
-            await this.runCommand('node', [testFiles[choice]]);
-        }
+        console.log('\n[INFO] Test files have been removed for production cleanup.');
+        console.log('WiFi tools functionality is available through the main application.');
+        await this.promptUser('\nPress Enter to continue...');
     }
 
     async databaseTools() {
@@ -257,7 +242,7 @@ class CommandCenter {
     }
 
     async checkDatabaseStatus() {
-        const dbPath = path.join(this.rootDir, 'database.sqlite');
+        const dbPath = path.join(this.rootDir, 'database', 'database.sqlite');
         
         if (fs.existsSync(dbPath)) {
             const stats = fs.statSync(dbPath);
@@ -271,7 +256,8 @@ class CommandCenter {
     }
 
     async viewUsers() {
-        await this.runCommand('node', ['test/test-sqlite-users.js']);
+        console.log('[INFO] Test files have been removed for production cleanup.');
+        console.log('Use the main application to view users.');
     }
 
     async viewAccounts() {
@@ -296,7 +282,8 @@ class CommandCenter {
             fs.mkdirSync(backupDir);
         }
         
-        const dbPath = path.join(this.rootDir, 'database.sqlite');
+        // All databases stored in database/ folder
+        const dbPath = path.join(this.rootDir, 'database', 'database.sqlite');
         const backupPath = path.join(backupDir, `database_${timestamp}.sqlite`);
         
         fs.copyFileSync(dbPath, backupPath);
@@ -334,39 +321,9 @@ class CommandCenter {
 
     async runTests() {
         console.log(`\n${colors.green}Run Tests${colors.reset}\n`);
-        console.log('[1] WiFi Tests');
-        console.log('[2] Database Tests');
-        console.log('[3] Handler Tests');
-        console.log('[4] All Tests');
-        
-        const choice = await this.promptUser('Select test suite');
-        
-        switch(choice) {
-            case '1':
-                await this.runCommand('node', ['test/test-wifi-complete-fix.js']);
-                break;
-            case '2':
-                await this.runCommand('node', ['test/test-sqlite-users.js']);
-                break;
-            case '3':
-                await this.runCommand('node', ['test/test-command-system.js']);
-                break;
-            case '4':
-                console.log('Running all tests...');
-                const testDir = path.join(this.rootDir, 'test');
-                const testFiles = fs.readdirSync(testDir)
-                    .filter(f => f.startsWith('test-') && f.endsWith('.js'));
-                
-                for (const file of testFiles.slice(0, 5)) {
-                    console.log(`\nRunning ${file}...`);
-                    try {
-                        await this.runCommand('node', [`test/${file}`]);
-                    } catch (error) {
-                        console.log(`${colors.red}Failed: ${error.message}${colors.reset}`);
-                    }
-                }
-                break;
-        }
+        console.log('[INFO] Test files have been removed for production cleanup.');
+        console.log('Use the main application features for functionality testing.');
+        console.log('For unit testing, use: npm test (Jest framework)');
         
         await this.promptUser('\nPress Enter to continue...');
     }

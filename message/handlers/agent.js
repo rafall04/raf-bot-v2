@@ -24,6 +24,48 @@ const agentManager = require('../../lib/agent-manager');
 const agentTransactionManager = require('../../lib/agent-transaction-manager');
 const saldoManager = require('../../lib/saldo-manager');
 const { logger } = require('../../lib/logger');
+const { extractSenderInfo } = require('../../lib/lid-handler');
+
+/**
+ * Helper function to extract real phone number from @lid format
+ * Uses Baileys v7 features (remoteJidAlt, signalRepository) to get actual phone number
+ */
+async function extractPhoneFromLid(sender, msg, raf = null) {
+    if (!sender || !sender.endsWith('@lid')) {
+        return sender; // Not @lid format, return as-is
+    }
+    
+    // Method 1: Extract from message metadata (Baileys v7)
+    if (msg) {
+        const senderInfo = extractSenderInfo(msg, false);
+        if (senderInfo.phoneNumber) {
+            // Only log if extraction method is interesting (not remoteJidAlt which is common)
+            if (senderInfo.method !== 'remoteJidAlt') {
+                logger.debug(`[LID_EXTRACT] ${sender} → ${senderInfo.phoneNumber} (${senderInfo.method})`);
+            }
+            return `${senderInfo.phoneNumber}@s.whatsapp.net`;
+        }
+    }
+    
+    // Method 2: Try Baileys v7 signal repository
+    if (raf && raf.signalRepository) {
+        try {
+            if (raf.signalRepository.lidMapping && raf.signalRepository.lidMapping.getPNForLID) {
+                const phoneNumber = await raf.signalRepository.lidMapping.getPNForLID(sender);
+                if (phoneNumber) {
+                    logger.debug(`[LID_EXTRACT] ${sender} → ${phoneNumber} (signal_repository)`);
+                    return phoneNumber;
+                }
+            }
+        } catch (error) {
+            // Only log actual errors, not warnings
+            logger.debug(`[LID_EXTRACT] Signal repository unavailable for ${sender}`);
+        }
+    }
+    
+    // No phone number found, return original @lid
+    return sender;
+}
 
 // ==============================================
 // SECTION 1: CUSTOMER COMMANDS
@@ -44,7 +86,8 @@ async function handleListAgents(msg, sender, reply, pushname) {
         }
         
         const message = agentManager.formatAgentList(agents, 'DAFTAR AGENT RAF NET');
-        await reply(message);
+        // Skip duplicate check for command response - user may intentionally request same info
+        await reply(message, { skipDuplicateCheck: true });
         
     } catch (error) {
         logger.error('Error in handleListAgents:', error);
@@ -211,11 +254,6 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
         const transactionId = args[0];
         const pin = args[1];
         
-        logger.info('Agent confirmation attempt', {
-            transactionId: transactionId,
-            agent: sender
-        });
-        
         // Get transaction
         const transaction = agentTransactionManager.getTransactionById(transactionId);
         
@@ -249,12 +287,6 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
         );
         
         if (!result.success) {
-            logger.warn('Agent confirmation failed', {
-                transactionId: transactionId,
-                agent: sender,
-                reason: result.message
-            });
-            
             // Check if it's a PIN error
             if (result.message.includes('PIN')) {
                 return await reply(
@@ -267,10 +299,7 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
             return await reply(`❌ ${result.message}`);
         }
         
-        logger.info('Agent confirmation successful', {
-            transactionId: transactionId,
-            agent: sender
-        });
+        logger.info(`[AGENT_CONFIRM] Transaction ${transactionId} confirmed`);
         
         // Process saldo addition
         const saldoResult = saldoManager.processAgentConfirmation(transactionId);
@@ -302,7 +331,8 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
         await reply(agentMsg);
         
         // Notify customer
-        if (global.raf) {
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
             try {
                 const customerMsg = `✅ *TOPUP BERHASIL*\n\n` +
                     `💰 Jumlah: Rp ${transaction.amount.toLocaleString('id-ID')}\n` +
@@ -317,12 +347,20 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
                     customerId: transaction.customerId
                 });
             } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    customerId: transaction.customerId,
+                    error: error.message
+                });
                 logger.error('Failed to notify customer:', error);
             }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', transaction.customerId);
+            logger.warn('Cannot notify customer - WhatsApp not connected');
         }
         
         // Notify admin
-        if (global.raf && global.config?.adminNumbers) {
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage && global.config?.adminNumbers) {
             try {
                 const adminMsg = `✅ *TOPUP DIKONFIRMASI*\n\n` +
                     `📄 ID: ${saldoResult.topupRequest.id}\n` +
@@ -338,15 +376,30 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
                 // Send to all admins
                 for (const adminNumber of global.config.adminNumbers) {
                     const adminJid = adminNumber.includes('@') ? adminNumber : `${adminNumber}@s.whatsapp.net`;
-                    try {
-                        await global.raf.sendMessage(adminJid, { text: adminMsg });
-                    } catch (error) {
-                        logger.error('Failed to notify admin:', error);
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(adminJid, { text: adminMsg });
+                        } catch (error) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                adminJid,
+                                error: error.message
+                            });
+                            logger.error('Failed to notify admin:', error);
+                            // Continue to next admin
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', adminJid);
                     }
                 }
             } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    error: error.message
+                });
                 logger.error('Failed to send admin notifications:', error);
             }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected or admin numbers not configured');
+            logger.warn('Cannot notify admins - WhatsApp not connected or admin numbers not configured');
         }
         
     } catch (error) {
@@ -360,41 +413,28 @@ async function handleAgentConfirmation(msg, sender, reply, args) {
  * Shows all transactions for the agent today
  * Command: transaksi hari ini, transaksi, my transactions
  */
-async function handleAgentTodayTransactions(msg, sender, reply) {
+async function handleAgentTodayTransactions(msg, sender, reply, raf = null) {
     try {
-        logger.info('Transaksi command received', {
-            sender: sender
-        });
+        // Extract real phone number from @lid if needed
+        const phoneNumberToSearch = await extractPhoneFromLid(sender, msg, raf);
         
         // Get agent by WhatsApp number
-        const agent = agentManager.getAgentByWhatsapp(sender);
-        
-        logger.info('Agent lookup result', {
-            sender: sender,
-            found: agent ? true : false,
-            agentId: agent?.id
-        });
+        const agent = agentManager.getAgentByWhatsapp(phoneNumberToSearch);
         
         if (!agent) {
-            logger.warn('Agent not found for transaksi command', {
-                sender: sender
-            });
-            
             return await reply(
                 '❌ *Nomor Anda tidak terdaftar sebagai agent.*\n\n' +
                 'Untuk menggunakan command ini, nomor WhatsApp Anda harus:\n' +
                 '1. Terdaftar sebagai agent di sistem\n' +
-                '2. Sudah memiliki credential (PIN)\n\n' +
-                '📞 Hubungi admin untuk registrasi:\n' +
+                '2. Nomor telepon Anda harus sesuai dengan yang terdaftar di admin\n\n' +
+                '📞 Hubungi admin untuk verifikasi:\n' +
                 'wa.me/6289685645956\n\n' +
-                '💡 *Tips:* Ketik *profil agent* untuk cek status registrasi'
+                '💡 *Tips:* Pastikan nomor WhatsApp Anda sama dengan nomor yang terdaftar di sistem'
             );
         }
         
-        logger.info('Agent checking today transactions', {
-            agentId: agent.id,
-            agentName: agent.name
-        });
+        // Log only essential info
+        logger.info(`[AGENT_TRANSACTIONS] ${agent.name} (${agent.id}) checking transactions`);
         
         // Get today's transactions
         const transactions = agentTransactionManager.getTodayTransactions(agent.id);
@@ -597,18 +637,21 @@ async function handleCheckTopupStatus(msg, sender, reply) {
  * Format: ganti pin [old_pin] [new_pin]
  * Command: ganti pin
  */
-async function handleAgentPinChange(msg, sender, reply, args) {
+async function handleAgentPinChange(msg, sender, reply, args, raf = null) {
     try {
+        // Extract real phone number from @lid if needed
+        const phoneNumberToSearch = await extractPhoneFromLid(sender, msg, raf);
+        
         // Get agent by WhatsApp number
-        const agentCred = agentTransactionManager.getAgentByWhatsapp(sender);
+        const agentCred = agentTransactionManager.getAgentByWhatsapp(phoneNumberToSearch);
         
         if (!agentCred) {
             return reply('❌ Anda bukan agent terdaftar atau belum memiliki credential.\n\nHubungi admin untuk registrasi.');
         }
         
         // Parse arguments: ganti pin [old] [new]
-        const oldPin = args[2]; // Skip "ganti" and "pin"
-        const newPin = args[3];
+        const oldPin = args[2] ? args[2].trim() : null; // Skip "ganti" and "pin", trim whitespace
+        const newPin = args[3] ? args[3].trim() : null;
         
         if (!oldPin || !newPin) {
             return reply('⚠️ *Format salah!*\n\n' +
@@ -619,18 +662,33 @@ async function handleAgentPinChange(msg, sender, reply, args) {
                         'PIN minimal 4 digit');
         }
         
-        if (newPin.length < 4) {
-            return reply('❌ PIN baru minimal 4 digit!');
+        // Validate PIN format (only digits)
+        if (!/^[0-9]+$/.test(oldPin) || !/^[0-9]+$/.test(newPin)) {
+            return reply('❌ PIN hanya boleh berisi angka!');
+        }
+        
+        if (newPin.length < 4 || newPin.length > 6) {
+            return reply('❌ PIN baru harus 4-6 digit!');
         }
         
         if (oldPin === newPin) {
             return reply('❌ PIN baru harus berbeda dengan PIN lama!');
         }
         
+        // Use the WhatsApp number from credentials (which was used during registration/reset)
+        // This ensures we use the same format that was stored
+        const whatsappNumForVerification = agentCred.whatsappNumber || phoneNumberToSearch;
+        
+        logger.info(`[AGENT_PIN] Attempting PIN change for ${agentCred.agentId}`, {
+            storedWhatsapp: agentCred.whatsappNumber,
+            senderWhatsapp: phoneNumberToSearch,
+            usingWhatsapp: whatsappNumForVerification
+        });
+        
         // Update PIN
         const result = await agentTransactionManager.updateAgentPin(
             agentCred.agentId,
-            sender,
+            whatsappNumForVerification,
             oldPin,
             newPin
         );
@@ -641,10 +699,7 @@ async function handleAgentPinChange(msg, sender, reply, args) {
                   '⚠️ Gunakan PIN baru untuk konfirmasi transaksi berikutnya\n\n' +
                   '_Jangan bagikan PIN Anda ke siapapun!_');
             
-            logger.info('Agent PIN changed successfully', {
-                agentId: agentCred.agentId,
-                whatsapp: sender
-            });
+            logger.info(`[AGENT_PIN] PIN changed for agent ${agentCred.agentId}`);
         } else {
             reply(`❌ *GAGAL UBAH PIN*\n\n${result.message}\n\n` +
                   'Pastikan PIN lama Anda benar.');
@@ -665,10 +720,13 @@ async function handleAgentPinChange(msg, sender, reply, args) {
  * Updates agent address, hours, or phone
  * Command: update alamat, update jam, update phone
  */
-async function handleAgentProfileUpdate(msg, sender, reply, args, updateType) {
+async function handleAgentProfileUpdate(msg, sender, reply, args, updateType, raf = null) {
     try {
+        // Extract real phone number from @lid if needed
+        const phoneNumberToSearch = await extractPhoneFromLid(sender, msg, raf);
+        
         // Get agent by WhatsApp number
-        const agentCred = agentTransactionManager.getAgentByWhatsapp(sender);
+        const agentCred = agentTransactionManager.getAgentByWhatsapp(phoneNumberToSearch);
         
         if (!agentCred) {
             return reply('❌ Anda bukan agent terdaftar.\n\nHubungi admin untuk registrasi.');
@@ -749,11 +807,7 @@ async function handleAgentProfileUpdate(msg, sender, reply, args, updateType) {
         if (result.success) {
             reply(successMessage);
             
-            logger.info('Agent profile updated', {
-                agentId: agent.id,
-                updateType: updateType,
-                updatedBy: sender
-            });
+            logger.info(`[AGENT_UPDATE] ${agent.name} (${agent.id}) updated ${updateType}`);
         } else {
             reply(`❌ *GAGAL UPDATE PROFIL*\n\n${result.message}`);
         }
@@ -774,10 +828,13 @@ async function handleAgentProfileUpdate(msg, sender, reply, args, updateType) {
  * Opens or temporarily closes the agent outlet
  * Command: tutup sementara, buka kembali
  */
-async function handleAgentStatusToggle(msg, sender, reply, status) {
+async function handleAgentStatusToggle(msg, sender, reply, status, raf = null) {
     try {
+        // Extract real phone number from @lid if needed
+        const phoneNumberToSearch = await extractPhoneFromLid(sender, msg, raf);
+        
         // Get agent by WhatsApp number
-        const agentCred = agentTransactionManager.getAgentByWhatsapp(sender);
+        const agentCred = agentTransactionManager.getAgentByWhatsapp(phoneNumberToSearch);
         
         if (!agentCred) {
             return reply('❌ Anda bukan agent terdaftar.\n\nHubungi admin untuk registrasi.');
@@ -810,11 +867,7 @@ async function handleAgentStatusToggle(msg, sender, reply, status) {
                       '_Ketik "buka kembali" untuk mengaktifkan kembali_');
             }
             
-            logger.info('Agent status toggled', {
-                agentId: agent.id,
-                newStatus: newStatus ? 'open' : 'closed',
-                changedBy: sender
-            });
+            logger.info(`[AGENT_STATUS] ${agent.name} (${agent.id}) ${newStatus ? 'opened' : 'closed'}`);
         } else {
             reply(`❌ *GAGAL UPDATE STATUS*\n\n${result.message}`);
         }
@@ -835,21 +888,21 @@ async function handleAgentStatusToggle(msg, sender, reply, status) {
  * Command: profil agent, info agent (when sender is agent)
  * RENAMED FROM: handleAgentInfo to avoid conflict with handleViewAgentDetail
  */
-async function handleAgentSelfProfile(msg, sender, reply) {
+async function handleAgentSelfProfile(msg, sender, reply, raf = null) {
     try {
-        // Get agent by WhatsApp number
-        const agentCred = agentTransactionManager.getAgentByWhatsapp(sender);
+        // Extract real phone number from @lid if needed
+        const phoneNumberToSearch = await extractPhoneFromLid(sender, msg, raf);
         
-        if (!agentCred) {
+        // Get agent by WhatsApp number (now supports fallback to agents.json)
+        const agent = agentManager.getAgentByWhatsapp(phoneNumberToSearch);
+        
+        if (!agent) {
             return reply('❌ Anda bukan agent terdaftar.\n\nHubungi admin untuk registrasi.');
         }
         
-        // Get full agent data
-        const agent = agentManager.getAgentById(agentCred.agentId);
-        
-        if (!agent) {
-            return reply('❌ Data agent tidak ditemukan.\n\nHubungi admin.');
-        }
+        // Get credentials if available
+        const agentCred = agent.hasCredentials ? 
+            agentTransactionManager.getAgentByWhatsapp(phoneNumberToSearch) : null;
         
         // Get transaction statistics
         const stats = agentTransactionManager.getAgentStatistics(agent.id, 'month');
@@ -864,7 +917,7 @@ async function handleAgentSelfProfile(msg, sender, reply) {
         message += `📍 *INFORMASI KONTAK:*\n`;
         message += `• Alamat: ${agent.address}\n`;
         message += `• Telepon: ${agent.phone}\n`;
-        message += `• WhatsApp: ${agentCred.whatsappNumber}\n\n`;
+        message += `• WhatsApp: ${agent.whatsappNumber || sender}\n\n`;
         
         message += `🕐 *JAM OPERASIONAL:*\n`;
         message += `${agent.operational_hours}\n\n`;
@@ -886,8 +939,14 @@ async function handleAgentSelfProfile(msg, sender, reply) {
         message += `• Total Amount: Rp ${stats.totalAmount.toLocaleString('id-ID')}\n\n`;
         
         message += `🔐 *SECURITY:*\n`;
-        message += `• PIN: ✅ Terdaftar\n`;
-        message += `• Last Login: ${agentCred.lastLogin ? new Date(agentCred.lastLogin).toLocaleString('id-ID') : 'Belum pernah'}\n\n`;
+        if (agent.hasCredentials && agentCred) {
+            message += `• PIN: ✅ Terdaftar\n`;
+            message += `• Last Login: ${agentCred.lastLogin ? new Date(agentCred.lastLogin).toLocaleString('id-ID') : 'Belum pernah'}\n\n`;
+        } else {
+            message += `• PIN: ❌ Belum terdaftar\n`;
+            message += `• Status: Agent terdaftar tapi belum memiliki PIN\n`;
+            message += `• 💡 Hubungi admin untuk membuat PIN\n\n`;
+        }
         
         message += `💡 *COMMAND TERSEDIA:*\n`;
         message += `• \`ganti pin [lama] [baru]\`\n`;

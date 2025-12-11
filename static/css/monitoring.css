@@ -188,6 +188,41 @@
     background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
+.gradient-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+}
+
+/* Clickable stat card styles */
+.clickable-stat-card {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.clickable-stat-card:hover {
+    transform: translateY(-5px) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
+}
+
+.clickable-stat-card:active {
+    transform: translateY(-2px) !important;
+}
+
+.clickable-stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.clickable-stat-card:hover::after {
+    left: 100%;
+}
+
 /* Error state for cards */
 .modern-card.error {
     background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%) !important;

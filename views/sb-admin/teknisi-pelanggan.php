@@ -818,10 +818,12 @@
 
             const viewLat = (initialLat && !isNaN(parseFloat(initialLat))) ? parseFloat(initialLat) : defaultLat;
             const viewLng = (initialLng && !isNaN(parseFloat(initialLng))) ? parseFloat(initialLng) : defaultLng;
-            const viewZoom = (initialLat && initialLng && !isNaN(parseFloat(initialLat)) && !isNaN(parseFloat(initialLng))) ? 17 : defaultZoom;
+            // Pastikan viewZoom tidak melebihi maxZoom (18 untuk satellite)
+            const calculatedZoom = (initialLat && initialLng && !isNaN(parseFloat(initialLat)) && !isNaN(parseFloat(initialLng))) ? 18 : defaultZoom;
+            const viewZoom = Math.min(calculatedZoom, 18); // Maksimal 18 untuk mencegah error
 
-            const osmMaxZoom = 19;
-            const satelliteMaxZoom = 20;
+            const osmMaxZoom = 22;
+            const satelliteMaxZoom = 18; // Esri World Imagery hanya support sampai level 18
 
             const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: osmMaxZoom,
@@ -829,7 +831,9 @@
             });
             const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: satelliteMaxZoom,
-                attribution: 'Tiles &copy; Esri'
+                maxNativeZoom: 18, // Esri World Imagery hanya support sampai level 18
+                attribution: 'Tiles &copy; Esri',
+                errorTileUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' // Transparent 1x1 pixel
             });
 
             mapInstance = L.map(mapId, {

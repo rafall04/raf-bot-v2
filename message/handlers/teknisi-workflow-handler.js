@@ -9,14 +9,102 @@
 
 const fs = require('fs');
 const path = require('path');
-const { setUserState, getUserState, deleteUserState } = require('./conversation-handler');
+const { normalizePhone, deduplicatePhones, isSameRecipient } = require('../../lib/notification-tracker');
+const { getUserState, setUserState, deleteUserState } = require('./conversation-handler');
+const { generateOTP } = require('../../lib/otp-generator');
+const { notifyTechnicians } = require('./customer-photo-handler');
+const { clearUploadQueue } = require('./teknisi-photo-handler-v3');
 
 /**
- * Generate random OTP
+ * Send notification to customer without duplicates
+ * Handles both @lid and regular phone formats
  */
-function generateOTP() {
-    return Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit OTP
+async function sendCustomerNotification(ticket, message) {
+    const sentNumbers = new Set(); // Track sent numbers to avoid duplicates
+    const customerJid = ticket.pelangganId;
+    
+    // First: Send to main customer (yang lapor)
+    // PENTING: Cek connection state dan gunakan error handling sesuai rules
+    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+        try {
+            await global.raf.sendMessage(customerJid, { text: message });
+            console.log(`[CUSTOMER_NOTIF] Sent to main customer: ${customerJid}`);
+            
+            // Track the actual phone number that received the message
+            if (customerJid.endsWith('@lid')) {
+                // For @lid, track the first phone number as main
+                if (ticket.pelangganPhone) {
+                    const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+                    if (phones.length > 0) {
+                        const mainPhone = phones[0].replace(/\D/g, '');
+                        sentNumbers.add(mainPhone);
+                        console.log(`[CUSTOMER_NOTIF] Tracking main phone: ${mainPhone} (via @lid)`);
+                    }
+                }
+            } else {
+                // For regular format, extract the number
+                const mainPhone = customerJid.replace(/\D/g, '');
+                sentNumbers.add(mainPhone);
+            }
+        } catch (err) {
+            console.error('[SEND_MESSAGE_ERROR]', {
+                customerJid,
+                error: err.message
+            });
+            console.error('[CUSTOMER_NOTIF] Failed to notify main customer:', err);
+        }
+    } else {
+        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', customerJid);
+    }
+    
+    // Second: Send to additional phone numbers (skip if already sent)
+    if (ticket.pelangganPhone) {
+        const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
+        console.log(`[CUSTOMER_NOTIF] Processing ${phones.length} phone numbers: ${phones.join(', ')}`);
+        
+        for (const phone of phones) {
+            const phoneNumber = phone.replace(/\D/g, '');
+            
+            // Skip if already sent
+            if (sentNumbers.has(phoneNumber)) {
+                console.log(`[CUSTOMER_NOTIF] Skipping ${phone} (already sent)`);
+                continue;
+            }
+            
+            // Convert to JID format
+            let phoneJid = phone;
+            if (!phoneJid.endsWith('@s.whatsapp.net')) {
+                if (phoneJid.startsWith('0')) {
+                    phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
+                } else if (phoneJid.startsWith('62')) {
+                    phoneJid = `${phoneJid}@s.whatsapp.net`;
+                } else {
+                    phoneJid = `62${phoneJid}@s.whatsapp.net`;
+                }
+            }
+            
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    await global.raf.sendMessage(phoneJid, { text: message });
+                    console.log(`[CUSTOMER_NOTIF] Sent to additional number: ${phoneJid}`);
+                    sentNumbers.add(phoneNumber);
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        phoneJid,
+                        error: err.message
+                    });
+                    console.error(`[CUSTOMER_NOTIF] Failed to notify ${phoneJid}:`, err);
+                    // Continue to next recipient
+                }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', phoneJid);
+            }
+        }
+    }
 }
+
+// generateOTP is imported from ../../lib/otp-generator
 
 /**
  * Handle "proses" command - teknisi takes ticket
@@ -128,47 +216,8 @@ Teknisi akan segera menuju lokasi Anda.
 
 _Estimasi kedatangan akan diinformasikan._`;
 
-        // Send to main customer (yang lapor)
-        if (global.raf && global.raf.sendMessage) {
-            try {
-                await global.raf.sendMessage(customerJid, { text: customerMessage });
-                console.log(`[PROSES_NOTIF] OTP sent to main customer: ${customerJid}`);
-            } catch (err) {
-                console.error('[PROSES_NOTIF] Failed to notify main customer:', err);
-            }
-        }
-        
-        // IMPORTANT: Also send OTP to ALL registered phone numbers
-        if (ticket.pelangganPhone) {
-            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-            console.log(`[PROSES_NOTIF] Sending OTP to ${phones.length} phone numbers: ${phones.join(', ')}`);
-            
-            for (const phone of phones) {
-                let phoneJid = phone;
-                if (!phoneJid.endsWith('@s.whatsapp.net')) {
-                    if (phoneJid.startsWith('0')) {
-                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
-                    } else if (phoneJid.startsWith('62')) {
-                        phoneJid = `${phoneJid}@s.whatsapp.net`;
-                    } else {
-                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
-                    }
-                }
-                
-                // Skip if this is the main customer (already sent)
-                if (phoneJid === customerJid) {
-                    console.log(`[PROSES_NOTIF] Skipping ${phoneJid} (already sent as main customer)`);
-                    continue;
-                }
-                
-                try {
-                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                    console.log(`[PROSES_NOTIF] OTP sent to additional number: ${phoneJid}`);
-                } catch (err) {
-                    console.error(`[PROSES_NOTIF] Failed to notify ${phoneJid}:`, err);
-                }
-            }
-        }
+        // Send OTP notification without duplicates
+        await sendCustomerNotification(ticket, customerMessage);
         
         return {
             success: true,
@@ -296,39 +345,8 @@ Ketik: *lokasi ${ticketId.toUpperCase()}*
 
 Berikan kode ini saat teknisi tiba.`;
         
-        // Notify main customer
-        if (global.raf && global.raf.sendMessage) {
-            try {
-                await global.raf.sendMessage(ticket.pelangganId, { text: customerMessage });
-            } catch (err) {
-                console.error('[OTW_NOTIF] Failed to notify customer:', err);
-            }
-        }
-        
-        // Also notify other registered numbers (SAMA DENGAN mulai perjalanan)
-        if (ticket.pelangganPhone) {
-            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-            for (const phone of phones) {
-                let phoneJid = phone;
-                if (!phoneJid.endsWith('@s.whatsapp.net')) {
-                    if (phoneJid.startsWith('0')) {
-                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
-                    } else if (phoneJid.startsWith('62')) {
-                        phoneJid = `${phoneJid}@s.whatsapp.net`;
-                    } else {
-                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
-                    }
-                }
-                
-                if (phoneJid === ticket.pelangganId) continue;
-                
-                try {
-                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                } catch (err) {
-                    console.error(`[OTW_NOTIF] Failed to notify ${phoneJid}:`, err);
-                }
-            }
-        }
+        // Send OTW notification without duplicates using consistent helper
+        await sendCustomerNotification(ticket, customerMessage);
         
         return {
             success: true,
@@ -454,43 +472,8 @@ async function handleSampaiLokasi(sender, ticketId, reply) {
 
 _Perbaikan akan segera dimulai._`;
 
-        // Send to main customer
-        if (global.raf && global.raf.sendMessage) {
-            try {
-                await global.raf.sendMessage(customerJid, { text: customerMessage });
-                console.log(`[SAMPAI_NOTIF] Sent arrival notification to ${customerJid}`);
-            } catch (err) {
-                console.error('[SAMPAI_NOTIF] Failed to notify main customer:', err);
-            }
-        }
-        
-        // Also notify other registered numbers (same as OTW)
-        if (ticket.pelangganPhone) {
-            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-            console.log(`[SAMPAI_NOTIF] Sending to ${phones.length} phone numbers: ${phones.join(', ')}`);
-            
-            for (const phone of phones) {
-                let phoneJid = phone;
-                if (!phoneJid.endsWith('@s.whatsapp.net')) {
-                    if (phoneJid.startsWith('0')) {
-                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
-                    } else if (phoneJid.startsWith('62')) {
-                        phoneJid = `${phoneJid}@s.whatsapp.net`;
-                    } else {
-                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
-                    }
-                }
-                
-                if (phoneJid === customerJid) continue;
-                
-                try {
-                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                    console.log(`[SAMPAI_NOTIF] Sent to additional number: ${phoneJid}`);
-                } catch (err) {
-                    console.error(`[SAMPAI_NOTIF] Failed to notify ${phoneJid}:`, err);
-                }
-            }
-        }
+        // Send arrival notification without duplicates
+        await sendCustomerNotification(ticket, customerMessage);
         
         return {
             success: true,
@@ -521,6 +504,119 @@ _Perbaikan akan segera dimulai._`;
             message: '❌ Gagal update status kedatangan. Silakan coba lagi.'
         };
     }
+}
+
+/**
+ * Get category label for photo
+ */
+function getCategoryLabel(category) {
+    const labels = {
+        'problem': 'Titik Putus / Penyebab Masalah',
+        'speedtest': 'Screenshot Speedtest',
+        'result': 'Foto Hasil Redaman',
+        'extra': 'Foto Tambahan'
+    };
+    return labels[category] || 'Foto Dokumentasi';
+}
+
+/**
+ * Get next photo step based on current state
+ */
+function getNextPhotoStep(state) {
+    const { problem, speedtest, result } = state.photoCategories;
+    
+    // Step 1: Problem photo (WAJIB)
+    if (!problem) {
+        return {
+            step: 'AWAITING_PHOTO_CATEGORY_1',
+            category: 'problem',
+            message: `━━━━━━━━━━━━━━━━
+🔴 *FOTO 1/3 - WAJIB*
+━━━━━━━━━━━━━━━━
+
+📌 *Apa yang difoto:*
+• Titik putus kabel
+• Penyebab masalah (konektor rusak, dll)
+• Kondisi awal sebelum perbaikan
+
+💡 *Tips:*
+• Foto harus jelas dan fokus
+• Tunjukkan dengan jelas masalahnya
+• Ambil dari jarak yang cukup dekat
+
+➡️ *Kirim foto pertama sekarang...*`
+        };
+    }
+    
+    // Step 2: Speedtest photo (WAJIB)
+    if (!speedtest) {
+        return {
+            step: 'AWAITING_PHOTO_CATEGORY_2',
+            category: 'speedtest',
+            message: `✅ *Foto masalah diterima!*
+
+━━━━━━━━━━━━━━━━
+📊 *FOTO 2/3 - WAJIB*
+━━━━━━━━━━━━━━━━
+
+📌 *Apa yang difoto:*
+• Screenshot hasil speedtest SETELAH perbaikan
+• Atau foto layar speedtest dengan kamera
+• Gunakan speedtest.net atau fast.com
+
+💡 *Tips:*
+• Pastikan angka kecepatan terlihat jelas
+• Download dan Upload harus terlihat
+• Tunjukkan tanggal/waktu jika memungkinkan
+
+➡️ *Kirim foto speedtest sekarang...*`
+        };
+    }
+    
+    // Step 3: Result photo (OPSIONAL)
+    if (!result) {
+        return {
+            step: 'AWAITING_PHOTO_CATEGORY_3',
+            category: 'result',
+            message: `✅ *Foto speedtest diterima!*
+
+━━━━━━━━━━━━━━━━
+✅ *FOTO 3/3 - OPSIONAL*
+━━━━━━━━━━━━━━━━
+
+📌 *Apa yang difoto (opsional):*
+• Foto hasil redaman (jika punya alat ukur)
+• Foto instalasi yang sudah rapi
+• Foto perangkat yang sudah normal
+• Foto kabel yang sudah diperbaiki
+
+💡 *Bisa di-skip jika tidak ada:*
+
+➡️ Kirim foto ATAU ketik *SKIP* untuk lewati`
+        };
+    }
+    
+    // All required photos done, ask for extra
+    return {
+        step: 'AWAITING_PHOTO_EXTRA_CONFIRM',
+        category: 'extra',
+        message: `✅ *FOTO WAJIB LENGKAP!*
+
+━━━━━━━━━━━━━━━━
+📎 *FOTO TAMBAHAN?*
+━━━━━━━━━━━━━━━━
+
+📸 Ingin tambah foto pendukung lainnya?
+• Foto dari sudut berbeda
+• Foto detail tertentu
+• Foto dokumentasi lain
+
+Ketik:
+• *YA* - untuk upload foto tambahan
+• *TIDAK* - untuk selesaikan tiket
+
+➡️ *Pilihan Anda...*`
+    };
 }
 
 /**
@@ -578,52 +674,27 @@ async function handleVerifikasiOTP(sender, ticketId, otp, reply) {
 
 _Anda akan diinformasikan saat selesai._`;
 
-        // Send to main customer
-        if (global.raf && global.raf.sendMessage) {
-            try {
-                await global.raf.sendMessage(customerJid, { text: customerMessage });
-                console.log(`[VERIF_NOTIF] Sent to main customer: ${customerJid}`);
-            } catch (err) {
-                console.error('[VERIF_NOTIF] Failed to notify main customer:', err);
-            }
-        }
+        // Send verification notification without duplicates
+        await sendCustomerNotification(ticket, customerMessage);
         
-        // IMPORTANT: Also send to ALL registered phone numbers
-        if (ticket.pelangganPhone) {
-            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-            for (const phone of phones) {
-                let phoneJid = phone;
-                if (!phoneJid.endsWith('@s.whatsapp.net')) {
-                    if (phoneJid.startsWith('0')) {
-                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
-                    } else if (phoneJid.startsWith('62')) {
-                        phoneJid = `${phoneJid}@s.whatsapp.net`;
-                    } else {
-                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
-                    }
-                }
-                
-                if (phoneJid === customerJid) continue;
-                
-                try {
-                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                    console.log(`[VERIF_NOTIF] Sent to additional number: ${phoneJid}`);
-                } catch (err) {
-                    console.error(`[VERIF_NOTIF] Failed to notify ${phoneJid}:`, err);
-                }
-            }
-        }
-        
-        // Set state for photo upload
+        // Set state for guided photo upload with categorization
         if (!global.teknisiStates) {
             global.teknisiStates = {};
         }
         
         global.teknisiStates[sender] = {
-            step: 'AWAITING_COMPLETION_PHOTOS',
+            step: 'AWAITING_PHOTO_CATEGORY_1',  // Start with category 1
             ticketId: ticketId,
-            uploadedPhotos: [],
-            minPhotos: 2
+            currentPhotoCategory: 'problem',     // Current category being uploaded
+            uploadedPhotos: [],                  // Array of photo objects with categories
+            photoCategories: {                   // Track which categories are filled
+                problem: null,      // Foto penyebab masalah (wajib)
+                speedtest: null,    // Screenshot speedtest (wajib)
+                result: null,       // Foto hasil redaman (opsional)
+                extra: []           // Foto tambahan (opsional)
+            },
+            minPhotos: 2,                        // Minimum required photos
+            guidedMode: true                     // Use guided step-by-step mode
         };
         
         return {
@@ -636,22 +707,25 @@ _Anda akan diinformasikan saat selesai._`;
 🔧 Status: PERBAIKAN DIMULAI
 ━━━━━━━━━━━━━━━━
 
-📌 *STEP SELANJUTNYA:*
-📸 *UPLOAD DOKUMENTASI (Min. 2 Foto):*
+📸 *DOKUMENTASI STEP-BY-STEP:*
 
-1️⃣ Foto kondisi awal/masalah
-2️⃣ Foto proses perbaikan
-3️⃣ Foto hasil/selesai (opsional)
+━━━━━━━━━━━━━━━━
+🔴 *FOTO 1/3 - WAJIB*
+━━━━━━━━━━━━━━━━
 
-*Cara Upload:*
-• Kirim foto satu per satu
-• Bisa dengan jeda waktu
-• Min 2 foto, maks 5 foto
+📌 *Apa yang difoto:*
+• Titik putus kabel
+• Penyebab masalah (konektor rusak, dll)
+• Kondisi awal sebelum perbaikan
 
-➡️ Setelah semua foto terupload, ketik:
-   *done* atau *lanjut* atau *next*
+💡 *Tips:*
+• Foto harus jelas dan fokus
+• Tunjukkan dengan jelas masalahnya
+• Ambil dari jarak yang cukup dekat
 
-⚠️ Foto akan dikirim ke pelanggan sebagai bukti`
+➡️ *Kirim foto pertama sekarang...*
+
+⚠️ Semua foto akan dikirim ke pelanggan sebagai bukti`
         };
         
     } catch (error) {
@@ -713,8 +787,8 @@ Silakan kirim foto dulu.`
             };
         }
         
-        // Update ticket
-        ticket.status = 'selesai';
+        // Update ticket - Standardisasi status ke 'completed'
+        ticket.status = 'completed';
         ticket.completedAt = new Date().toISOString();
         ticket.teknisiPhotos = state.uploadedPhotos;
         ticket.teknisiPhotoCount = state.uploadedPhotos.length;
@@ -755,49 +829,8 @@ Jika ada masalah lagi, silakan lapor kembali.
 
 _Tiket telah ditutup._`;
 
-        // Send to main customer
-        if (global.raf && global.raf.sendMessage) {
-            try {
-                await global.raf.sendMessage(customerJid, { text: customerMessage });
-                console.log(`[SELESAI_NOTIF] Sent completion to main customer: ${customerJid}`);
-            } catch (err) {
-                console.error('[SELESAI_NOTIF] Failed to notify main customer:', err);
-            }
-        }
-        
-        // IMPORTANT: Also send to ALL registered phone numbers
-        if (ticket.pelangganPhone) {
-            const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-            console.log(`[SELESAI_NOTIF] Sending completion to ${phones.length} phone numbers: ${phones.join(', ')}`);
-            
-            for (const phone of phones) {
-                let phoneJid = phone;
-                if (!phoneJid.endsWith('@s.whatsapp.net')) {
-                    if (phoneJid.startsWith('0')) {
-                        phoneJid = `62${phoneJid.substring(1)}@s.whatsapp.net`;
-                    } else if (phoneJid.startsWith('62')) {
-                        phoneJid = `${phoneJid}@s.whatsapp.net`;
-                    } else {
-                        phoneJid = `62${phoneJid}@s.whatsapp.net`;
-                    }
-                }
-                
-                // Skip if this is the main customer (already sent above)
-                if (phoneJid === customerJid) {
-                    console.log(`[SELESAI_NOTIF] Skipping main customer ${phoneJid}`);
-                    continue;
-                }
-                
-                try {
-                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                    console.log(`[SELESAI_NOTIF] Sent to additional number: ${phoneJid}`);
-                } catch (err) {
-                    console.error(`[SELESAI_NOTIF] Failed to notify ${phoneJid}:`, err);
-                }
-            }
-        } else {
-            console.log(`[SELESAI_NOTIF] No additional phone numbers found in ticket`);
-        }
+        // Send completion notification without duplicates
+        await sendCustomerNotification(ticket, customerMessage);
         
         return {
             success: true,
@@ -825,65 +858,139 @@ Terima kasih atas kerja kerasnya! 💪`
 }
 
 /**
- * Handle teknisi photo upload
+ * Handle teknisi photo upload with categorization
  */
 async function handleTeknisiPhotoUpload(sender, photoPath) {
     try {
         // Get teknisi state
         const state = global.teknisiStates && global.teknisiStates[sender];
         
-        if (!state || state.step !== 'AWAITING_COMPLETION_PHOTOS') {
+        if (!state) {
             return {
                 success: false,
                 message: null // Not in photo upload state
             };
         }
         
-        // Add photo to state
-        if (!state.uploadedPhotos) {
-            state.uploadedPhotos = [];
-        }
-        
-        state.uploadedPhotos.push(photoPath);
-        const photoCount = state.uploadedPhotos.length;
-        
-        if (photoCount < state.minPhotos) {
-            return {
-                success: true,
-                message: `✅ Foto ${photoCount} berhasil diterima!
+        // Check if in guided mode with categories
+        if (state.guidedMode && state.currentPhotoCategory) {
+            // GUIDED MODE: Step-by-step with categories
+            const currentCategory = state.currentPhotoCategory;
+            
+            // Check maximum photos
+            if (state.uploadedPhotos.length >= 5) {
+                return {
+                    success: false,
+                    message: '❌ Maksimal 5 foto sudah tercapai. Ketik *done* untuk lanjut.'
+                };
+            }
+            
+            // Create photo object with category metadata
+            const photoObj = {
+                filename: photoPath,
+                category: currentCategory,
+                categoryLabel: getCategoryLabel(currentCategory),
+                uploadedAt: new Date().toISOString(),
+                order: state.uploadedPhotos.length + 1
+            };
+            
+            // Save to state
+            if (!state.uploadedPhotos) {
+                state.uploadedPhotos = [];
+            }
+            state.uploadedPhotos.push(photoObj);
+            
+            // Update category tracking
+            if (currentCategory === 'extra') {
+                state.photoCategories.extra.push(photoPath);
+            } else {
+                state.photoCategories[currentCategory] = photoPath;
+            }
+            
+            console.log(`[PHOTO_UPLOAD] Category: ${currentCategory}, Total: ${state.uploadedPhotos.length}`);
+            
+            // Get next step
+            const nextStep = getNextPhotoStep(state);
+            
+            if (nextStep) {
+                // Update state for next photo
+                state.step = nextStep.step;
+                state.currentPhotoCategory = nextStep.category;
+                
+                return {
+                    success: true,
+                    message: nextStep.message
+                };
+            } else {
+                // All photos done, ready to complete
+                state.step = 'AWAITING_COMPLETION_CONFIRMATION';
+                return {
+                    success: true,
+                    message: `✅ *SEMUA FOTO DOKUMENTASI LENGKAP!*
+
+━━━━━━━━━━━━━━━━
+📊 *RINGKASAN DOKUMENTASI:*
+━━━━━━━━━━━━━━━━
+
+✅ ${state.photoCategories.problem ? '1. Foto penyebab masalah' : ''}
+✅ ${state.photoCategories.speedtest ? '2. Screenshot speedtest' : ''}
+${state.photoCategories.result ? '✅ 3. Foto hasil perbaikan' : '⚪ 3. Foto hasil (di-skip)'}
+${state.photoCategories.extra.length > 0 ? `✅ ${state.photoCategories.extra.length} foto tambahan` : ''}
+
+━━━━━━━━━━━━━━━━
+📌 *STEP TERAKHIR:*
+━━━━━━━━━━━━━━━━
+
+➡️ Ketik salah satu:
+   • *done*
+   • *lanjut*
+   • *next*
+
+Untuk melanjutkan input catatan perbaikan`
+                };
+            }
+            
+        } else {
+            // LEGACY MODE: Backward compatibility for old flow
+            if (state.step !== 'AWAITING_COMPLETION_PHOTOS') {
+                return {
+                    success: false,
+                    message: null
+                };
+            }
+            
+            // Old flow without categories
+            if (!state.uploadedPhotos) {
+                state.uploadedPhotos = [];
+            }
+            
+            // Save as simple string (legacy format)
+            state.uploadedPhotos.push(photoPath);
+            const photoCount = state.uploadedPhotos.length;
+            
+            if (photoCount < state.minPhotos) {
+                return {
+                    success: true,
+                    message: `✅ Foto ${photoCount} berhasil diterima!
 
 📌 *STATUS UPLOAD:*
 • Foto terupload: ${photoCount}/2 (minimum)
 • Status: Perlu ${2 - photoCount} foto lagi
 
-📌 *STEP SELANJUTNYA:*
-➡️ Kirim foto ke-${photoCount + 1}
-   (minimal 2 foto dokumentasi)
-
-💡 Tips: Ambil foto yang jelas menunjukkan:
-• Kondisi perangkat/kabel
-• Proses perbaikan yang dilakukan`
-            };
-        } else {
-            return {
-                success: true,
-                message: `✅ *${photoCount} FOTO DOKUMENTASI DITERIMA!*
+➡️ Kirim foto ke-${photoCount + 1}`
+                };
+            } else {
+                return {
+                    success: true,
+                    message: `✅ *${photoCount} FOTO DOKUMENTASI DITERIMA!*
 
 📌 *STATUS:*
 • Foto terupload: ${photoCount} ✅
 • Minimum terpenuhi (2 foto)
-• Siap lanjut ke tahap berikutnya
 
-📌 *STEP SELANJUTNYA:*
-➡️ Ketik salah satu:
-   • *done*
-   • *lanjut* 
-   • *next*
-
-   Untuk melanjutkan ke pengisian catatan resolusi
-
-💡 Atau kirim foto tambahan jika diperlukan (maks 5)`
-            };
+➡️ Ketik *done* atau *lanjut* untuk melanjutkan`
+                };
+            }
         }
         
     } catch (error) {
@@ -912,12 +1019,26 @@ async function handleCompleteTicket(sender, state, reply) {
         
         const ticket = global.reports[reportIndex];
         
-        // Update ticket
+        // Update ticket with categorized photos
         ticket.status = 'completed';
         ticket.completedAt = new Date().toISOString();
         ticket.completedBy = sender;
         ticket.resolutionNotes = state.resolutionNotes;
-        ticket.completionPhotos = state.uploadedPhotos;
+        
+        // Save photos with category metadata for better organization
+        if (state.guidedMode && state.uploadedPhotos.length > 0) {
+            // Save categorized photos with metadata
+            ticket.completionPhotos = state.uploadedPhotos.map(photo => ({
+                filename: photo.filename,
+                category: photo.category,
+                categoryLabel: photo.categoryLabel,
+                uploadedAt: photo.uploadedAt,
+                order: photo.order
+            }));
+        } else {
+            // Legacy mode: Save as simple array
+            ticket.completionPhotos = state.uploadedPhotos;
+        }
         
         // Save to database
         const reportsPath = path.join(__dirname, '../../database/reports.json');
@@ -942,20 +1063,10 @@ Jika ada masalah, silakan laporkan kembali.
 
 _${global.config.nama || 'Layanan Internet'}_`;
         
-        await global.raf.sendMessage(customerJid, { text: customerMessage });
+        // Send completion notification without duplicates
+        await sendCustomerNotification(ticket, customerMessage);
         
-        // Send completion photos to customer
-        if (state.uploadedPhotos && state.uploadedPhotos.length > 0) {
-            for (const photo of state.uploadedPhotos) {
-                const photoPath = path.join(__dirname, '../../uploads/teknisi', photo);
-                if (fs.existsSync(photoPath)) {
-                    await global.raf.sendMessage(customerJid, {
-                        image: { url: photoPath },
-                        caption: `📸 Dokumentasi perbaikan - ${ticketId}`
-                    });
-                }
-            }
-        }
+        // Note: Photos are NOT sent to customer (only stored for admin/teknisi reference)
         
         return {
             success: true,
@@ -1005,5 +1116,5 @@ module.exports = {
     handleSelesaiTicket,
     handleTeknisiPhotoUpload,
     handleCompleteTicket,
-    generateOTP
+    sendCustomerNotification
 };

@@ -83,8 +83,9 @@ class MonitoringAPIWrapper {
             }
         }
         
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+        // OPTIMASI: Kurangi timeout untuk menghindari blocking render
+        curl_setopt($ch, CURLOPT_TIMEOUT, 1);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1);
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

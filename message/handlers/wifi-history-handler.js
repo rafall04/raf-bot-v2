@@ -1,23 +1,25 @@
 const { getWifiChangeLogs } = require('../../lib/wifi-logger');
+const { findUserWithLidSupport } = require('../../lib/lid-handler');
 
 /**
  * Handle HISTORY_WIFI intent - Show WiFi change history
  */
-async function handleHistoryWifi(sender, reply, global) {
+async function handleHistoryWifi(sender, reply, global, msg, raf) {
     try {
-        // Get user info
-        const senderNumber = sender.replace('@s.whatsapp.net', '');
-        const user = global.users.find(u => {
-            if (!u.phone_number) return false;
-            const phones = u.phone_number.split('|');
-            return phones.some(phone => {
-                const normalizedPhone = phone.replace(/\D/g, '');
-                const normalizedSender = senderNumber.replace(/\D/g, '');
-                return normalizedPhone === normalizedSender || 
-                       normalizedPhone === '62' + normalizedSender ||
-                       '62' + normalizedPhone === normalizedSender;
-            });
-        });
+        // Gunakan lid-handler untuk mencari user (mendukung format @lid)
+        const plainSenderNumber = sender.split('@')[0];
+        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        
+        // Debug logging untuk format @lid
+        if (sender.includes('@lid') && !user) {
+            console.log('[HISTORY_WIFI] @lid format detected, user not found');
+            console.log('[HISTORY_WIFI] Sender:', sender);
+            // Berikan instruksi verifikasi
+            const { createLidVerification } = require('../../lib/lid-handler');
+            const lidId = sender.split('@')[0];
+            const verification = createLidVerification(lidId, global.users);
+            return reply(verification.message);
+        }
         
         if (!user) {
             return reply('❌ Maaf, nomor Anda tidak terdaftar sebagai pelanggan.');

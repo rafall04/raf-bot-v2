@@ -77,9 +77,10 @@ if ($health && isset($health[0]['temperature'])) {
 }
 
 // Get ALL PPPoE active sessions with proper traffic data parsing
+// Try to get interface name by using detail parameter or by querying each session individually
 $pppActiveSessions = $API->comm('/ppp/active/print');
 
-// Also get queue statistics for traffic data fallback
+// Get queue statistics for traffic data - CRITICAL: This is the main source for traffic data
 $queueStats = [];
 $queues = $API->comm('/queue/simple/print');
 if ($queues && is_array($queues)) {
@@ -92,49 +93,473 @@ if ($queues && is_array($queues)) {
     }
 }
 
+// Also try queue tree (alternative queue type)
+$queueTreeStats = [];
+$queueTrees = $API->comm('/queue/tree/print');
+if ($queueTrees && is_array($queueTrees)) {
+    foreach ($queueTrees as $queue) {
+        $target = $queue['parent'] ?? $queue['name'] ?? '';
+        if ($target && isset($queue['bytes'])) {
+            $queueTreeStats[$target] = $queue['bytes'];
+        }
+    }
+}
+
+// CRITICAL: Traffic PPPoE berada di INTERFACE, bukan di PPP sessions!
+// Kita perlu mapping IP address ke interface PPPoE, lalu ambil traffic dari interface statistics
+
+// Get ALL interfaces and their statistics - THIS IS THE PRIMARY SOURCE FOR TRAFFIC DATA
+$allInterfaces = [];
+$pppoeInterfaces = []; // Store all PPPoE interfaces specifically
+$allInterfaceNames = []; // For debugging - store all interface names
+
+try {
+    $interfaces = $API->comm('/interface/print');
+    if ($interfaces && is_array($interfaces)) {
+        // Removed verbose logging
+        
+        foreach ($interfaces as $iface) {
+            $ifaceName = $iface['name'] ?? '';
+            $ifaceType = $iface['type'] ?? '';
+            
+            // Store all interface names for debugging
+            $allInterfaceNames[] = $ifaceName;
+            
+            // Store ALL interfaces with traffic data
+            $allInterfaces[$ifaceName] = [
+                'rx-byte' => intval($iface['rx-byte'] ?? 0),
+                'tx-byte' => intval($iface['tx-byte'] ?? 0),
+                'type' => $ifaceType,
+                'mac-address' => $iface['mac-address'] ?? '',
+                'running' => ($iface['running'] ?? false) === true || ($iface['running'] ?? '') === 'true'
+            ];
+            
+            // Store PPPoE interfaces specifically
+            // Format: pppoe-{username} or pppoe-{username}@{domain}
+            // Example: pppoe-amel@rafcybernet, pppoe-icak@rafcybernet
+            // Note: MikroTik might show as <pppoe-username@domain> in console, but API returns without <>
+            $isPppoeInterface = false;
+            
+            // Check by type first
+            if ($ifaceType === 'pppoe-out') {
+                $isPppoeInterface = true;
+            }
+            // Check by name pattern - must start with 'pppoe-'
+            elseif (strpos($ifaceName, 'pppoe-') === 0) {
+                $isPppoeInterface = true;
+            }
+            // Also check if name contains 'pppoe' anywhere (fallback)
+            elseif (stripos($ifaceName, 'pppoe') !== false && $ifaceType !== '') {
+                // Only if it's not a known non-PPPoE type
+                $nonPppoeTypes = ['ether', 'wlan', 'bridge', 'vlan', 'bonding', 'vrrp', 'gre', 'ipip', 'l2tp', 'pptp', 'sstp', 'ovpn'];
+                if (!in_array(strtolower($ifaceType), $nonPppoeTypes)) {
+                    $isPppoeInterface = true;
+                }
+            }
+            
+            if ($isPppoeInterface) {
+                $pppoeInterfaces[$ifaceName] = [
+                    'rx-byte' => intval($iface['rx-byte'] ?? 0),
+                    'tx-byte' => intval($iface['tx-byte'] ?? 0),
+                    'running' => ($iface['running'] ?? false) === true || ($iface['running'] ?? '') === 'true'
+                ];
+            }
+        }
+        
+        // Only log summary, not every interface
+        if (count($pppoeInterfaces) === 0) {
+            error_log("[PPPoE] WARNING: No PPPoE interfaces found! Total interfaces: " . count($allInterfaces));
+        }
+    }
+} catch (Exception $e) {
+    error_log("[PPPoE] ERROR getting interfaces: " . $e->getMessage());
+}
+
+// Method 1: Get IP to Interface mapping from ARP table (MOST RELIABLE)
+$ipToInterfaceMap = [];
+try {
+    $arp = $API->comm('/ip/arp/print');
+    if ($arp && is_array($arp)) {
+        foreach ($arp as $entry) {
+            $ip = $entry['address'] ?? '';
+            $interface = $entry['interface'] ?? '';
+            if ($ip && $interface) {
+                $ipToInterfaceMap[$ip] = $interface;
+            }
+        }
+    }
+} catch (Exception $e) {
+    // ARP might not be available, ignore
+}
+
+// Method 2: Get IP to Interface mapping from IP address table
+try {
+    $ipAddresses = $API->comm('/ip/address/print');
+    if ($ipAddresses && is_array($ipAddresses)) {
+        foreach ($ipAddresses as $addr) {
+            $ipWithMask = $addr['address'] ?? '';
+            $interface = $addr['interface'] ?? '';
+            if ($ipWithMask && $interface) {
+                // Extract IP without mask (e.g., "192.168.70.1/24" -> "192.168.70.1")
+                $ip = explode('/', $ipWithMask)[0];
+                // Only add if it's a PPPoE interface or if not already in map
+                if (isset($pppoeInterfaces[$interface]) || !isset($ipToInterfaceMap[$ip])) {
+                    $ipToInterfaceMap[$ip] = $interface;
+                }
+            }
+        }
+    }
+} catch (Exception $e) {
+    // IP address table might not be available, ignore
+}
+
+// Method 3: Get interface from route table (find route to IP address)
+try {
+    $routes = $API->comm('/ip/route/print');
+    if ($routes && is_array($routes)) {
+        foreach ($routes as $route) {
+            $dstAddress = $route['dst-address'] ?? '';
+            $gateway = $route['gateway'] ?? '';
+            $interface = $route['interface'] ?? '';
+            
+            // If route has interface and it's a PPPoE interface, store it
+            if ($interface && isset($pppoeInterfaces[$interface])) {
+                // Check if this route might match our PPPoE IPs
+                // Routes like "192.168.70.0/24" would match IPs in that range
+                if ($dstAddress && strpos($dstAddress, '/') !== false) {
+                    list($network, $mask) = explode('/', $dstAddress);
+                    // Store network to interface mapping for later matching
+                    // We'll match IPs to this network
+                }
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Route table might not be available, ignore
+}
+
+// Method 4: Try to get interface from active PPPoE sessions by matching caller-id
+// Sometimes we can match by MAC address (caller-id) if available
+$callerIdToInterfaceMap = [];
+$interfaceToIpMap = []; // Reverse mapping: interface -> IP (for debugging)
+try {
+    // Get all PPPoE interfaces and try to match by MAC or other identifiers
+    foreach ($pppoeInterfaces as $pppoeIfaceName => $pppoeIfaceStats) {
+        // Try to get more info about this interface
+        // FIX: Use correct array format - key should be '?name', not '?name=value'
+        $ifaceDetails = $API->comm('/interface/print', ['?name' => $pppoeIfaceName]);
+        if ($ifaceDetails && is_array($ifaceDetails) && isset($ifaceDetails[0])) {
+            $macAddress = $ifaceDetails[0]['mac-address'] ?? '';
+            if ($macAddress) {
+                $callerIdToInterfaceMap[$macAddress] = $pppoeIfaceName;
+            }
+        }
+        
+        // Also try to get IP address from interface (if available)
+        // Some interfaces might have IP address assigned
+        try {
+            // FIX: Use correct array format - key should be '?interface', not '?interface=value'
+            $ifaceIp = $API->comm('/ip/address/print', ['?interface' => $pppoeIfaceName]);
+            if ($ifaceIp && is_array($ifaceIp) && isset($ifaceIp[0]['address'])) {
+                $ipWithMask = $ifaceIp[0]['address'];
+                $ip = explode('/', $ipWithMask)[0];
+                $interfaceToIpMap[$pppoeIfaceName] = $ip;
+            }
+        } catch (Exception $e) {
+            // Interface might not have IP, ignore
+        }
+    }
+    // Removed verbose logging
+} catch (Exception $e) {
+    // Interface details might not be available, ignore
+}
+
+// Get accounting data if available (RouterOS accounting feature)
+$accountingData = [];
+try {
+    $accounting = $API->comm('/ip/accounting/print');
+    if ($accounting && is_array($accounting)) {
+        foreach ($accounting as $acc) {
+            $srcAddress = $acc['src-address'] ?? '';
+            $dstAddress = $acc['dst-address'] ?? '';
+            $bytes = intval($acc['bytes'] ?? 0);
+            $packets = intval($acc['packets'] ?? 0);
+            
+            // Index by source address (PPPoE user IP)
+            if ($srcAddress && !isset($accountingData[$srcAddress])) {
+                $accountingData[$srcAddress] = ['bytes' => 0, 'packets' => 0];
+            }
+            if ($srcAddress) {
+                $accountingData[$srcAddress]['bytes'] += $bytes;
+                $accountingData[$srcAddress]['packets'] += $packets;
+            }
+        }
+    }
+} catch (Exception $e) {
+    // Accounting might not be enabled, ignore
+}
+
 if ($pppActiveSessions && is_array($pppActiveSessions)) {
     foreach ($pppActiveSessions as $session) {
         $rxBytes = 0;
         $txBytes = 0;
         $sessionAddress = $session['address'] ?? '';
+        $sessionName = $session['name'] ?? '';
+        $sessionInterface = $session['interface'] ?? '';
+        $sessionId = $session['.id'] ?? '';
         
-        // Method 1: Direct bytes field (format can be "rx,tx" or "rx/tx" or "rx tx")
-        if (!empty($session['bytes'])) {
-            $bytes_str = $session['bytes'];
-            // Try different separators
-            if (strpos($bytes_str, '/') !== false) {
-                $parts = explode('/', $bytes_str);
-            } elseif (strpos($bytes_str, ',') !== false) {
-                $parts = explode(',', $bytes_str);
-            } else {
-                $parts = preg_split('/\s+/', $bytes_str);
-            }
-            if (count($parts) >= 2) {
-                $rxBytes = intval($parts[0]);
-                $txBytes = intval($parts[1]);
+        // Try to get interface name by querying session individually with more detail
+        // Note: Interface name is built from username, so we don't need this query
+        // But we'll keep it as fallback
+        if (empty($sessionInterface) && $sessionId) {
+            try {
+                // Use proper query format: ?.id=value (string key with ? prefix)
+                $queryParam = [];
+                $queryParam['?.id'] = $sessionId;
+                $sessionDetail = $API->comm('/ppp/active/print', $queryParam);
+                if ($sessionDetail && is_array($sessionDetail) && !empty($sessionDetail)) {
+                    // Check if result is array of arrays or single array
+                    $detail = is_array($sessionDetail[0]) ? $sessionDetail[0] : $sessionDetail;
+                    if (isset($detail['interface']) && !empty($detail['interface'])) {
+                        $sessionInterface = $detail['interface'];
+                        // Removed verbose logging
+                    }
+                }
+            } catch (Exception $e) {
+                // Detail query might not work, ignore
             }
         }
         
-        // Method 2: If no bytes in PPP session, try queue statistics
-        if ($rxBytes === 0 && $txBytes === 0 && $sessionAddress) {
-            // Try to find queue by IP address
-            $addressWithMask = $sessionAddress . '/32';
-            if (isset($queueStats[$addressWithMask])) {
-                $bytes_str = $queueStats[$addressWithMask];
+        // Removed verbose session logging
+        
+        // Method 1: Try bytes-sent and bytes-received (RouterOS v6.40+)
+        // These fields are the most reliable if available
+        if (isset($session['bytes-sent']) || isset($session['bytes-received'])) {
+            $rxBytes = intval($session['bytes-sent'] ?? 0);   // Download (user received)
+            $txBytes = intval($session['bytes-received'] ?? 0); // Upload (user sent)
+        }
+        // Method 2: Try bytes field (format: "rx/tx" or just numbers)
+        elseif (isset($session['bytes']) && $session['bytes'] !== '' && $session['bytes'] !== null) {
+            $bytes_str = trim((string)$session['bytes']);
+            if (!empty($bytes_str)) {
+                // Try different separators
                 if (strpos($bytes_str, '/') !== false) {
                     $parts = explode('/', $bytes_str);
-                    $rxBytes = intval($parts[0] ?? 0);
-                    $txBytes = intval($parts[1] ?? 0);
+                } elseif (strpos($bytes_str, ',') !== false) {
+                    $parts = explode(',', $bytes_str);
+                } elseif (strpos($bytes_str, ' ') !== false) {
+                    $parts = preg_split('/\s+/', $bytes_str);
+                } else {
+                    // Single number? Try to split in half (unlikely but possible)
+                    $parts = [$bytes_str, '0'];
+                }
+                if (count($parts) >= 2) {
+                    // Format: rx/tx (from router perspective)
+                    // rx = router received = user uploaded
+                    // tx = router transmitted = user downloaded
+                    $routerRx = intval(trim($parts[0]));
+                    $routerTx = intval(trim($parts[1]));
+                    // Convert to user perspective
+                    $rxBytes = $routerTx; // Router transmitted = user downloaded
+                    $txBytes = $routerRx; // Router received = user uploaded
+                } elseif (count($parts) === 1 && is_numeric($parts[0])) {
+                    // Single value - assume it's total, split 50/50 (not ideal but better than 0)
+                    $total = intval($parts[0]);
+                    $rxBytes = intval($total * 0.5);
+                    $txBytes = intval($total * 0.5);
+                }
+            }
+        }
+        // METHOD 3: PRIMARY METHOD - Get traffic from INTERFACE statistics
+        // CRITICAL: Traffic PPPoE berada di INTERFACE, bukan di PPP sessions!
+        // Interface name format: pppoe-{username}@{domain} or pppoe-{username}
+        // Example: pppoe-amel@rafcybernet, pppoe-icak@rafcybernet
+        // Note: MikroTik console shows <pppoe-username@domain> but API returns without <>
+        
+        if (($rxBytes === 0 && $txBytes === 0) && $sessionName) {
+            $foundInterface = null;
+            
+            // STEP 1: Build interface name from session username (MOST RELIABLE METHOD)
+            // Try multiple variations of interface name
+            $possibleInterfaceNames = [];
+            
+            // Format 1: pppoe-{username}@{domain} (full format)
+            $possibleInterfaceNames[] = 'pppoe-' . $sessionName;
+            
+            // Format 2: pppoe-{username} (without domain)
+            if (strpos($sessionName, '@') !== false) {
+                $usernameOnly = explode('@', $sessionName)[0];
+                $possibleInterfaceNames[] = 'pppoe-' . $usernameOnly;
+            }
+            
+            // Format 3: Try with different case variations (just in case)
+            $possibleInterfaceNames[] = 'pppoe-' . strtolower($sessionName);
+            if (strpos($sessionName, '@') !== false) {
+                $possibleInterfaceNames[] = 'pppoe-' . strtolower($usernameOnly);
+            }
+            
+            // Try each possible interface name
+            foreach ($possibleInterfaceNames as $possibleName) {
+                if (isset($allInterfaces[$possibleName])) {
+                    $foundInterface = $possibleName;
+                    break;
+                }
+            }
+            
+            // STEP 1b: If exact match failed, try partial matching
+            if (!$foundInterface) {
+                // Search through all PPPoE interfaces for a match
+                foreach ($pppoeInterfaces as $pppoeIfaceName => $pppoeIfaceStats) {
+                    // Remove 'pppoe-' prefix for comparison
+                    $ifaceUsername = str_replace('pppoe-', '', $pppoeIfaceName);
+                    
+                    // Check if interface username matches session username (with or without domain)
+                    if ($ifaceUsername === $sessionName || 
+                        $ifaceUsername === explode('@', $sessionName)[0] ||
+                        strpos($ifaceUsername, $sessionName) !== false ||
+                        strpos($sessionName, $ifaceUsername) !== false) {
+                        $foundInterface = $pppoeIfaceName;
+                        break;
+                    }
+                }
+            }
+            
+            // STEP 2: Try to find interface via IP mapping (ARP table)
+            if (!$foundInterface && $sessionAddress && isset($ipToInterfaceMap[$sessionAddress])) {
+                $foundInterface = $ipToInterfaceMap[$sessionAddress];
+            }
+            
+            // STEP 3: Try to find interface via caller-id (MAC address) if available
+            if (!$foundInterface && isset($session['caller-id'])) {
+                $callerId = $session['caller-id'] ?? '';
+                if ($callerId && isset($callerIdToInterfaceMap[$callerId])) {
+                    $foundInterface = $callerIdToInterfaceMap[$callerId];
+                }
+            }
+            
+            // STEP 4: If found interface, get traffic data from interface statistics
+            if ($foundInterface && isset($allInterfaces[$foundInterface])) {
+                $ifaceStats = $allInterfaces[$foundInterface];
+                $ifaceRx = $ifaceStats['rx-byte'] ?? 0;
+                $ifaceTx = $ifaceStats['tx-byte'] ?? 0;
+                
+                // CRITICAL: Convert perspective from router to user
+                // Interface rx-byte = router received = user uploaded (tx_bytes)
+                // Interface tx-byte = router transmitted = user downloaded (rx_bytes)
+                $rxBytes = $ifaceTx; // Router transmitted = user downloaded
+                $txBytes = $ifaceRx; // Router received = user uploaded
+                
+                // Only log if there's an issue (no traffic found)
+                if ($rxBytes === 0 && $txBytes === 0) {
+                    // Silent - interface found but no traffic is normal for new sessions
+                }
+            } else {
+                // Only log if no interface found AND no PPPoE interfaces exist at all
+                if (count($pppoeInterfaces) === 0) {
+                    error_log("[PPPoE] ERROR: No interface found for $sessionName and no PPPoE interfaces detected");
+                }
+            }
+            
+            // STEP 5: If session has interface field (even if empty in response, try direct match)
+            if (($rxBytes === 0 && $txBytes === 0) && $sessionInterface) {
+                if (isset($allInterfaces[$sessionInterface])) {
+                    $ifaceStats = $allInterfaces[$sessionInterface];
+                    $ifaceRx = $ifaceStats['rx-byte'] ?? 0;
+                    $ifaceTx = $ifaceStats['tx-byte'] ?? 0;
+                    $rxBytes = $ifaceTx; // Router transmitted = user downloaded
+                    $txBytes = $ifaceRx; // Router received = user uploaded
                 }
             }
         }
         
+        // Method 3b: Fallback - Try IP-based mapping if username-based failed
+        if (($rxBytes === 0 && $txBytes === 0) && $sessionAddress) {
+            // Try to find interface via IP mapping (ARP table)
+            if (isset($ipToInterfaceMap[$sessionAddress])) {
+                $foundInterface = $ipToInterfaceMap[$sessionAddress];
+                if (isset($allInterfaces[$foundInterface])) {
+                    $ifaceStats = $allInterfaces[$foundInterface];
+                    $ifaceRx = $ifaceStats['rx-byte'] ?? 0;
+                    $ifaceTx = $ifaceStats['tx-byte'] ?? 0;
+                    $rxBytes = $ifaceTx; // Router transmitted = user downloaded
+                    $txBytes = $ifaceRx; // Router received = user uploaded
+                }
+            }
+        }
+        // Method 4: Try queue statistics by IP address (FALLBACK METHOD)
+        // Queue statistics is a fallback if interface statistics don't work
+        if (($rxBytes === 0 && $txBytes === 0) && $sessionAddress) {
+            // Try various queue target formats - queue target can be IP, IP/mask, or interface
+            $queueTargets = [
+                $sessionAddress . '/32',  // Exact IP with /32 mask
+                $sessionAddress,          // Exact IP
+                $sessionAddress . '/24',  // Subnet /24
+                $sessionAddress . '/16',  // Subnet /16
+            ];
+            
+            // Try simple queue first
+            foreach ($queueTargets as $target) {
+                if (isset($queueStats[$target])) {
+                    $bytes_str = trim((string)$queueStats[$target]);
+                    if (!empty($bytes_str)) {
+                        if (strpos($bytes_str, '/') !== false) {
+                            $parts = explode('/', $bytes_str);
+                            if (count($parts) >= 2) {
+                                // Format: rx/tx (from router perspective)
+                                $routerRx = intval(trim($parts[0] ?? 0));
+                                $routerTx = intval(trim($parts[1] ?? 0));
+                                // Convert to user perspective
+                                $rxBytes = $routerTx; // Router transmitted = user downloaded
+                                $txBytes = $routerRx; // Router received = user uploaded
+                                if ($rxBytes > 0 || $txBytes > 0) {
+                                    error_log("[PPPoE DEBUG] Found queue data for $sessionAddress: RX=$rxBytes, TX=$txBytes");
+                                    break; // Found data, stop searching
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Try queue tree if simple queue didn't work
+            if (($rxBytes === 0 && $txBytes === 0)) {
+                foreach ($queueTargets as $target) {
+                    if (isset($queueTreeStats[$target])) {
+                        $bytes_str = trim((string)$queueTreeStats[$target]);
+                        if (!empty($bytes_str)) {
+                            if (strpos($bytes_str, '/') !== false) {
+                                $parts = explode('/', $bytes_str);
+                                if (count($parts) >= 2) {
+                                    $routerRx = intval(trim($parts[0] ?? 0));
+                                    $routerTx = intval(trim($parts[1] ?? 0));
+                                    $rxBytes = $routerTx;
+                                    $txBytes = $routerRx;
+                                    if ($rxBytes > 0 || $txBytes > 0) {
+                                        error_log("[PPPoE DEBUG] Found queue tree data for $sessionAddress: RX=$rxBytes, TX=$txBytes");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Method 5: Try accounting data (if accounting is enabled)
+        if (($rxBytes === 0 && $txBytes === 0) && $sessionAddress && isset($accountingData[$sessionAddress])) {
+            // Accounting shows total bytes, we'll use it as download estimate
+            $rxBytes = $accountingData[$sessionAddress]['bytes'] ?? 0;
+            // Upload is harder to estimate from accounting alone, but try 30% of total as estimate
+            $txBytes = intval($rxBytes * 0.3);
+        }
+        
         $pppoeSessions[] = [
-            'name' => $session['name'] ?? '',
+            'name' => $sessionName,
             'address' => $sessionAddress,
             'service' => $session['service'] ?? 'pppoe',
             'uptime' => $session['uptime'] ?? '0s',
             'caller_id' => $session['caller-id'] ?? '',
+            'interface' => $sessionInterface,
             'rx_bytes' => $rxBytes,
             'tx_bytes' => $txBytes,
             'rx_mb' => round($rxBytes / 1048576, 2),

@@ -530,6 +530,57 @@ function saveConfiguration() {
   
   console.log('Saving config:', speedBoostConfig);
   
+  // Validate config structure before save
+  const validationErrors = [];
+  
+  // Validate globalSettings
+  if (!speedBoostConfig.globalSettings) {
+    validationErrors.push('Pengaturan global tidak boleh kosong');
+  } else {
+    if (typeof speedBoostConfig.globalSettings.maxBoostDuration !== 'number' || speedBoostConfig.globalSettings.maxBoostDuration < 1) {
+      validationErrors.push('Max durasi harus berupa angka dan minimal 1 hari');
+    }
+    if (typeof speedBoostConfig.globalSettings.minBoostDuration !== 'number' || speedBoostConfig.globalSettings.minBoostDuration < 1) {
+      validationErrors.push('Min durasi harus berupa angka dan minimal 1 hari');
+    }
+    if (speedBoostConfig.globalSettings.minBoostDuration > speedBoostConfig.globalSettings.maxBoostDuration) {
+      validationErrors.push('Min durasi tidak boleh lebih besar dari max durasi');
+    }
+  }
+  
+  // Validate paymentMethods
+  if (!speedBoostConfig.paymentMethods) {
+    validationErrors.push('Metode pembayaran tidak boleh kosong');
+  } else {
+    const requiredMethods = ['cash', 'transfer', 'double_billing'];
+    requiredMethods.forEach(method => {
+      if (!speedBoostConfig.paymentMethods[method]) {
+        validationErrors.push(`Metode pembayaran ${method} tidak ditemukan`);
+      }
+    });
+  }
+  
+  // Validate pricingMatrix (should be array)
+  if (!Array.isArray(speedBoostConfig.pricingMatrix)) {
+    validationErrors.push('Pricing matrix harus berupa array');
+  }
+  
+  // Validate customPackages (should be array)
+  if (!Array.isArray(speedBoostConfig.customPackages)) {
+    validationErrors.push('Custom packages harus berupa array');
+  }
+  
+  // Show validation errors if any
+  if (validationErrors.length > 0) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Validasi Gagal',
+      html: '<ul style="text-align: left;"><li>' + validationErrors.join('</li><li>') + '</li></ul>',
+      confirmButtonText: 'OK'
+    });
+    return;
+  }
+  
   // Save to server
   // Ensure templates are not empty
   if (!speedBoostConfig.templates) {

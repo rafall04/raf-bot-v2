@@ -1,12 +1,14 @@
 /**
  * Reboot Modem Handler
- * Menangani proses reboot modem pelanggan
+ * Menangani permintaan reboot modem
  */
+const { findUserWithLidSupport } = require('../../lib/lid-handler');
+const { setUserState } = require('./conversation-handler');
 
 /**
  * Handle reboot modem request
  */
-function handleRebootModem({ sender, entities, isOwner, isTeknisi, plainSenderNumber, pushname, users, reply, temp, mess }) {
+function handleRebootModem({ sender, entities, isOwner, isTeknisi, plainSenderNumber, pushname, users, reply, mess, msg }) {
     // Logika pencarian user yang aman dan konsisten
     let user;
     const providedId = entities.id_pelanggan;
@@ -14,7 +16,14 @@ function handleRebootModem({ sender, entities, isOwner, isTeknisi, plainSenderNu
     if ((isOwner || isTeknisi) && providedId && !isNaN(parseInt(providedId))) {
         user = users.find(v => v.id == providedId);
     } else {
-        user = users.find(v => v.phone_number && v.phone_number.split("|").includes(plainSenderNumber));
+        // Use lid-handler to find user (supports @lid format)
+        user = findUserWithLidSupport(users, msg, plainSenderNumber);
+        
+        // Debug logging for @lid format
+        if (sender.includes('@lid') && !user) {
+            console.log('[REBOOT_MODEM] @lid format detected, user not found');
+            console.log('[REBOOT_MODEM] Sender:', sender);
+        }
     }
 
     if (!user) {
@@ -32,8 +41,11 @@ function handleRebootModem({ sender, entities, isOwner, isTeknisi, plainSenderNu
         return reply(`Maaf Kak ${pushname}, data device ID untuk pelanggan "${user.name || 'ini'}" tidak ditemukan sehingga saya tidak bisa melakukan reboot. Silakan hubungi Admin.`);
     }
 
-    // Memulai percakapan konfirmasi
-    temp[sender] = { step: 'CONFIRM_REBOOT', targetUser: user };
+    // Memulai percakapan konfirmasi menggunakan setUserState untuk auto-cleanup
+    setUserState(sender, {
+        step: 'CONFIRM_REBOOT',
+        targetUser: user
+    });
     reply(`Tentu, saya bisa me-reboot modem Anda. Perlu diingat, proses ini akan membuat koneksi internet terputus selama beberapa menit.\n\nAnda yakin ingin melanjutkan?\n\nBalas *'ya'* untuk melanjutkan, atau *'batal'* untuk membatalkan.`);
 }
 

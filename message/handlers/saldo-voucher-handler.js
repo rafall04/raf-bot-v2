@@ -9,8 +9,28 @@ const { checkATMuser } = require('../../lib/saldo');
 /**
  * Handle cek saldo
  */
-function handleCekSaldo(sender, pushname, config, format, reply) {
-    const currentNumericSaldo = checkATMuser(sender);
+async function handleCekSaldo(sender, pushname, config, format, reply) {
+    // PENTING: Normalisasi JID dari @lid ke format standar sebelum operasi saldo
+    const { normalizeJidForSaldo } = require('../../lib/lid-handler');
+    let userId = sender;
+    
+    if (sender && sender.endsWith('@lid')) {
+        const normalizedJid = await normalizeJidForSaldo(sender, { allowLid: false, raf: global.raf });
+        if (!normalizedJid) {
+            return reply('❌ Maaf, tidak dapat memverifikasi nomor WhatsApp Anda. Silakan hubungi admin.');
+        }
+        userId = normalizedJid;
+    }
+    
+    // PENTING: Pastikan userId tidak mengandung :0 atau format aneh lainnya
+    if (userId && userId.includes(':')) {
+        userId = userId.split(':')[0];
+        if (!userId.endsWith('@s.whatsapp.net')) {
+            userId = userId + '@s.whatsapp.net';
+        }
+    }
+    
+    const currentNumericSaldo = await checkATMuser(userId);
     const formattedSaldo = convertRupiah.convert(currentNumericSaldo);
     const namaLayanan = config.nama || "Layanan Kami";
     const namaBot = config.namabot || "Bot Kami";

@@ -1,6 +1,14 @@
 /**
  * Ticket Process Handler
  * Handle teknisi processing tickets with verification
+ * 
+ * DEPRECATED: Handler ini sebagian besar sudah tidak digunakan.
+ * - handleProsesTicket, handleVerifikasiOTP, handleCompleteTicket sudah diganti dengan teknisi-workflow-handler.js
+ * - handleRemoteResponse masih digunakan untuk CUSTOMER_CONFIRM_DONE
+ * - handleFinalConfirmation masih digunakan untuk final confirmation flow
+ * 
+ * TODO: Migrate handleRemoteResponse dan handleFinalConfirmation ke teknisi-workflow-handler.js
+ * TODO: Hapus handler yang tidak digunakan setelah migration selesai
  */
 
 const fs = require('fs');
@@ -26,6 +34,10 @@ function formatPhoneNumber(phone) {
 
 /**
  * Handle PROSES command from teknisi
+ * 
+ * @deprecated Handler ini sudah diganti dengan handleProsesTicket dari teknisi-workflow-handler.js
+ * Handler ini tidak digunakan di routing message/raf.js
+ * TODO: Hapus handler ini setelah memastikan tidak ada dependencies
  */
 async function handleProsesTicket(sender, ticketId, teknisiInfo, reply) {
     try {
@@ -68,7 +80,8 @@ Selesaikan salah satu tiket terlebih dahulu sebelum mengambil tiket baru.
             };
         }
         
-        if (report.status === 'selesai') {
+        // Check for completed status (support both 'completed' and 'selesai' for backward compatibility)
+        if (report.status === 'completed' || report.status === 'selesai') {
             return {
                 success: false,
                 message: `✅ Tiket *${ticketId}* sudah selesai ditangani.`
@@ -146,13 +159,20 @@ Teknisi akan menghubungi Anda segera.
 _Jika teknisi tidak datang dalam 2 jam atau ada yang mencurigakan, segera hubungi kami._`;
         
         // Send to primary pelangganId
-        if (report.pelangganId && global.raf) {
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (report.pelangganId && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
             try {
                 await global.raf.sendMessage(report.pelangganId, { text: customerMessage });
                 console.log(`[TICKET_PROCESS] OTP sent to primary customer number: ${report.pelangganId}`);
             } catch (err) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    pelangganId: report.pelangganId,
+                    error: err.message
+                });
                 console.error(`[TICKET_PROCESS] Failed to send OTP to primary number:`, err);
             }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', report.pelangganId);
         }
         
         // Also send to all registered phone numbers
@@ -174,11 +194,21 @@ _Jika teknisi tidak datang dalam 2 jam atau ada yang mencurigakan, segera hubung
                 // Skip if same as primary
                 if (phoneJid === report.pelangganId) continue;
                 
-                try {
-                    await global.raf.sendMessage(phoneJid, { text: customerMessage });
-                    console.log(`[TICKET_PROCESS] OTP also sent to: ${phoneJid}`);
-                } catch (err) {
-                    console.error(`[TICKET_PROCESS] Failed to send OTP to ${phoneJid}:`, err);
+                // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
+                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                    try {
+                        await global.raf.sendMessage(phoneJid, { text: customerMessage });
+                        console.log(`[TICKET_PROCESS] OTP also sent to: ${phoneJid}`);
+                    } catch (err) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            phoneJid,
+                            error: err.message
+                        });
+                        console.error(`[TICKET_PROCESS] Failed to send OTP to ${phoneJid}:`, err);
+                        // Continue to next phone number
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', phoneJid);
                 }
             }
         }
@@ -199,21 +229,31 @@ OTP telah dikirim ke pelanggan untuk verifikasi.`;
             acc.phone_number && acc.phone_number.trim() !== ""
         );
         
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (const admin of adminAccounts) {
-            try {
-                let adminJid = admin.phone_number.trim();
-                if (!adminJid.endsWith('@s.whatsapp.net')) {
-                    if (adminJid.startsWith('0')) {
-                        adminJid = `62${adminJid.substring(1)}@s.whatsapp.net`;
-                    } else if (adminJid.startsWith('62')) {
-                        adminJid = `${adminJid}@s.whatsapp.net`;
-                    } else {
-                        adminJid = `62${adminJid}@s.whatsapp.net`;
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    let adminJid = admin.phone_number.trim();
+                    if (!adminJid.endsWith('@s.whatsapp.net')) {
+                        if (adminJid.startsWith('0')) {
+                            adminJid = `62${adminJid.substring(1)}@s.whatsapp.net`;
+                        } else if (adminJid.startsWith('62')) {
+                            adminJid = `${adminJid}@s.whatsapp.net`;
+                        } else {
+                            adminJid = `62${adminJid}@s.whatsapp.net`;
+                        }
                     }
+                    await global.raf.sendMessage(adminJid, { text: adminNotif });
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        adminJid: admin.phone_number,
+                        error: err.message
+                    });
+                    console.error(`Failed to notify admin ${admin.username}:`, err);
+                    // Continue to next admin
                 }
-                await global.raf.sendMessage(adminJid, { text: adminNotif });
-            } catch (err) {
-                console.error(`Failed to notify admin ${admin.username}:`, err);
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to admin', admin.username);
             }
         }
         
@@ -288,6 +328,10 @@ Selamat bekerja! 💪`
 
 /**
  * Handle OTP verification from teknisi
+ * 
+ * @deprecated Handler ini sudah diganti dengan handleVerifikasiOTP dari teknisi-workflow-handler.js
+ * Handler ini tidak digunakan di routing message/raf.js
+ * TODO: Hapus handler ini setelah memastikan tidak ada dependencies
  */
 async function handleVerifikasiOTP(sender, ticketId, otp, reply) {
     try {
@@ -345,7 +389,8 @@ async function handleVerifikasiOTP(sender, ticketId, otp, reply) {
         
         // Notify customer that teknisi is verified
         const report = state.reportData;
-        if (report.pelangganId && global.raf) {
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (report.pelangganId && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
             const customerMessage = `✅ *TEKNISI TERVERIFIKASI*
 
 Teknisi telah tiba di lokasi dan terverifikasi.
@@ -356,8 +401,14 @@ Anda akan mendapat notifikasi setelah selesai.`;
             try {
                 await global.raf.sendMessage(report.pelangganId, { text: customerMessage });
             } catch (err) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    pelangganId: report.pelangganId,
+                    error: err.message
+                });
                 console.error(`Failed to notify customer about verification:`, err);
             }
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', report.pelangganId);
         }
         
         return {
@@ -403,6 +454,10 @@ Mulai kirim foto sekarang...`
 
 /**
  * Handle ticket completion with customer confirmation
+ * 
+ * @deprecated Handler ini sudah diganti dengan handleCompleteTicket dari teknisi-workflow-handler.js
+ * Handler ini tidak digunakan di routing message/raf.js
+ * TODO: Hapus handler ini setelah memastikan tidak ada dependencies
  */
 async function handleCompleteTicket({ sender, ticketId, resolutionNotes, uploadedPhotos, reply }) {
     try {
@@ -542,8 +597,8 @@ async function handleFinalConfirmation({ ticketId, completionCode, isFromCustome
             };
         }
         
-        // Mark as complete
-        report.status = 'selesai';
+        // Mark as complete - Standardisasi status ke 'completed'
+        report.status = 'completed';
         report.customerConfirmedAt = new Date().toISOString();
         report.confirmedByCustomer = isFromCustomer;
         

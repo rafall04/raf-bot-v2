@@ -9,8 +9,11 @@ const { greetingMessage, errorMessage, validationMessage } = require('../../lib/
 /**
  * Handle admin contact
  */
-function handleAdminContact(from, ownerNumber, config, msg, sendContact) {
-    sendContact(from, `${ownerNumber[0]}`, `Admin ${config.nama}`, msg);
+function handleAdminContact(from, ownerNumber, config, msg, sendContact, reply) {
+    if (!ownerNumber || ownerNumber.length === 0 || !ownerNumber[0]) {
+        return reply('❌ Nomor admin tidak tersedia. Silakan hubungi support.');
+    }
+    sendContact(from, `${ownerNumber[0]}`, `Admin ${config.nama || 'Admin'}`, msg);
 }
 
 /**
@@ -20,7 +23,9 @@ function handleBantuan(pushname, config, reply) {
     // Use template if available, fallback to hardcoded
     if (templateManager.hasTemplate('bantuan')) {
         const message = templateManager.getTemplate('bantuan', {
-            pushname: pushname
+            pushname: pushname || 'Kak',
+            nama_layanan: config.nama || 'Layanan Kami',
+            nama_bot: config.namabot || 'Bot Kami'
         });
         reply(message);
     } else {

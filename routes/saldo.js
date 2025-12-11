@@ -5,7 +5,9 @@ const path = require('path');
 const multer = require('multer');
 const saldoManager = require('../lib/saldo-manager');
 const voucherManager = require('../lib/voucher-manager');
+const agentManager = require('../lib/agent-manager');
 const { getUploadDir, getUploadPath, generateFilename } = require('../lib/upload-helper');
+const { renderTemplate } = require('../lib/templating');
 
 // Configure multer for file uploads (Topup proofs)
 const storage = multer.diskStorage({
@@ -37,13 +39,17 @@ const upload = multer({
 });
 
 // Get saldo statistics
-router.get('/statistics', (req, res) => {
+router.get('/statistics', async (req, res) => {
     try {
-        // Reload data to ensure fresh statistics
-        saldoManager.reloadTopupRequests();
-        saldoManager.reloadTransactions();
+        // Data sudah di memory dan selalu up-to-date karena langsung di-update saat write operations
+        // Reload hanya diperlukan jika ada perubahan dari luar (jarang terjadi)
+        // Gunakan ?forceReload=true jika perlu refresh manual
+        if (req.query.forceReload === 'true') {
+            saldoManager.reloadTopupRequests();
+            saldoManager.reloadTransactions();
+        }
         
-        const stats = saldoManager.getSaldoStatistics();
+        const stats = await saldoManager.getSaldoStatistics();
         const txStats = saldoManager.getTransactionStatistics();
         const topupRequests = saldoManager.getAllTopupRequests();
         
@@ -72,9 +78,9 @@ router.get('/statistics', (req, res) => {
 });
 
 // Get all users with saldo
-router.get('/users', (req, res) => {
+router.get('/users', async (req, res) => {
     try {
-        const saldoData = saldoManager.getAllSaldoData();
+        const saldoData = await saldoManager.getAllSaldoData();
         
         // Map with user names from database if available
         const users = global.users || [];
@@ -157,29 +163,48 @@ router.post('/add-manual', async (req, res) => {
         }
         
         // Ensure user exists in saldo database
-        saldoManager.createUserSaldo(userId);
+        await saldoManager.createUserSaldo(userId);
         
-        // Add saldo
-        const success = saldoManager.addSaldo(userId, amount, description || 'Topup manual by admin');
+        // Add saldo (sekarang async, perlu await)
+        let success = false;
+        try {
+            success = await saldoManager.addSaldo(userId, amount, description || 'Topup manual by admin');
+        } catch (error) {
+            console.error('[SALDO_API] Error adding saldo:', error);
+            console.error('[SALDO_API] Error stack:', error.stack);
+            return res.status(500).json({ 
+                success: false, 
+                message: 'Gagal menambah saldo: ' + error.message,
+                error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
+        }
         
         if (success) {
             // Send WhatsApp notification
-            try {
-                if (global.raf && global.raf.sendMessage) {
-                    const message = `✅ *SALDO DITAMBAHKAN*\n\n` +
-                        `Saldo Anda telah ditambahkan sebesar:\n` +
-                        `💰 *${saldoManager.formatCurrency(amount)}*\n\n` +
-                        `Saldo saat ini: *${saldoManager.formatCurrency(saldoManager.getUserSaldo(userId))}*\n\n` +
-                        `Keterangan: ${description || 'Topup manual by admin'}\n\n` +
-                        `Terima kasih! 🙏`;
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    // Ambil saldo setelah transaksi (await karena getUserSaldo return Promise)
+                    const currentSaldo = await saldoManager.getUserSaldo(userId);
+                    // PENTING: Kirim angka mentah, biarkan templating.js yang format dengan convertRupiah
+                    // Jangan gunakan formatCurrency() karena templating.js akan memanggil convertRupiah.convert() lagi
+                    const message = renderTemplate('saldo_ditambahkan', {
+                        harga: amount, // Angka mentah, akan di-format oleh templating.js
+                        formattedSaldo: currentSaldo, // Angka mentah, akan di-format oleh templating.js
+                        keterangan: description || 'Topup manual by admin'
+                    });
                     
                     await global.raf.sendMessage(userId, { text: message });
                     console.log(`[SALDO] Notifikasi WhatsApp terkirim ke ${userId}`);
-                } else {
-                    console.error('[SALDO] WhatsApp connection (global.raf) tidak tersedia');
+                } catch (error) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        userId,
+                        error: error.message
+                    });
+                    console.error('[SALDO] Error mengirim notifikasi:', error);
                 }
-            } catch (error) {
-                console.error('[SALDO] Error mengirim notifikasi:', error);
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', userId);
             }
             
             res.json({ success: true, message: 'Saldo berhasil ditambahkan' });
@@ -193,7 +218,7 @@ router.post('/add-manual', async (req, res) => {
 });
 
 // Create topup request
-router.post('/topup-request', upload.single('proof'), (req, res) => {
+router.post('/topup-request', upload.single('proof'), async (req, res) => {
     try {
         const { userId, amount, paymentMethod } = req.body;
         const paymentProof = req.file ? getUploadPath('topup-requests', req.file.filename) : null;
@@ -210,25 +235,38 @@ router.post('/topup-request', upload.single('proof'), (req, res) => {
         
         // Notify admins
         if (global.raf && global.raf.sendMessage) {
-            const adminMessage = `📢 *REQUEST TOPUP BARU*\n\n` +
-                `User: ${userId}\n` +
-                `Jumlah: ${saldoManager.formatCurrency(amount)}\n` +
-                `Metode: ${paymentMethod}\n` +
-                `${paymentProof ? 'Bukti: ✅ Sudah upload' : 'Bukti: ⏳ Belum upload'}\n\n` +
-                `ID Request: ${request.id}\n\n` +
-                `Silakan cek di panel admin untuk verifikasi.`;
+            const adminMessage = renderTemplate('topup_request_admin', {
+                user_id: userId,
+                harga: saldoManager.formatCurrency(amount),
+                metode_pembayaran: paymentMethod,
+                bukti_section: paymentProof ? 'Bukti: ✅ Sudah upload' : 'Bukti: ⏳ Belum upload',
+                request_id: request.id
+            });
             
             // Send to owner and admins
             const admins = global.accounts?.filter(acc => 
                 acc.role === 'owner' || acc.role === 'admin' || acc.role === 'superadmin'
             ) || [];
             
-            admins.forEach(admin => {
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
+            for (const admin of admins) {
                 if (admin.phone) {
                     const adminJid = admin.phone.includes('@') ? admin.phone : `${admin.phone}@s.whatsapp.net`;
-                    global.raf.sendMessage(adminJid, { text: adminMessage }).catch(console.error);
+                    if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                        try {
+                            await global.raf.sendMessage(adminJid, { text: adminMessage });
+                        } catch (error) {
+                            console.error('[SEND_MESSAGE_ERROR]', {
+                                adminJid,
+                                error: error.message
+                            });
+                            // Continue to next admin
+                        }
+                    } else {
+                        console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to admin', adminJid);
+                    }
                 }
-            });
+            }
         }
         
         res.json({ 
@@ -402,21 +440,14 @@ router.post('/purchase-voucher', async (req, res) => {
         if (result.success) {
             // Send voucher code via WhatsApp
             if (global.raf && global.raf.sendMessage) {
-                const message = `✅ *PEMBELIAN VOUCHER BERHASIL*\n\n` +
-                    `Voucher: *${result.voucher.profile}*\n` +
-                    `Durasi: ${result.voucher.duration}\n` +
-                    `Harga: ${saldoManager.formatCurrency(result.voucher.price)}\n\n` +
-                    `📱 *KODE VOUCHER HOTSPOT:*\n` +
-                    `━━━━━━━━━━━━━━━━━\n` +
-                    `Username: \`${result.voucher.code}\`\n` +
-                    `Password: \`${result.voucher.password}\`\n` +
-                    `━━━━━━━━━━━━━━━━━\n\n` +
-                    `Sisa saldo: ${saldoManager.formatCurrency(result.remainingSaldo)}\n\n` +
-                    `📌 *CARA PENGGUNAAN:*\n` +
-                    `1. Hubungkan ke WiFi hotspot\n` +
-                    `2. Buka browser\n` +
-                    `3. Masukkan username & password\n\n` +
-                    `_⚠️ Screenshot atau catat kode voucher ini!_`;
+                const message = renderTemplate('voucher_purchase_admin', {
+                    nama_paket: result.voucher.profile,
+                    durasi: result.voucher.duration,
+                    harga: saldoManager.formatCurrency(result.voucher.price),
+                    username: result.voucher.code,
+                    password: result.voucher.password,
+                    sisa_saldo: saldoManager.formatCurrency(result.remainingSaldo)
+                });
                 
                 global.raf.sendMessage(userId, { text: message }).catch(console.error);
             }
@@ -430,17 +461,21 @@ router.post('/purchase-voucher', async (req, res) => {
 });
 
 // Get all transactions with topup request info
-router.get('/transactions', (req, res) => {
+router.get('/transactions', async (req, res) => {
     try {
-        console.log('[API_TRANSACTIONS] Starting to fetch transactions...');
-        saldoManager.reloadTransactions();
-        saldoManager.reloadTopupRequests();  // IMPORTANT: Reload topup requests too!
+        // Data sudah di memory dan selalu up-to-date karena langsung di-update saat write operations
+        // Reload hanya diperlukan jika ada perubahan dari luar (jarang terjadi)
+        // Gunakan ?forceReload=true jika perlu refresh manual
+        if (req.query.forceReload === 'true') {
+            saldoManager.reloadTransactions();
+            saldoManager.reloadTopupRequests();
+        }
+        
         const transactions = saldoManager.getAllTransactions();
-        console.log(`[API_TRANSACTIONS] Loaded ${transactions.length} transactions`);
         
         // Enrich with user names and topup request info
         const users = global.users || [];
-        const saldoData = saldoManager.getAllSaldoData();
+        const saldoData = await saldoManager.getAllSaldoData();
         
         const enrichedTransactions = transactions.map(tx => {
             const saldoUser = saldoData.find(s => s.id === tx.userId);
@@ -553,6 +588,159 @@ router.get('/transaction/:id/proof', (req, res) => {
     } catch (error) {
         console.error('Error getting topup proof:', error);
         res.status(500).json({ success: false, message: 'Failed to get proof: ' + error.message });
+    }
+});
+
+/**
+ * GET /api/saldo/agents
+ * Get all agents with their saldo
+ */
+router.get('/agents', async (req, res) => {
+    try {
+        const agents = agentManager.getAllAgents(true); // active only
+        
+        // Get saldo data sekali untuk semua agents
+        const saldoData = await saldoManager.getAllSaldoData();
+        
+        // Map agents dengan saldo (await semua Promise sekaligus)
+        const agentsWithSaldoPromises = agents.map(async (agent) => {
+            // Format agent phone to JID for saldo lookup
+            let userId = agent.phone;
+            if (userId) {
+                if (!userId.includes('@')) {
+                    userId = userId.startsWith('0') ? '62' + userId.substring(1) : userId;
+                    userId = userId.startsWith('62') ? userId : '62' + userId;
+                    userId = userId + '@s.whatsapp.net';
+                }
+            }
+            
+            // Get saldo (await karena getUserSaldo return Promise)
+            const saldo = userId ? await saldoManager.getUserSaldo(userId) : 0;
+            
+            // Get last update from saldo data
+            const userSaldoData = saldoData.find(u => u.id === userId);
+            const lastUpdate = userSaldoData?.updated_at || null;
+            
+            return {
+                agentId: agent.id,
+                agentName: agent.name,
+                agentArea: agent.area,
+                agentPhone: agent.phone,
+                saldo: saldo || 0,
+                lastUpdate: lastUpdate
+            };
+        });
+        
+        // Tunggu semua Promise selesai
+        const agentsWithSaldo = await Promise.all(agentsWithSaldoPromises);
+        
+        res.json({
+            status: 200,
+            message: 'Agent saldo retrieved successfully',
+            data: agentsWithSaldo
+        });
+        
+    } catch (error) {
+        console.error('[SALDO_AGENTS] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Error retrieving agent saldo: ' + error.message,
+            data: null
+        });
+    }
+});
+
+/**
+ * POST /api/saldo/agent-topup
+ * Topup saldo for agent
+ */
+router.post('/agent-topup', async (req, res) => {
+    try {
+        const { agentId, userId, amount, description } = req.body;
+        
+        if (!agentId || !userId || !amount) {
+            return res.status(400).json({
+                success: false,
+                message: 'Agent ID, User ID, dan jumlah harus diisi'
+            });
+        }
+        
+        // Verify agent exists
+        const agent = agentManager.getAgentById(agentId);
+        if (!agent) {
+            return res.status(404).json({
+                success: false,
+                message: 'Agent tidak ditemukan'
+            });
+        }
+        
+        // Ensure user exists in saldo database
+        await saldoManager.createUserSaldo(userId, agent.name);
+        
+        // Add saldo (sekarang async, perlu await)
+        const success = await saldoManager.addSaldo(
+            userId,
+            parseInt(amount),
+            description || `Topup saldo agent ${agent.name} by admin`
+        );
+        
+        if (success) {
+            // Send WhatsApp notification to agent
+            try {
+                // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                    try {
+                        // Ambil saldo setelah transaksi (await karena getUserSaldo return Promise)
+                        const currentSaldo = await saldoManager.getUserSaldo(userId);
+                        const message = `✅ *SALDO AGENT DITAMBAHKAN*\n\n` +
+                            `Halo ${agent.name},\n\n` +
+                            `Saldo agent Anda telah ditambahkan sebesar:\n` +
+                            `💰 *${saldoManager.formatCurrency(parseInt(amount))}*\n\n` +
+                            `Saldo saat ini: *${saldoManager.formatCurrency(currentSaldo)}*\n\n` +
+                            `Keterangan: ${description || 'Topup saldo agent by admin'}\n\n` +
+                            `Terima kasih! 🙏`;
+                        
+                        await global.raf.sendMessage(userId, { text: message });
+                        console.log(`[SALDO_AGENT] Notifikasi WhatsApp terkirim ke ${userId}`);
+                    } catch (error) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            userId,
+                            error: error.message
+                        });
+                        console.error('[SALDO_AGENT] Error mengirim notifikasi:', error);
+                        // Continue even if notification fails
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', userId);
+                }
+            } catch (error) {
+                console.error('[SALDO_AGENT] Error:', error);
+                // Continue even if notification fails
+            }
+            
+            // Ambil saldo untuk response (await karena getUserSaldo return Promise)
+            const newSaldo = await saldoManager.getUserSaldo(userId);
+            res.json({
+                success: true,
+                message: `Saldo agent ${agent.name} berhasil ditambahkan`,
+                data: {
+                    agentId: agentId,
+                    agentName: agent.name,
+                    newSaldo: newSaldo
+                }
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Gagal menambah saldo agent'
+            });
+        }
+    } catch (error) {
+        console.error('Error adding agent saldo:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
     }
 });
 

@@ -449,9 +449,53 @@
                 </div>
                 <div class="modal-body">
                     <form id="editTemplateForm">
-                        <div class="form-group">
-                            <label>Intent / Nama Command</label>
-                            <input type="text" class="form-control" id="editIntent" readonly>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Intent / Nama Command</label>
+                                    <input type="text" class="form-control" id="editIntent" readonly>
+                                    <small class="form-text text-muted">
+                                        Intent tidak bisa diubah. Buat template baru jika perlu intent berbeda.
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="editCategory">Category <span class="text-danger">*</span></label>
+                                    <select class="form-control" id="editCategory" required>
+                                        <option value="">Pilih Category</option>
+                                        <option value="wifi">📡 WiFi Management</option>
+                                        <option value="customer">👤 Customer Service</option>
+                                        <option value="support">🚨 Support & Laporan</option>
+                                        <option value="saldo">💳 Saldo & Payment</option>
+                                        <option value="voucher">🎫 Voucher</option>
+                                        <option value="help">❓ Help & Guide</option>
+                                        <option value="greeting">👋 Greeting</option>
+                                        <option value="agent">🏪 Agent</option>
+                                        <option value="admin">👨‍💼 Admin</option>
+                                        <option value="menu">📋 Menu</option>
+                                        <option value="speedboost">⚡ Speed Boost</option>
+                                        <option value="teknisi">🔧 Teknisi</option>
+                                        <option value="pelanggan">👤 Pelanggan</option>
+                                        <option value="all">🌐 All</option>
+                                        <option value="other">📝 Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="form-group">
+                                    <label for="editDescription">Description</label>
+                                    <input type="text" class="form-control" id="editDescription" placeholder="Brief description of this command">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="editIcon">Icon (Emoji)</label>
+                                    <input type="text" class="form-control" id="editIcon" placeholder="📡" maxlength="2">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="editKeywords">Keywords (pisahkan dengan koma) <span class="text-danger">*</span></label>
@@ -753,6 +797,9 @@
                 currentEditIntent = intent;
                 $('#editIntent').val(intent);
                 $('#editKeywords').val(template.keywords.join(', '));
+                $('#editCategory').val(template.category || 'other');
+                $('#editDescription').val(template.description || '');
+                $('#editIcon').val(template.icon || '📝');
                 $('#editTemplateModal').modal('show');
             }
 
@@ -827,9 +874,17 @@
             $('#saveEditTemplateBtn').on('click', function() {
                 const intent = currentEditIntent;
                 const keywordsText = $('#editKeywords').val().trim();
+                const category = $('#editCategory').val().trim();
+                const description = $('#editDescription').val().trim();
+                const icon = $('#editIcon').val().trim();
 
                 if (!keywordsText) {
                     showToast('Keywords wajib diisi!', 'error');
+                    return;
+                }
+
+                if (!category) {
+                    showToast('Category wajib dipilih!', 'error');
                     return;
                 }
 
@@ -844,13 +899,20 @@
                 const originalText = button.html();
                 button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
 
+                const updateData = {
+                    keywords: keywords,
+                    category: category,
+                    description: description || '',
+                    icon: icon || '📝'
+                };
+
                 fetch(`/api/wifi-templates/${intent}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     credentials: 'include', // ✅ Fixed by script
-                    body: JSON.stringify({ keywords })
+                    body: JSON.stringify(updateData)
                 })
                 .then(response => response.json())
                 .then(result => {
@@ -880,8 +942,8 @@
                 button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menghapus...');
 
                 fetch(`/api/wifi-templates/${intent}`, {
-                    method: 'DELETE'
-                  credentials: 'include', // ✅ Fixed by script
+                    method: 'DELETE',
+                    credentials: 'include' // ✅ Fixed by script
                 })
                 .then(response => response.json())
                 .then(result => {

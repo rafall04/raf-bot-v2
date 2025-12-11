@@ -5,11 +5,13 @@
 
 const axios = require('axios');
 const { getSSIDInfo, setSSIDName, setPassword } = require('../../lib/wifi');
+const { findUserWithLidSupport } = require('../../lib/lid-handler');
+const { getUserState, setUserState, deleteUserState } = require('./conversation-handler');
 
 /**
  * Handle WiFi name change
  */
-async function handleGantiNamaWifi({ sender, args, matchedKeywordLength, isOwner, isTeknisi, pushname, users, reply, global, temp, mess }) {
+async function handleGantiNamaWifi({ sender, args, matchedKeywordLength, isOwner, isTeknisi, pushname, users, reply, global, mess, msg, raf }) {
     try {
         let user;
         let newName;
@@ -28,7 +30,19 @@ async function handleGantiNamaWifi({ sender, args, matchedKeywordLength, isOwner
             user = users.find(v => v.id == providedId);
         } else {
             const plainSenderNumber = sender.split('@')[0];
-            user = users.find(v => v.phone_number && v.phone_number.split("|").includes(plainSenderNumber));
+            // Use lid-handler to find user (supports @lid format)
+            user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
+            
+            // Debug logging for @lid format
+            if (sender.includes('@lid') && !user) {
+                console.log('[GANTI_NAMA_WIFI] @lid format detected, user not found');
+                console.log('[GANTI_NAMA_WIFI] Sender:', sender);
+                // Provide verification instructions
+                const { createLidVerification } = require('../../lib/lid-handler');
+                const lidId = sender.split('@')[0];
+                const verification = createLidVerification(lidId, users);
+                return reply(verification.message);
+            }
         }
 
         if(!user) {
@@ -76,33 +90,35 @@ async function handleGantiNamaWifi({ sender, args, matchedKeywordLength, isOwner
                         return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);
                     }
 
-                    temp[sender] = {
+                    setUserState(sender, {
                         step: 'SELECT_CHANGE_MODE',
                         targetUser: user,
                         nama_wifi_baru: newName,
                         bulk_ssids: user.bulk,
                         ssid_info: currentSSIDs
-                    };
+                    });
 
                     reply(`SSID WiFi yang tersedia:\n${currentSSIDs}\n\nAnda ingin mengubah nama WiFi menjadi: "${newName}"\n\nPilih mode perubahan:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
+                    return;
                 } else {
-                    temp[sender] = {
+                    setUserState(sender, {
                         step: 'SELECT_CHANGE_MODE_FIRST',
                         targetUser: user,
                         bulk_ssids: user.bulk,
                         ssid_info: currentSSIDs
-                    };
+                    });
 
                     reply(`SSID WiFi yang tersedia:\n${currentSSIDs}\n\nPilih mode perubahan nama:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
+                    return;
                 }
             } catch (error) {
                 console.error(`[GANTI_NAMA_WIFI] Error getting current SSID:`, error);
-                handleFallbackNameChange(sender, user, newName, temp, reply);
+                handleFallbackNameChange(sender, user, newName, reply);
             }
         } else if (hasMultipleSSIDs && !global.config.custom_wifi_modification) {
-            handleBulkAutoNameChange(sender, user, newName, temp, reply, global);
+            handleBulkAutoNameChange(sender, user, newName, reply, global);
         } else {
-            handleSingleSSIDNameChange(sender, user, newName, temp, reply, global);
+            handleSingleSSIDNameChange(sender, user, newName, reply, global);
         }
     } catch (e) {
         console.error(`[GANTI_NAMA_WIFI_ERROR] Error:`, e);
@@ -113,7 +129,7 @@ async function handleGantiNamaWifi({ sender, args, matchedKeywordLength, isOwner
 /**
  * Handle WiFi password change
  */
-async function handleGantiSandiWifi({ sender, args, matchedKeywordLength, isOwner, isTeknisi, pushname, users, reply, global, temp, mess }) {
+async function handleGantiSandiWifi({ sender, args, matchedKeywordLength, isOwner, isTeknisi, pushname, users, reply, global, mess, msg, raf }) {
     try {
         let user;
         let newPassword;
@@ -132,7 +148,19 @@ async function handleGantiSandiWifi({ sender, args, matchedKeywordLength, isOwne
             user = users.find(v => v.id == providedId);
         } else {
             const plainSenderNumber = sender.split('@')[0];
-            user = users.find(v => v.phone_number && v.phone_number.split("|").includes(plainSenderNumber));
+            // Use lid-handler to find user (supports @lid format)
+            user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
+            
+            // Debug logging for @lid format
+            if (sender.includes('@lid') && !user) {
+                console.log('[GANTI_SANDI_WIFI] @lid format detected, user not found');
+                console.log('[GANTI_SANDI_WIFI] Sender:', sender);
+                // Provide verification instructions
+                const { createLidVerification } = require('../../lib/lid-handler');
+                const lidId = sender.split('@')[0];
+                const verification = createLidVerification(lidId, users);
+                return reply(verification.message);
+            }
         }
 
         if(!user) {
@@ -170,11 +198,11 @@ async function handleGantiSandiWifi({ sender, args, matchedKeywordLength, isOwne
         const hasMultipleSSIDs = user.bulk && user.bulk.length > 0;
 
         if (useBulk) {
-            handleBulkPasswordChange(sender, user, newPassword, temp, reply, global);
+            handleBulkPasswordChange(sender, user, newPassword, reply, global);
         } else if (hasMultipleSSIDs && !global.config.custom_wifi_modification) {
-            handleBulkAutoPasswordChange(sender, user, newPassword, temp, reply, global);
+            handleBulkAutoPasswordChange(sender, user, newPassword, reply, global);
         } else {
-            handleSingleSSIDPasswordChange(sender, user, newPassword, temp, reply, global);
+            handleSingleSSIDPasswordChange(sender, user, newPassword, reply, global);
         }
     } catch (e) {
         console.error(`[GANTI_SANDI_WIFI_ERROR] Error:`, e);
@@ -183,38 +211,38 @@ async function handleGantiSandiWifi({ sender, args, matchedKeywordLength, isOwne
 }
 
 // Helper functions
-function handleFallbackNameChange(sender, user, newName, temp, reply) {
+function handleFallbackNameChange(sender, user, newName, reply) {
     if (newName && newName.trim().length > 0) {
         if (newName.length > 32) {
             return reply(`⚠️ Nama WiFi terlalu panjang, maksimal 32 karakter.`);
         }
 
-        temp[sender] = {
+        setUserState(sender, {
             step: 'SELECT_CHANGE_MODE',
             targetUser: user,
             nama_wifi_baru: newName,
             bulk_ssids: user.bulk
-        };
+        });
 
         reply(`Anda ingin mengubah nama WiFi menjadi: "${newName}"\n\nPilih mode perubahan:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
     } else {
-        temp[sender] = {
+        setUserState(sender, {
             step: 'SELECT_CHANGE_MODE_FIRST',
             targetUser: user,
             bulk_ssids: user.bulk
-        };
+        });
 
         reply(`Pilih mode perubahan nama WiFi:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
     }
 }
 
-async function handleSingleSSIDNameChange(sender, user, newName, temp, reply, global) {
+async function handleSingleSSIDNameChange(sender, user, newName, reply, global) {
     if (!newName || newName.trim().length === 0) {
-        temp[sender] = {
+        setUserState(sender, {
             step: 'ASK_NEW_NAME_FOR_SINGLE',
             targetUser: user,
             ssid_id: user.ssid_id || '1'
-        };
+        });
 
         reply("Tentu, mau diganti jadi apa nama WiFi nya? Silakan ketik nama yang baru.\n\n📝 *Ketentuan nama WiFi:*\n• Maksimal 32 karakter\n• Boleh menggunakan huruf, angka, spasi, titik, dan tanda hubung\n• Contoh: WiFiRumah, Keluarga-Bahagia\n\n💡 Ketik *batal* jika ingin membatalkan proses ini.");
     } else {
@@ -225,12 +253,12 @@ async function handleSingleSSIDNameChange(sender, user, newName, temp, reply, gl
         // Check config for execution mode
         if (global && global.config && global.config.custom_wifi_modification) {
             // MODE 1: Ask confirmation
-            temp[sender] = {
+            setUserState(sender, {
                 step: 'CONFIRM_GANTI_NAMA',
                 targetUser: user,
                 nama_wifi_baru: newName,
                 ssid_id: user.ssid_id || '1'
-            };
+            });
 
             reply(`Baik, saya konfirmasi ya. Nama WiFi akan diubah menjadi: "${newName}". Sudah benar?\n\nBalas *'ya'* untuk melanjutkan.`);
         } else {
@@ -249,13 +277,13 @@ async function handleSingleSSIDNameChange(sender, user, newName, temp, reply, gl
     }
 }
 
-async function handleBulkAutoNameChange(sender, user, newName, temp, reply, global) {
+async function handleBulkAutoNameChange(sender, user, newName, reply, global) {
     if (!newName || newName.trim().length === 0) {
-        temp[sender] = {
+        setUserState(sender, {
             step: 'ASK_NEW_NAME_FOR_BULK_AUTO',
             targetUser: user,
             bulk_ssids: user.bulk
-        };
+        });
         return reply(`Silakan ketik nama WiFi baru yang Anda inginkan.\n\n📝 *Ketentuan nama WiFi:*\n• Maksimal 32 karakter\n• Boleh menggunakan huruf, angka, spasi, titik, dan tanda hubung\n• Contoh: WiFiRumah, Keluarga-Bahagia\n\n⚠️ Nama ini akan diterapkan ke *semua SSID* WiFi Anda.\n\n💡 Ketik *batal* jika ingin membatalkan proses ini.`);
     }
     
@@ -290,7 +318,7 @@ async function handleBulkAutoNameChange(sender, user, newName, temp, reply, glob
     }
 }
 
-function handleBulkPasswordChange(sender, user, newPassword, temp, reply, global) {
+function handleBulkPasswordChange(sender, user, newPassword, reply, global) {
     try {
         const getSSIDInfo = require('../../lib/wifi').getSSIDInfo;
         getSSIDInfo(user.device_id).then(({ ssid }) => {
@@ -304,67 +332,67 @@ function handleBulkPasswordChange(sender, user, newPassword, temp, reply, global
                     return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);
                 }
 
-                temp[sender] = {
+                setUserState(sender, {
                     step: 'SELECT_CHANGE_PASSWORD_MODE',
                     targetUser: user,
                     sandi_wifi_baru: newPassword,
                     bulk_ssids: user.bulk,
                     ssid_info: currentSSIDs
-                };
+                });
 
                 reply(`SSID WiFi yang tersedia:\n${currentSSIDs}\n\nAnda ingin mengubah kata sandi WiFi menjadi: \`${newPassword}\`\n\nPilih mode perubahan:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
             } else {
-                temp[sender] = {
+                setUserState(sender, {
                     step: 'SELECT_CHANGE_PASSWORD_MODE_FIRST',
                     targetUser: user,
                     bulk_ssids: user.bulk,
                     ssid_info: currentSSIDs
-                };
+                });
 
                 reply(`SSID WiFi yang tersedia:\n${currentSSIDs}\n\nPilih mode perubahan kata sandi:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
             }
         }).catch(error => {
             console.error(`[GANTI_SANDI_WIFI] Error getting current SSID:`, error);
-            handleFallbackPasswordChange(sender, user, newPassword, temp, reply);
+            handleFallbackPasswordChange(sender, user, newPassword, reply);
         });
     } catch (error) {
         console.error(`[BULK_PASSWORD_CHANGE] Error:`, error);
-        handleFallbackPasswordChange(sender, user, newPassword, temp, reply);
+        handleFallbackPasswordChange(sender, user, newPassword, reply);
     }
 }
 
-function handleFallbackPasswordChange(sender, user, newPassword, temp, reply) {
+function handleFallbackPasswordChange(sender, user, newPassword, reply) {
     if (newPassword && newPassword.trim().length > 0) {
         if (newPassword.length < 8) {
             return reply(`⚠️ Kata sandi terlalu pendek, minimal harus 8 karakter.`);
         }
 
-        temp[sender] = {
+        setUserState(sender, {
             step: 'SELECT_CHANGE_PASSWORD_MODE',
             targetUser: user,
             sandi_wifi_baru: newPassword,
             bulk_ssids: user.bulk
-        };
+        });
 
         reply(`Anda ingin mengubah kata sandi WiFi menjadi: \`${newPassword}\`\n\nPilih mode perubahan:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
     } else {
-        temp[sender] = {
+        setUserState(sender, {
             step: 'SELECT_CHANGE_PASSWORD_MODE_FIRST',
             targetUser: user,
             bulk_ssids: user.bulk
-        };
+        });
 
         reply(`Pilih mode perubahan kata sandi WiFi:\n1️⃣ Ubah satu SSID saja\n2️⃣ Ubah semua SSID sekaligus\n\nBalas dengan angka pilihan Anda.`);
     }
 }
 
-async function handleBulkAutoPasswordChange(sender, user, newPassword, temp, reply, global) {
+async function handleBulkAutoPasswordChange(sender, user, newPassword, reply, global) {
     if (!newPassword || newPassword.trim().length === 0) {
-        temp[sender] = {
+        setUserState(sender, {
             step: 'ASK_NEW_PASSWORD_BULK_AUTO',
             targetUser: user,
             bulk_ssids: user.bulk
-        };
+        });
         return reply(`Silakan ketik kata sandi WiFi baru yang Anda inginkan.\n\n🔐 *Ketentuan kata sandi WiFi:*\n• Minimal 8 karakter\n• Boleh menggunakan huruf, angka, dan simbol\n• Contoh: Password123, MyWiFi2024!\n\n⚠️ Kata sandi ini akan diterapkan ke *semua SSID* WiFi Anda.\n\n💡 Ketik *batal* jika ingin membatalkan proses ini.`);
     }
     
@@ -399,13 +427,13 @@ async function handleBulkAutoPasswordChange(sender, user, newPassword, temp, rep
     }
 }
 
-async function handleSingleSSIDPasswordChange(sender, user, newPassword, temp, reply, global) {
+async function handleSingleSSIDPasswordChange(sender, user, newPassword, reply, global) {
     if (!newPassword || newPassword.trim().length === 0) {
-        temp[sender] = {
+        setUserState(sender, {
             step: 'ASK_NEW_PASSWORD',
             targetUser: user,
             ssid_id: user.ssid_id || '1'
-        };
+        });
 
         reply("Silakan ketik kata sandi WiFi baru yang Anda inginkan.\n\n🔐 *Ketentuan kata sandi WiFi:*\n• Minimal 8 karakter\n• Boleh menggunakan huruf, angka, dan simbol\n• Contoh: Password123, MyWiFi2024!\n\n💡 Ketik *batal* jika ingin membatalkan proses ini.");
     } else {
@@ -416,12 +444,12 @@ async function handleSingleSSIDPasswordChange(sender, user, newPassword, temp, r
         // Check config for execution mode
         if (global && global.config && global.config.custom_wifi_modification) {
             // MODE 1: Ask confirmation
-            temp[sender] = {
+            setUserState(sender, {
                 step: 'CONFIRM_GANTI_SANDI',
                 targetUser: user,
                 sandi_wifi_baru: newPassword,
                 ssid_id: user.ssid_id || '1'
-            };
+            });
 
             reply(`Anda yakin ingin mengubah kata sandi WiFi menjadi: \`${newPassword}\` ?\n\nBalas *'ya'* untuk melanjutkan, atau *'batal'* untuk membatalkan.`);
         } else {

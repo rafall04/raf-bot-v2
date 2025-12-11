@@ -97,19 +97,19 @@
   },
   "greeting_morning": {
     "name": "Salam Pagi",
-    "template": "Selamat pagi ${nama} 🌅\n\nAda yang bisa saya bantu hari ini?"
+    "template": "Selamat pagi ${nama} 🌅\n\nAda yang bisa saya bantu hari ini?\n\n📋 *Menu Dasar:*\n• Ketik *menuwifi* - Lihat semua layanan & fitur\n• Ketik *voucher* - Cek daftar harga voucher\n• Ketik *ceksaldo* - Cek saldo Anda\n• Ketik *bantuan* - Panduan lengkap\n\nKetik *menuwifi* untuk memulai! ✨"
   },
   "greeting_afternoon": {
     "name": "Salam Siang",
-    "template": "Selamat siang ${nama} ☀️\n\nAda yang bisa saya bantu?"
+    "template": "Selamat siang ${nama} ☀️\n\nAda yang bisa saya bantu?\n\n📋 *Menu Dasar:*\n• Ketik *menuwifi* - Lihat semua layanan & fitur\n• Ketik *voucher* - Cek daftar harga voucher\n• Ketik *ceksaldo* - Cek saldo Anda\n• Ketik *bantuan* - Panduan lengkap\n\nKetik *menuwifi* untuk memulai! ✨"
   },
   "greeting_evening": {
     "name": "Salam Sore",
-    "template": "Selamat sore ${nama} 🌆\n\nAda yang bisa saya bantu?"
+    "template": "Selamat sore ${nama} 🌆\n\nAda yang bisa saya bantu?\n\n📋 *Menu Dasar:*\n• Ketik *menuwifi* - Lihat semua layanan & fitur\n• Ketik *voucher* - Cek daftar harga voucher\n• Ketik *ceksaldo* - Cek saldo Anda\n• Ketik *bantuan* - Panduan lengkap\n\nKetik *menuwifi* untuk memulai! ✨"
   },
   "greeting_night": {
     "name": "Salam Malam",
-    "template": "Selamat malam ${nama} 🌙\n\nAda yang bisa saya bantu?"
+    "template": "Selamat malam ${nama} 🌙\n\nAda yang bisa saya bantu?\n\n📋 *Menu Dasar:*\n• Ketik *menuwifi* - Lihat semua layanan & fitur\n• Ketik *voucher* - Cek daftar harga voucher\n• Ketik *ceksaldo* - Cek saldo Anda\n• Ketik *bantuan* - Panduan lengkap\n\nKetik *menuwifi* untuk memulai! ✨"
   },
   "greeting_welcome": {
     "name": "Selamat Datang",

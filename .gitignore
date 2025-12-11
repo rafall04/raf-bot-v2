@@ -1,53 +1,118 @@
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Environment files
+# Environment variables
 .env
 .env.local
 .env.*.local
+config.local.json
+config.json
+database/config.json
+
+# Database files - NEVER commit database files!
+database/*.sqlite
+database/*.sqlite3
+database/*.db
+database/cache/
+database/locations/
+database/user/
+database/migrations/*.sqlite
+database/migrations/*.sqlite3
+
+# Database JSON files - Data operasional (FATAL jika ter-overwrite!)
+# PENTING: File-file ini berisi data production yang TIDAK BOLEH di-commit!
+# Hanya template dan config files yang BOLEH di-commit (lihat bagian bawah)
+
+# User & Account Data
+database/accounts.json
+database/agents.json
+database/lid-mappings.json
+
+# Reports & Tickets
+database/reports.json
+database/reports.backup*.json
+database/reports.deep-backup.json
+
+# Requests & Transactions
+database/requests.json
+database/speed_requests.json
+database/package_change_requests.json
+database/topup_requests.json
+
+# Payment & Billing
+database/invoices.json
+database/invoice-counter.json
+database/payment.json
+database/saldo_transactions.json
+
+# Vouchers & Agents
+database/voucher_purchases.json
+database/agent_credentials.json
+database/agent_transactions.json
+database/agent_voucher_inventory.json
+database/agent_voucher_purchases.json
+database/agent_voucher_sales.json
+
+# Operational Data
+database/compensations.json
+database/pppoe.json
+database/network_assets.json
+database/mikrotik_devices.json
+database/wifi_change_logs.json
+database/metrics.json
+
+# Announcements & News (berisi data user-generated)
+database/announcements.json
+database/news.json
+
+# File JSON yang BOLEH di-commit (templates & config):
+# - database/*_templates.json (message_templates.json, wifi_menu_templates.json, dll)
+# - database/packages.json (package definitions)
+# - database/cron.json (cron config)
+# - database/speed_boost_matrix.json (speed boost config)
+# - database/payment-method.json (payment methods config)
+# - database/statik.json (static data)
+# - database/voucher.json (voucher definitions)
+# - database/reseller.json (reseller config)
+# - database/genieacs_parameters.json (GenieACS config)
+# - database/handler_messages.json (handler config)
+
+# Database backups - keep local only
+backups/
+*.backup
+*.bak
+*.sqlite.backup
+*.sqlite.bak
+*.json.backup
+*.json.bak
+
+# Sessions & Auth
+sessions/
+*.session
+*.session.json
+
+# Uploads & User Content
+uploads/
+temp/
+*.tmp
 
 # Logs
 logs/
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Database files (sensitive data)
-database.sqlite
-*.sqlite
-*.sqlite3
-*.db
-# Keep structure but ignore actual user data
-database/user/*.json
-!database/user/.gitkeep
-database/invoices.json
-database/reports.json
-database/agent_credentials.json
-database/agent_transactions.json
-database/topup_requests.json
-database/saldo_transactions.json
-
-# Config with sensitive info
-config.json
-config.local.json
-*.config.js
-
-# Session files
-session/
-raf_session/
-baileys_auth_info/
-*.data.json
-
-# Temporary files
-temp/
-tmp/
-*.tmp
+# OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # IDE
 .vscode/
@@ -55,35 +120,22 @@ Thumbs.db
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
 
-# Uploads (keep structure, ignore files)
-uploads/**/*
-!uploads/**/.gitkeep
-static/uploads/**/*
-!static/uploads/**/.gitkeep
-
-# WhatsApp media cache
-media/
-downloads/
-
-# Backup files
-*.backup
-*.bak
-*.old
-backup/
-backups/*.sqlite
-backups/*.db
-!backups/.gitkeep
-
-# Test files
-coverage/
-.nyc_output/
-test-results/
-
-# Build files
+# Build & Dist
 dist/
 build/
+*.min.js
+*.min.css
 
-# System files
-.DS_Store
-desktop.ini
+# Test coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
+.cache/

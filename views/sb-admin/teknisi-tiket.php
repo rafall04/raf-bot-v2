@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
     <link href="/css/sb-admin-2.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2-bootstrap-theme/0.1.0-beta.10/select2-bootstrap.min.css" />
     <link href="/css/dashboard-modern.css" rel="stylesheet">
     <link href="/vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <style>
@@ -186,6 +187,184 @@
             text-align: center;
             display: inline-block;
         }
+        
+        /* Select2 Customization for Modal */
+        .select2-container--bootstrap .select2-selection--single {
+            height: calc(1.5em + 0.75rem + 2px) !important;
+            padding: 0.375rem 0.75rem !important;
+            line-height: 1.5 !important;
+            border: 1px solid #ced4da !important;
+            border-radius: 0.35rem !important;
+        }
+        
+        .select2-container--bootstrap .select2-selection--single .select2-selection__rendered {
+            line-height: calc(1.5em + 0.75rem) !important;
+            padding-left: 0 !important;
+        }
+        
+        .select2-container--bootstrap .select2-selection--single .select2-selection__arrow {
+            height: calc(1.5em + 0.75rem + 2px) !important;
+        }
+        
+        /* Ensure Select2 dropdown appears above modal */
+        .select2-container {
+            z-index: 9999 !important;
+        }
+        
+        .select2-dropdown {
+            z-index: 10000 !important;
+            border: 1px solid #ced4da !important;
+            border-radius: 0.35rem !important;
+        }
+        
+        /* Fix Select2 in modal */
+        .modal .select2-container {
+            z-index: 9999 !important;
+        }
+        
+        .modal .select2-dropdown {
+            z-index: 10000 !important;
+        }
+        
+        /* ===== GUIDED UPLOAD STYLES (LIGHTWEIGHT FOR KENTANG DEVICE) ===== */
+        
+        /* Upload Progress Steps - FLAT DESIGN */
+        .upload-progress-steps {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            background: #5a67d8;
+            border-radius: 6px;
+        }
+        
+        .upload-progress-steps .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        
+        .upload-progress-steps .step-connector {
+            width: 30px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.3);
+            margin: 0 -15px;
+        }
+        
+        .upload-progress-steps .step.completed + .step-connector {
+            background: rgba(255, 255, 255, 0.7);
+        }
+        
+        .upload-progress-steps .step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.6);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+            margin-bottom: 6px;
+        }
+        
+        .upload-progress-steps .step.active .step-icon {
+            background: white;
+            color: #5a67d8;
+        }
+        
+        .upload-progress-steps .step.completed .step-icon {
+            background: #28a745;
+            color: white;
+        }
+        
+        .upload-progress-steps .step-label {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+        
+        .upload-progress-steps .step.active .step-label {
+            color: white;
+            font-weight: 600;
+        }
+        
+        /* Current Step Guidance - SIMPLE FLAT */
+        .current-step-guidance {
+            background: #f0f4ff;
+            border-left: 3px solid #5a67d8;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        
+        .current-step-guidance h5 {
+            color: #5a67d8;
+            margin-bottom: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .current-step-guidance ul {
+            margin-bottom: 12px;
+            padding-left: 20px;
+        }
+        
+        .current-step-guidance ul li {
+            margin-bottom: 6px;
+            color: #4a5568;
+            line-height: 1.5;
+            font-size: 0.9rem;
+        }
+        
+        .current-step-guidance .alert {
+            border: none;
+            background: white;
+            border-left: 2px solid #3182ce;
+            padding: 10px;
+        }
+        
+        /* Photo Category Header - FLAT */
+        .photo-category-header-small {
+            width: 100%;
+            background: #5a67d8;
+            color: white;
+            padding: 8px 12px;
+            margin: 12px 0 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .photo-category-header-small:first-child {
+            margin-top: 0;
+        }
+        
+        /* Upload Controls - NO TRANSFORM */
+        .upload-controls .btn-primary {
+            background: #5a67d8;
+            border: none;
+            padding: 12px;
+            font-weight: 600;
+        }
+        
+        .upload-controls .btn-primary:hover {
+            background: #4c51bf;
+        }
+        
+        /* Badge Styling */
+        .badge-sm {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+        }
+        
+        /* Photo Preview - NO ANIMATION */
+        .photo-preview-item {
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
     </style>
 </head>
 
@@ -329,6 +508,13 @@
                             <textarea class="form-control" id="laporanTextInput" name="laporanText" rows="4" placeholder="Jelaskan kendala yang dialami pelanggan..." required></textarea>
                         </div>
                         
+                        <div class="form-group">
+                            <label for="photoInput">Upload Foto (Opsional):</label>
+                            <input type="file" class="form-control-file" id="photoInput" name="photos" accept="image/*" multiple>
+                            <small class="form-text text-muted">Maksimal 3 foto, ukuran maksimal 5MB per foto. Format: JPG, PNG, GIF, WebP</small>
+                            <div id="photoPreview" class="mt-2"></div>
+                        </div>
+                        
                         <div class="alert alert-info" role="alert">
                             <strong>ℹ️ Info:</strong> Tiket akan otomatis dikirim ke pelanggan dan teknisi lain via WhatsApp
                         </div>
@@ -400,42 +586,99 @@
         </div>
     </div>
 
-    <!-- Photo Upload Modal -->
+    <!-- Photo Upload Modal - GUIDED WITH CATEGORIES -->
     <div class="modal fade" id="uploadPhotoModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
-                <div class="modal-header">
+                <div class="modal-header" style="background: #5a67d8; color: white;">
                     <h5 class="modal-title"><i class="fas fa-camera"></i> Upload Foto Dokumentasi</h5>
-                    <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Close" style="color: white; opacity: 0.9;">
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="uploadPhotoTicketId">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i> 
-                        <strong>Minimal 2 foto diperlukan!</strong> Maksimal 5 foto.
+                    
+                    <!-- Step Progress Indicator -->
+                    <div class="upload-progress-steps mb-4">
+                        <div class="step active" id="step-problem" data-category="problem">
+                            <div class="step-icon">1</div>
+                            <div class="step-label">Penyebab Masalah</div>
+                            <div class="step-status"><i class="fas fa-circle"></i></div>
+                        </div>
+                        <div class="step-connector"></div>
+                        <div class="step" id="step-speedtest" data-category="speedtest">
+                            <div class="step-icon">2</div>
+                            <div class="step-label">Speedtest</div>
+                            <div class="step-status"><i class="fas fa-circle"></i></div>
+                        </div>
+                        <div class="step-connector"></div>
+                        <div class="step" id="step-result" data-category="result">
+                            <div class="step-icon">3</div>
+                            <div class="step-label">Hasil (Opsional)</div>
+                            <div class="step-status"><i class="fas fa-circle"></i></div>
+                        </div>
+                        <div class="step-connector"></div>
+                        <div class="step" id="step-extra" data-category="extra">
+                            <div class="step-icon">+</div>
+                            <div class="step-label">Tambahan</div>
+                            <div class="step-status"><i class="fas fa-circle"></i></div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="photoInput">Pilih Foto</label>
-                        <input type="file" class="form-control-file" id="photoInput" accept="image/*" multiple>
-                        <small class="form-text text-muted">
-                            Format: JPG, PNG, GIF. Maksimal 5MB per foto.
-                        </small>
+                    
+                    <!-- Current Step Guidance -->
+                    <div class="current-step-guidance" id="stepGuidance">
+                        <h5><i class="fas fa-info-circle"></i> <span id="guidanceTitle">Langkah 1: Foto Penyebab Masalah</span></h5>
+                        <div id="guidanceContent">
+                            <ul class="mb-2">
+                                <li>Foto titik putus kabel atau area bermasalah</li>
+                                <li>Foto konektor rusak atau komponen bermasalah</li>
+                                <li>Kondisi awal sebelum perbaikan dimulai</li>
+                            </ul>
+                            <div class="alert alert-info mb-0">
+                                <i class="fas fa-lightbulb"></i> <strong>Tips:</strong> Foto harus jelas, fokus, dan tunjukkan masalahnya dengan detail.
+                            </div>
+                        </div>
                     </div>
-                    <div class="mt-3">
-                        <p class="font-weight-bold">
-                            Foto Terupload: <span class="badge photo-count-badge badge-info" id="photoCountBadge">0</span>
-                        </p>
+                    
+                    <!-- Upload Controls -->
+                    <div class="upload-controls mt-3">
+                        <div class="form-group">
+                            <label for="photoInput" class="btn btn-primary btn-block">
+                                <i class="fas fa-camera"></i> Pilih Foto untuk <span id="currentCategoryLabel">Penyebab Masalah</span>
+                            </label>
+                            <input type="file" class="d-none" id="photoInput" accept="image/*">
+                            <small class="form-text text-muted text-center">
+                                Format: JPG, PNG, GIF. Maksimal 5MB per foto.
+                            </small>
+                        </div>
+                        
+                        <!-- Skip Button (only for optional steps) -->
+                        <div class="text-center mb-3" id="skipButtonContainer" style="display: none;">
+                            <button class="btn btn-outline-secondary btn-sm" id="skipCategoryBtn">
+                                <i class="fas fa-forward"></i> Lewati Foto Ini (Opsional)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Photo Preview with Grouping -->
+                    <div class="mt-4">
+                        <h6 class="font-weight-bold">
+                            <i class="fas fa-images"></i> Foto Terupload: 
+                            <span class="badge badge-info" id="photoCountBadge">0/5</span>
+                            <span class="badge badge-success ml-2" id="requiredBadge">Wajib: 0/2</span>
+                        </h6>
                         <div class="photo-preview-container" id="photoPreviewContainer">
-                            <!-- Photo previews will be inserted here -->
+                            <p class="text-muted text-center">Belum ada foto terupload</p>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Tutup</button>
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Tutup
+                    </button>
                     <button class="btn btn-success" type="button" id="completePhotoUploadBtn" disabled>
-                        <i class="fas fa-check"></i> Selesai Upload
+                        <i class="fas fa-check-circle"></i> Selesai Upload
                     </button>
                 </div>
             </div>
@@ -999,13 +1242,79 @@
         }
         
         /**
-         * Global state for photo uploads
+         * Global state for GUIDED photo uploads with categories
          */
         let currentUploadTicketId = null;
         let uploadedPhotos = [];
+        let photoUploadState = {
+            currentCategory: 'problem',  // problem | speedtest | result | extra
+            uploadedPhotos: [],
+            photoCategories: {
+                problem: null,      // Required
+                speedtest: null,    // Required
+                result: null,       // Optional
+                extra: []           // Optional array
+            },
+            guidedMode: true
+        };
         
         /**
-         * Show photo upload modal
+         * Category configuration with guidance
+         */
+        const categoryConfig = {
+            'problem': {
+                label: 'Titik Putus / Penyebab Masalah',
+                title: 'Langkah 1: Foto Penyebab Masalah',
+                icon: '1',
+                required: true,
+                guidance: [
+                    'Foto titik putus kabel atau area bermasalah',
+                    'Foto konektor rusak atau komponen bermasalah',
+                    'Kondisi awal sebelum perbaikan dimulai'
+                ],
+                tips: 'Foto harus jelas, fokus, dan tunjukkan masalahnya dengan detail.'
+            },
+            'speedtest': {
+                label: 'Screenshot Speedtest',
+                title: 'Langkah 2: Screenshot Speedtest',
+                icon: '2',
+                required: true,
+                guidance: [
+                    'Screenshot hasil speedtest SETELAH perbaikan',
+                    'Bisa foto layar speedtest dengan kamera',
+                    'Gunakan speedtest.net atau fast.com'
+                ],
+                tips: 'Pastikan angka kecepatan Download dan Upload terlihat jelas.'
+            },
+            'result': {
+                label: 'Foto Hasil Redaman',
+                title: 'Langkah 3: Foto Hasil (Opsional)',
+                icon: '3',
+                required: false,
+                guidance: [
+                    'Foto hasil redaman jika punya alat ukur',
+                    'Foto instalasi yang sudah rapi',
+                    'Foto perangkat yang sudah normal',
+                    'Foto kabel yang sudah diperbaiki'
+                ],
+                tips: 'Langkah ini opsional, bisa dilewati jika tidak ada.'
+            },
+            'extra': {
+                label: 'Foto Tambahan',
+                title: 'Foto Tambahan (Opsional)',
+                icon: '+',
+                required: false,
+                guidance: [
+                    'Foto dari sudut berbeda',
+                    'Foto detail tertentu',
+                    'Dokumentasi lain yang relevan'
+                ],
+                tips: 'Upload foto tambahan jika diperlukan dokumentasi lebih lengkap.'
+            }
+        };
+        
+        /**
+         * Show photo upload modal with GUIDED mode
          */
         function showUploadPhotoModal(ticketId) {
             if (!ticketId) {
@@ -1022,13 +1331,43 @@
             const allData = table.rows().data().toArray();
             const ticket = allData.find(t => (t.ticketId === ticketId || t.id === ticketId));
             
+            // Load existing photos if any
             if (ticket && ticket.photos && Array.isArray(ticket.photos)) {
                 uploadedPhotos = ticket.photos;
+                
+                // Parse uploaded photos to update state
+                photoUploadState.uploadedPhotos = ticket.photos;
+                ticket.photos.forEach(photo => {
+                    if (photo.category) {
+                        if (photo.category === 'extra') {
+                            photoUploadState.photoCategories.extra.push(photo);
+                        } else {
+                            photoUploadState.photoCategories[photo.category] = photo;
+                        }
+                    }
+                });
             } else {
                 uploadedPhotos = [];
+                // Reset state for new upload session
+                photoUploadState = {
+                    currentCategory: 'problem',
+                    uploadedPhotos: [],
+                    photoCategories: {
+                        problem: null,
+                        speedtest: null,
+                        result: null,
+                        extra: []
+                    },
+                    guidedMode: true
+                };
             }
             
-            // Update display
+            // Update current category based on what's filled
+            photoUploadState.currentCategory = getNextCategory();
+            
+            // Update UI
+            updateStepIndicator();
+            updateGuidanceDisplay();
             updatePhotoDisplay();
             
             // Clear file input
@@ -1037,6 +1376,112 @@
             // Show modal
             $('#uploadPhotoModal').modal('show');
         }
+        
+        /**
+         * Helper: Get next category based on current state
+         */
+        function getNextCategory() {
+            const { problem, speedtest, result } = photoUploadState.photoCategories;
+            
+            if (!problem) return 'problem';
+            if (!speedtest) return 'speedtest';
+            if (!result) return 'result';
+            return 'extra';
+        }
+        
+        /**
+         * Helper: Update step indicator UI
+         */
+        function updateStepIndicator() {
+            const currentCategory = photoUploadState.currentCategory;
+            
+            // Reset all steps
+            $('.step').removeClass('active completed');
+            
+            // Mark completed steps
+            const categories = ['problem', 'speedtest', 'result', 'extra'];
+            categories.forEach(cat => {
+                if (photoUploadState.photoCategories[cat]) {
+                    if (Array.isArray(photoUploadState.photoCategories[cat])) {
+                        if (photoUploadState.photoCategories[cat].length > 0) {
+                            $(`#step-${cat}`).addClass('completed');
+                        }
+                    } else {
+                        $(`#step-${cat}`).addClass('completed');
+                    }
+                }
+            });
+            
+            // Mark current step as active
+            $(`#step-${currentCategory}`).addClass('active');
+        }
+        
+        /**
+         * Helper: Update guidance display for current category
+         */
+        function updateGuidanceDisplay() {
+            const currentCategory = photoUploadState.currentCategory;
+            const config = categoryConfig[currentCategory];
+            
+            if (!config) return;
+            
+            // Update title
+            $('#guidanceTitle').text(config.title);
+            $('#currentCategoryLabel').text(config.label);
+            
+            // Update guidance content
+            let guidanceHTML = '<ul class="mb-2">';
+            config.guidance.forEach(item => {
+                guidanceHTML += `<li>${item}</li>`;
+            });
+            guidanceHTML += '</ul>';
+            guidanceHTML += `<div class="alert alert-info mb-0">
+                <i class="fas fa-lightbulb"></i> <strong>Tips:</strong> ${config.tips}
+            </div>`;
+            
+            $('#guidanceContent').html(guidanceHTML);
+            
+            // Show/hide skip button for optional categories
+            if (!config.required) {
+                $('#skipButtonContainer').show();
+            } else {
+                $('#skipButtonContainer').hide();
+            }
+        }
+        
+        /**
+         * Helper: Get category label
+         */
+        function getCategoryLabel(category) {
+            return categoryConfig[category]?.label || 'Foto Dokumentasi';
+        }
+        
+        /**
+         * Helper: Move to next category
+         */
+        function advanceToNextCategory() {
+            const nextCat = getNextCategory();
+            photoUploadState.currentCategory = nextCat;
+            
+            // Update UI
+            updateStepIndicator();
+            updateGuidanceDisplay();
+            updatePhotoDisplay();
+        }
+        
+        /**
+         * Handle skip button click
+         */
+        $('#skipCategoryBtn').on('click', function() {
+            const currentCategory = photoUploadState.currentCategory;
+            
+            console.log(`[SKIP] Skipping category: ${currentCategory}`);
+            
+            // Move to next category
+            advanceToNextCategory();
+            
+            displayGlobalMessage(`Foto ${getCategoryLabel(currentCategory)} dilewati`, 'info');
+        });
         
         /**
          * Handle photo file selection and upload
@@ -1092,12 +1537,20 @@
         });
         
         /**
-         * Upload single photo to server
+         * Upload single photo to server WITH CATEGORY metadata
          */
         async function uploadSinglePhoto(ticketId, file) {
             const formData = new FormData();
             formData.append('ticketId', ticketId);
             formData.append('photo', file);
+            
+            // ✅ ADD: Send category metadata (guided mode)
+            if (photoUploadState.guidedMode) {
+                const currentCategory = photoUploadState.currentCategory;
+                formData.append('category', currentCategory);
+                formData.append('categoryLabel', getCategoryLabel(currentCategory));
+                
+            }
             
             try {
                 const response = await fetch('/api/ticket/upload-photo', {
@@ -1110,12 +1563,38 @@
                 
                 if (response.ok && result.status === 200) {
                     // Add to uploaded photos array
-                    uploadedPhotos.push(result.data.photo);
+                    const photoData = result.data.photo;
+                    uploadedPhotos.push(photoData);
                     
-                    // Update display
-                    updatePhotoDisplay();
-                    
-                    displayGlobalMessage(`✓ Foto ${uploadedPhotos.length} berhasil diupload`, 'success');
+                    // ✅ UPDATE: Update photoUploadState with category
+                    if (photoUploadState.guidedMode) {
+                        const currentCategory = photoUploadState.currentCategory;
+                        
+                        // Update category tracking
+                        if (currentCategory === 'extra') {
+                            photoUploadState.photoCategories.extra.push(photoData);
+                        } else {
+                            photoUploadState.photoCategories[currentCategory] = photoData;
+                        }
+                        
+                        photoUploadState.uploadedPhotos.push(photoData);
+                        
+                        
+                        // ✅ AUTO-ADVANCE: Move to next category (except for 'extra' which allows multiple)
+                        if (currentCategory !== 'extra') {
+                            setTimeout(() => {
+                                advanceToNextCategory();
+                                displayGlobalMessage(`✓ ${getCategoryLabel(currentCategory)} berhasil!`, 'success');
+                            }, 500);
+                        } else {
+                            displayGlobalMessage(`✓ Foto tambahan berhasil`, 'success');
+                            updatePhotoDisplay();
+                        }
+                    } else {
+                        // Legacy mode
+                        updatePhotoDisplay();
+                        displayGlobalMessage(`✓ Foto ${uploadedPhotos.length} berhasil diupload`, 'success');
+                    }
                 } else {
                     displayGlobalMessage(`Upload gagal: ${result.message || 'Error'}`, 'danger');
                 }
@@ -1126,18 +1605,23 @@
         }
         
         /**
-         * Update photo display in modal
+         * Update photo display in modal WITH CATEGORY GROUPING
          */
         function updatePhotoDisplay() {
             const photoCount = uploadedPhotos.length;
-            const minPhotos = 2;
-            const canComplete = photoCount >= minPhotos;
+            const container = $('#photoPreviewContainer');
+            container.empty();
             
-            // Update badge
-            $('#photoCountBadge').text(photoCount);
+            // Check required categories (problem + speedtest)
+            const requiredFilled = photoUploadState.photoCategories.problem && photoUploadState.photoCategories.speedtest;
+            const requiredCount = (photoUploadState.photoCategories.problem ? 1 : 0) + (photoUploadState.photoCategories.speedtest ? 1 : 0);
             
-            // Update complete button state
-            if (canComplete) {
+            // Update badges
+            $('#photoCountBadge').text(`${photoCount}/5`);
+            $('#requiredBadge').text(`Wajib: ${requiredCount}/2`);
+            
+            // Update complete button state (require 2 required photos minimum)
+            if (requiredFilled) {
                 $('#completePhotoUploadBtn').prop('disabled', false)
                     .removeClass('btn-secondary').addClass('btn-success');
             } else {
@@ -1145,38 +1629,79 @@
                     .removeClass('btn-success').addClass('btn-secondary');
             }
             
-            // Render photo previews
-            const container = $('#photoPreviewContainer');
-            container.empty();
-            
-            uploadedPhotos.forEach((photo, index) => {
-                const photoPath = photo.path || photo;
-                const html = `
-                    <div class="photo-preview-item">
-                        <img src="${photoPath}" alt="Foto ${index + 1}">
-                        <div class="text-center mt-1">
-                            <small class="text-muted">Foto ${index + 1}</small>
-                        </div>
-                    </div>
-                `;
-                container.append(html);
-            });
-            
-            // Show message if no photos yet
-            if (photoCount === 0) {
-                container.html('<p class="text-muted">Belum ada foto terupload</p>');
+            // ✅ GROUPING: Display photos grouped by category
+            if (photoCount > 0) {
+                const categories = ['problem', 'speedtest', 'result', 'extra'];
+                let globalIndex = 0;
+                
+                categories.forEach(cat => {
+                    const photos = [];
+                    
+                    // Collect photos for this category
+                    if (cat === 'extra') {
+                        if (photoUploadState.photoCategories.extra.length > 0) {
+                            photos.push(...photoUploadState.photoCategories.extra);
+                        }
+                    } else {
+                        if (photoUploadState.photoCategories[cat]) {
+                            photos.push(photoUploadState.photoCategories[cat]);
+                        }
+                    }
+                    
+                    // Display category header and photos
+                    if (photos.length > 0) {
+                        // Add category header
+                        container.append(`
+                            <div class="photo-category-header-small">
+                                <i class="fas fa-tag"></i> ${getCategoryLabel(cat)}
+                            </div>
+                        `);
+                        
+                        // Add photos for this category
+                        photos.forEach(photo => {
+                            globalIndex++;
+                            const photoPath = photo.path || photo;
+                            const html = `
+                                <div class="photo-preview-item">
+                                    <img src="${photoPath}" alt="${getCategoryLabel(cat)} ${globalIndex}">
+                                    <div class="text-center mt-1">
+                                        <span class="badge badge-primary badge-sm">${getCategoryLabel(cat)}</span>
+                                    </div>
+                                </div>
+                            `;
+                            container.append(html);
+                        });
+                    }
+                });
+            } else {
+                container.html('<p class="text-muted text-center py-3">Belum ada foto terupload</p>');
             }
         }
         
         /**
-         * Handle complete photo upload button
+         * Handle complete photo upload button - CHECK REQUIRED CATEGORIES
          */
         $('#completePhotoUploadBtn').on('click', function() {
             const photoCount = uploadedPhotos.length;
             
-            if (photoCount < 2) {
-                displayGlobalMessage('Minimal 2 foto diperlukan', 'warning');
-                return;
+            // Check guided mode requirements
+            if (photoUploadState.guidedMode) {
+                const { problem, speedtest } = photoUploadState.photoCategories;
+                
+                if (!problem || !speedtest) {
+                    let missing = [];
+                    if (!problem) missing.push('Foto Penyebab Masalah');
+                    if (!speedtest) missing.push('Screenshot Speedtest');
+                    
+                    displayGlobalMessage(`Foto wajib belum lengkap: ${missing.join(', ')}`, 'warning');
+                    return;
+                }
+            } else {
+                // Legacy mode - check minimum count
+                if (photoCount < 2) {
+                    displayGlobalMessage('Minimal 2 foto diperlukan', 'warning');
+                    return;
+                }
             }
             
             // Close modal
@@ -1368,7 +1893,6 @@
         async function loadTickets(retryCount = 0) {
             // Prevent race condition - jangan load jika masih ada request yang berjalan
             if (isLoadingTickets) {
-                console.log('[LOAD_TICKETS] Already loading, skipping duplicate request.');
                 return;
             }
 
@@ -1417,30 +1941,14 @@
                 // Validasi result.data adalah array
                 const tickets = Array.isArray(result.data) ? result.data : [];
 
-                // Log untuk debugging
-                console.log(`[LOAD_TICKETS] Berhasil memuat ${tickets.length} tiket aktif.`);
-                if (tickets.length > 0) {
-                    const statusSummary = tickets.reduce((acc, t) => {
-                        acc[t.status] = (acc[t.status] || 0) + 1;
-                        return acc;
-                    }, {});
-                    console.log('[LOAD_TICKETS] Status breakdown:', statusSummary);
-                }
-
                 // Update DataTable dengan data baru
                 dataTable.clear().rows.add(tickets).draw();
-
-                // Clear any previous error messages
-                if (retryCount === 0 && tickets.length === 0) {
-                    console.log('[LOAD_TICKETS] Tidak ada tiket aktif. Filter: baru, pending, process, diproses teknisi, otw, arrived, working');
-                }
 
             } catch (error) {
                 console.error('[LOAD_TICKETS_ERROR]', error);
 
                 // Retry logic untuk network errors
                 if (retryCount < MAX_RETRIES && (error.message.includes('fetch') || error.message.includes('network'))) {
-                    console.log(`[LOAD_TICKETS] Retry attempt ${retryCount + 1}/${MAX_RETRIES} after network error...`);
                     await new Promise(resolve => setTimeout(resolve, 1500 * (retryCount + 1)));
                     isLoadingTickets = false;
                     return loadTickets(retryCount + 1);
@@ -1576,6 +2084,41 @@
                 }
             });
 
+            // Handle photo preview
+            document.getElementById('photoInput').addEventListener('change', function(e) {
+                const preview = document.getElementById('photoPreview');
+                preview.innerHTML = '';
+                
+                const files = e.target.files;
+                if (files.length > 3) {
+                    displayGlobalMessage('Maksimal 3 foto yang bisa diupload', 'warning');
+                    e.target.value = '';
+                    return;
+                }
+                
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.size > 5 * 1024 * 1024) {
+                        displayGlobalMessage(`File ${file.name} terlalu besar (maksimal 5MB)`, 'warning');
+                        e.target.value = '';
+                        preview.innerHTML = '';
+                        return;
+                    }
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.style.maxWidth = '150px';
+                        img.style.maxHeight = '150px';
+                        img.style.margin = '5px';
+                        img.style.borderRadius = '5px';
+                        preview.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
             // Handle create ticket form submission
             document.getElementById('createTicketForm').addEventListener('submit', async function(event) {
                 event.preventDefault();
@@ -1583,6 +2126,7 @@
                 const laporanText = document.getElementById('laporanTextInput').value;
                 const priority = document.getElementById('prioritySelect').value;
                 const issueType = document.getElementById('issueTypeSelect').value;
+                const photoInput = document.getElementById('photoInput');
                 const submitBtn = document.getElementById('submitNewTicketBtn');
 
                 if (!customerUserId) {
@@ -1590,11 +2134,18 @@
                     return;
                 }
 
+                // Validate photos
+                if (photoInput.files.length > 3) {
+                    displayGlobalMessage('Maksimal 3 foto yang bisa diupload', 'warning');
+                    return;
+                }
+
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat tiket...';
 
                 try {
-                    const response = await fetch('/api/ticket/create', {
+                    // Step 1: Create ticket first
+                    const createResponse = await fetch('/api/ticket/create', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         credentials: 'include',
@@ -1605,17 +2156,67 @@
                             issueType
                         })
                     });
-                    const result = await response.json();
+                    const createResult = await createResponse.json();
 
-                    if (response.ok && (result.status === 201 || result.status === 200)) {
-                        displayGlobalMessage(result.message || 'Tiket berhasil dibuat dan teknisi telah dinotifikasi', 'success');
-                        // Blur focus before hiding modal to prevent aria-hidden warning
-                        $('#createTicketModal').find(':focus').blur();
-                        $('#createTicketModal').modal('hide');
-                        loadTickets(); // Refresh ticket list
-                    } else {
-                        displayGlobalMessage(result.message || 'Gagal membuat tiket', 'danger');
+                    if (!createResponse.ok || (createResult.status !== 201 && createResult.status !== 200)) {
+                        displayGlobalMessage(createResult.message || 'Gagal membuat tiket', 'danger');
+                        return;
                     }
+
+                    const ticketId = createResult.data.ticketId || createResult.data.id;
+                    
+                    // Step 2: Upload photos if any
+                    if (photoInput.files.length > 0) {
+                        let uploadedCount = 0;
+                        let failedCount = 0;
+                        
+                        for (let i = 0; i < photoInput.files.length; i++) {
+                            const file = photoInput.files[i];
+                            const formData = new FormData();
+                            formData.append('photo', file);
+                            formData.append('ticketId', ticketId);
+                            
+                            try {
+                                const uploadResponse = await fetch('/api/ticket/create/upload-photo', {
+                                    method: 'POST',
+                                    credentials: 'include',
+                                    body: formData
+                                });
+                                const uploadResult = await uploadResponse.json();
+                                
+                                if (uploadResponse.ok && (uploadResult.status === 200 || uploadResult.status === 201)) {
+                                    uploadedCount++;
+                                } else {
+                                    failedCount++;
+                                    console.error('Failed to upload photo:', uploadResult.message);
+                                }
+                            } catch (uploadError) {
+                                failedCount++;
+                                console.error('Error uploading photo:', uploadError);
+                            }
+                        }
+                        
+                        if (failedCount > 0) {
+                            displayGlobalMessage(`Tiket berhasil dibuat. ${uploadedCount} foto berhasil diupload, ${failedCount} foto gagal.`, 'warning');
+                        } else {
+                            displayGlobalMessage(`Tiket berhasil dibuat dengan ${uploadedCount} foto.`, 'success');
+                        }
+                    } else {
+                        // Display message with working hours info if outside hours
+                        let messageToShow = createResult.message;
+                        if (createResult.workingHours && !createResult.workingHours.isWithinHours && createResult.workingHours.warning) {
+                            displayGlobalMessage(messageToShow, 'warning');
+                        } else {
+                            displayGlobalMessage(messageToShow, 'success');
+                        }
+                    }
+                    
+                    // Blur focus before hiding modal to prevent aria-hidden warning
+                    $('#createTicketModal').find(':focus').blur();
+                    $('#createTicketModal').modal('hide');
+                    document.getElementById('createTicketForm').reset();
+                    document.getElementById('photoPreview').innerHTML = '';
+                    loadTickets(); // Refresh ticket list
                 } catch(error) {
                     console.error('Error creating ticket:', error);
                     displayGlobalMessage('Terjadi kesalahan koneksi saat membuat tiket', 'danger');

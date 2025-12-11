@@ -115,11 +115,20 @@ async function buatLaporanGangguan(pelangganId, pelangganPushName, userPelanggan
                     continue;
                 }
             }
-            try {
-                await raf.sendMessage(teknisiJid, { text: messageToTeknisi });
-                await sleep(1000);
-            } catch (err) {
-                console.error(`[LAPORAN_ERROR] Gagal mengirim laporan ke teknisi ${teknisi.username} (${teknisiJid}):`, err.message);
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules
+            if (global.whatsappConnectionState === 'open' && raf && raf.sendMessage) {
+                try {
+                    await raf.sendMessage(teknisiJid, { text: messageToTeknisi });
+                    await sleep(1000);
+                } catch (err) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        teknisiJid,
+                        error: err.message
+                    });
+                    console.error(`[LAPORAN_ERROR] Gagal mengirim laporan ke teknisi ${teknisi.username} (${teknisiJid}):`, err.message);
+                }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to teknisi', teknisi.username);
             }
         }
     } else {
@@ -136,10 +145,19 @@ async function buatLaporanGangguan(pelangganId, pelangganPushName, userPelanggan
                          continue;
                     }
                 }
-                try {
-                    await raf.sendMessage(ownerJid, { text: fallbackMessageToOwner });
-                } catch (e) {
-                    console.error(`[LAPORAN_ERROR] Gagal mengirim fallback laporan ke owner ${ownerJid}:`, e.message);
+                // PENTING: Cek connection state dan gunakan error handling sesuai rules
+                if (global.whatsappConnectionState === 'open' && raf && raf.sendMessage) {
+                    try {
+                        await raf.sendMessage(ownerJid, { text: fallbackMessageToOwner });
+                    } catch (e) {
+                        console.error('[SEND_MESSAGE_ERROR]', {
+                            ownerJid,
+                            error: e.message
+                        });
+                        console.error(`[LAPORAN_ERROR] Gagal mengirim fallback laporan ke owner ${ownerJid}:`, e.message);
+                    }
+                } else {
+                    console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to owner', ownerJid);
                 }
             }
         }

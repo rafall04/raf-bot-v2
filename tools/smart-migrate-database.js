@@ -8,8 +8,12 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-// Database paths
-const dbPath = path.join(__dirname, '..', 'database.sqlite');
+// Database paths - all databases stored in database/ folder
+const dbDir = path.join(__dirname, '..', 'database');
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+}
+const dbPath = path.join(dbDir, 'database.sqlite');
 const backupsDir = path.join(__dirname, '..', 'backups');
 
 // Create backups directory if it doesn't exist

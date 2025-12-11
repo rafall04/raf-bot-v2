@@ -161,15 +161,7 @@
         <div id="content-wrapper" class="d-flex flex-column">
             <div id="content">
                 <!-- Topbar -->
-                <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-                    <form class="form-inline"><button type="button" id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3"><i class="fa fa-bars"></i></button></form>
-                    <ul class="navbar-nav ml-auto">
-                        <li class="nav-item dropdown no-arrow">
-                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown"><span id="username-placeholder" class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span><img class="img-profile rounded-circle" src="/img/undraw_profile.svg"></a>
-                            <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown"><a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal"><i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>Logout</a></div>
-                        </li>
-                    </ul>
-                </nav>
+                <?php include 'topbar.php'; ?>
                 <!-- End of Topbar -->
 
                 <!-- Begin Page Content -->
@@ -298,6 +290,12 @@
                                             <span class="badge badge-primary badge-category" id="success-count">0</span>
                                         </a>
                                     </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" id="system-tab" data-toggle="tab" href="#system" role="tab">
+                                            <i class="fas fa-cog"></i> System Messages
+                                            <span class="badge badge-primary badge-category" id="system-count">0</span>
+                                        </a>
+                                    </li>
                                 </ul>
 
                                 <!-- Tab Content -->
@@ -392,6 +390,16 @@
                                             </div>
                                         </div>
                                     </div>
+                                    <div class="tab-pane fade" id="system" role="tabpanel">
+                                        <div class="template-grid" id="systemTemplates">
+                                            <div class="text-center p-5">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="sr-only">Loading...</span>
+                                                </div>
+                                                <p class="mt-3">Loading system messages...</p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <!-- Save Button -->
@@ -434,6 +442,9 @@
                                                     <ul class="placeholder-list">
                                                         <li><code>${nama_pelanggan}</code> - Nama pelanggan</li>
                                                         <li><code>${pushname}</code> - Nama WhatsApp</li>
+                                                        <li><code>${username}</code> - Username untuk login</li>
+                                                        <li><code>${password}</code> - Password untuk login</li>
+                                                        <li><code>${portal_url}</code> - URL portal pelanggan</li>
                                                         <li><code>${nama_wifi}</code> - Nama WiFi</li>
                                                         <li><code>${nama_bot}</code> - Nama bot</li>
                                                         <li><code>${phone}</code> - No. telepon</li>
@@ -555,7 +566,8 @@
                 ticket: 0,
                 command: 0,
                 error: 0,
-                success: 0
+                success: 0,
+                system: 0
             };
 
             function showToast(message, type = 'success') {
@@ -615,22 +627,29 @@
                     ticket: {},
                     command: {},
                     error: {},
-                    success: {}
+                    success: {},
+                    system: {}
                 };
 
                 // Reset counts
                 Object.keys(templateCounts).forEach(key => templateCounts[key] = 0);
 
                 // Categorize notification templates
+                // IMPORTANT: Templates are only categorized for display, they remain in notificationTemplates
                 if (templates.notificationTemplates) {
                     for (const [key, value] of Object.entries(templates.notificationTemplates)) {
-                        if (key.includes('payment') || key.includes('invoice')) {
+                        // Check for payment/invoice keywords first (more specific)
+                        if (key.includes('payment') || key.includes('invoice') || key.includes('tagihan') || key.includes('bayar')) {
                             categorized.payment[key] = value;
                             templateCounts.payment++;
-                        } else if (key.includes('ticket') || key.includes('lapor')) {
+                        } 
+                        // Check for ticket/lapor keywords
+                        else if (key.includes('ticket') || key.includes('lapor') || key.includes('report')) {
                             categorized.ticket[key] = value;
                             templateCounts.ticket++;
-                        } else {
+                        } 
+                        // Default to notification category
+                        else {
                             categorized.notification[key] = value;
                             templateCounts.notification++;
                         }
@@ -644,18 +663,26 @@
                 }
 
                 // Response templates
+                // IMPORTANT: Templates are only categorized for display, they remain in responseTemplates
                 if (templates.responseTemplates) {
                     for (const [key, value] of Object.entries(templates.responseTemplates)) {
-                        if (key.includes('customer') || key.includes('pelanggan') || key.includes('user')) {
+                        // Check for customer/pelanggan/user keywords first (most specific)
+                        if (key.includes('customer') || key.includes('pelanggan') || key.includes('user') || key.includes('welcome')) {
                             categorized.customer[key] = value;
                             templateCounts.customer++;
-                        } else if (key.includes('payment') || key.includes('bayar') || key.includes('tagihan')) {
+                        } 
+                        // Check for payment/bayar/tagihan keywords
+                        else if (key.includes('payment') || key.includes('bayar') || key.includes('tagihan') || key.includes('invoice')) {
                             categorized.payment[key] = value;
                             templateCounts.payment++;
-                        } else if (key.includes('ticket') || key.includes('lapor')) {
+                        } 
+                        // Check for ticket/lapor keywords
+                        else if (key.includes('ticket') || key.includes('lapor') || key.includes('report')) {
                             categorized.ticket[key] = value;
                             templateCounts.ticket++;
-                        } else {
+                        } 
+                        // Default to response category
+                        else {
                             categorized.response[key] = value;
                             templateCounts.response++;
                         }
@@ -678,6 +705,12 @@
                 if (templates.successTemplates) {
                     categorized.success = templates.successTemplates;
                     templateCounts.success = Object.keys(templates.successTemplates).length;
+                }
+
+                // System templates
+                if (templates.systemTemplates) {
+                    categorized.system = templates.systemTemplates;
+                    templateCounts.system = Object.keys(templates.systemTemplates).length;
                 }
 
                 return categorized;
@@ -786,16 +819,24 @@
                 const originalButtonText = submitButton.html();
                 submitButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
 
+                // Preserve menuTemplates and reportTemplates from original data
+                // These are not editable in the UI but should not be lost on save
                 const payload = {
                     notificationTemplates: {},
                     wifiMenuTemplates: {},
                     responseTemplates: {},
                     commandTemplates: {},
                     errorTemplates: {},
-                    successTemplates: {}
+                    successTemplates: {},
+                    systemTemplates: {},
+                    menuTemplates: allTemplatesData.menuTemplates || {},
+                    reportTemplates: allTemplatesData.reportTemplates || {}
                 };
 
                 // Collect all textarea values
+                // IMPORTANT: Map categories back to original source files to prevent duplication
+                const processedKeys = new Set(); // Track processed keys to prevent duplicates
+                
                 $('.template-card').each(function() {
                     const card = $(this);
                     const textarea = card.find('textarea');
@@ -805,20 +846,46 @@
                     
                     if (!key || !value) return;
                     
-                    // Map categories back to original groups
+                    // Prevent duplicate processing (same key in multiple categories)
+                    if (processedKeys.has(key)) {
+                        console.warn(`[TEMPLATES] Duplicate key detected: ${key} in group ${group}. Skipping duplicate.`);
+                        return;
+                    }
+                    processedKeys.add(key);
+                    
+                    // Map categories back to original source files
+                    // Templates are categorized for display only, but saved to their original source
                     let targetGroup = null;
-                    if (group === 'notification' || group === 'ticket') {
-                        targetGroup = 'notificationTemplates';
+                    if (group === 'notification' || group === 'ticket' || group === 'payment') {
+                        // Check if key exists in original notificationTemplates
+                        if (allTemplatesData.notificationTemplates && allTemplatesData.notificationTemplates[key]) {
+                            targetGroup = 'notificationTemplates';
+                        } else if (allTemplatesData.responseTemplates && allTemplatesData.responseTemplates[key]) {
+                            targetGroup = 'responseTemplates';
+                        } else {
+                            // Default: if categorized as notification/ticket/payment, save to notificationTemplates
+                            targetGroup = 'notificationTemplates';
+                        }
                     } else if (group === 'wifi') {
                         targetGroup = 'wifiMenuTemplates';
-                    } else if (group === 'response' || group === 'customer' || group === 'payment') {
-                        targetGroup = 'responseTemplates';
+                    } else if (group === 'response' || group === 'customer') {
+                        // Check if key exists in original responseTemplates
+                        if (allTemplatesData.responseTemplates && allTemplatesData.responseTemplates[key]) {
+                            targetGroup = 'responseTemplates';
+                        } else if (allTemplatesData.notificationTemplates && allTemplatesData.notificationTemplates[key]) {
+                            targetGroup = 'notificationTemplates';
+                        } else {
+                            // Default: if categorized as response/customer, save to responseTemplates
+                            targetGroup = 'responseTemplates';
+                        }
                     } else if (group === 'command') {
                         targetGroup = 'commandTemplates';
                     } else if (group === 'error') {
                         targetGroup = 'errorTemplates';
                     } else if (group === 'success') {
                         targetGroup = 'successTemplates';
+                    } else if (group === 'system') {
+                        targetGroup = 'systemTemplates';
                     }
                     
                     if (targetGroup) {

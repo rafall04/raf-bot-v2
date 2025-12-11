@@ -220,7 +220,7 @@ Update these docs:
         if (context.isDatabase) {
             files.push(
                 'lib/database.js',
-                'database.sqlite',
+                'database/database.sqlite',
                 'database/accounts.json'
             );
         }

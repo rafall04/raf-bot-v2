@@ -65,38 +65,7 @@
       <div id="content">
 
         <!-- Topbar -->
-        <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-
-          <!-- Sidebar Toggle (Topbar) -->
-          <form class="form-inline">
-            <button type="button" id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
-              <i class="fa fa-bars"></i>
-            </button>
-          </form>
-
-
-          <!-- Topbar Navbar -->
-          <ul class="navbar-nav ml-auto">
-
-
-            <!-- Nav Item - User Information -->
-            <li class="nav-item dropdown no-arrow">
-              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Admin</span>
-                <img class="img-profile rounded-circle" src="/img/undraw_profile.svg">
-              </a>
-              <!-- Dropdown - User Information -->
-              <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
-                <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
-                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
-                  Logout
-                </a>
-              </div>
-            </li>
-
-          </ul>
-
-        </nav>
+        <?php include 'topbar.php'; ?>
         <!-- End of Topbar -->
 
         <!-- Begin Page Content -->
@@ -181,6 +150,34 @@
                     <label for="whatsapp_message_delay" class="form-label">Delay Pesan WhatsApp (ms)</label>
                     <input type="number" class="form-control" id="whatsapp_message_delay" name="whatsapp_message_delay" min="500" max="5000" step="100" />
                     <small class="form-text text-muted">Jeda waktu (dalam milidetik) antara pengiriman pesan WhatsApp oleh cron jobs. Default: 2000ms (2 detik). Minimum: 500ms. Digunakan untuk mencegah spam dan rate limiting.</small>
+                  </div>
+                  <div class="mb-3">
+                    <label for="defaultPPPoEPassword" class="form-label">Password PPPoE Default</label>
+                    <input type="text" class="form-control" id="defaultPPPoEPassword" name="defaultPPPoEPassword" />
+                    <small class="form-text text-muted">Password default yang akan digunakan untuk PPPoE saat teknisi melakukan PSB (Pasang Baru) tanpa mengisi password secara manual. Jika kosong, sistem akan generate random password.</small>
+                  </div>
+              </div>
+            </div>
+
+            <!-- Table Section -->
+          <h4 class="dashboard-section-title">Konfigurasi Pesan Selamat Datang</h4>
+          <div class="card table-card mb-4">
+            <div class="card-header">
+              <h6>Konfigurasi Pesan Selamat Datang</h6>
+              </div>
+              <div class="card-body">
+                  <div class="mb-3">
+                    <label for="welcomeMessageEnabled">Aktifkan Pesan Selamat Datang</label>
+                    <select class="form-control" id="welcomeMessageEnabled" name="welcomeMessageEnabled">
+                        <option value="true">Aktif</option>
+                        <option value="false">Nonaktif</option>
+                    </select>
+                    <small class="form-text text-muted">Jika Aktif, pesan selamat datang akan otomatis dikirim ke pelanggan baru saat mereka dibuat (baik dari web admin atau setup teknisi). Pesan berisi username, password, dan URL portal pelanggan.</small>
+                  </div>
+                  <div class="mb-3">
+                    <label for="customerPortalUrl" class="form-label">URL Portal Pelanggan</label>
+                    <input type="text" class="form-control" id="customerPortalUrl" name="customerPortalUrl" placeholder="https://rafnet.my.id/customer" />
+                    <small class="form-text text-muted">URL portal pelanggan yang akan ditampilkan di pesan selamat datang. Pelanggan dapat menggunakan URL ini untuk login ke portal pelanggan.</small>
                   </div>
               </div>
             </div>
@@ -270,6 +267,35 @@
                   <div class="mb-3">
                     <label for="ipaymuProduction">Production Ipaymu</label>
                     <input type="text" class="form-control" id="ipaymuProduction" name="ipaymuProduction" />
+                  </div>
+                  <div class="mb-3">
+                    <label for="defaultBulkSSID" class="form-label">Default SSID Bulk</label>
+                    <input type="number" class="form-control" id="defaultBulkSSID" name="defaultBulkSSID" min="1" max="8" />
+                    <small class="form-text text-muted">SSID default yang akan otomatis tercentang saat membuat user baru jika tidak ada SSID yang dipilih. Range: 1-8 (default: 1)</small>
+                  </div>
+                  <div class="mb-3">
+                    <label for="speedOnDemandEnabled" class="form-label">Speed On Demand</label>
+                    <select class="form-control" id="speedOnDemandEnabled" name="speedOnDemandEnabled">
+                      <option value="true">Aktif</option>
+                      <option value="false">Nonaktif</option>
+                    </select>
+                    <small class="form-text text-muted">Aktifkan atau nonaktifkan fitur Speed On Demand untuk pelanggan</small>
+                  </div>
+                  <div class="mb-3">
+                    <label for="showPaymentStatus" class="form-label">Tampilkan Status Pembayaran</label>
+                    <select class="form-control" id="showPaymentStatus" name="showPaymentStatus">
+                      <option value="true">Tampilkan</option>
+                      <option value="false">Sembunyikan</option>
+                    </select>
+                    <small class="form-text text-muted">Tampilkan atau sembunyikan status pembayaran (PAID/UNPAID) di profil pelanggan</small>
+                  </div>
+                  <div class="mb-3">
+                    <label for="showDueDate" class="form-label">Tampilkan Jatuh Tempo</label>
+                    <select class="form-control" id="showDueDate" name="showDueDate">
+                      <option value="true">Tampilkan</option>
+                      <option value="false">Sembunyikan</option>
+                    </select>
+                    <small class="form-text text-muted">Tampilkan atau sembunyikan tanggal jatuh tempo pembayaran di profil pelanggan</small>
                   </div>
               </div>
             </div>
@@ -415,9 +441,16 @@
                 setValue('ipaymuVA', json.data.ipaymuVA);
                 setValue('ipaymuCallback', json.data.ipaymuCallback);
                 setValue('ipaymuProduction', json.data.ipaymuProduction ? "yes" : "no");
+                setValue('defaultBulkSSID', json.data.defaultBulkSSID || '1');
+                setValue('speedOnDemandEnabled', json.data.speedOnDemandEnabled !== false ? "true" : "false");
+                setValue('showPaymentStatus', json.data.showPaymentStatus !== false ? "true" : "false");
+                setValue('showDueDate', json.data.showDueDate !== false ? "true" : "false");
                 setValue('custom_wifi_modification', json.data.custom_wifi_modification ? "true" : "false");
                 setValue('sync_to_mikrotik', json.data.sync_to_mikrotik ? "true" : "false");
                 setValue('whatsapp_message_delay', json.data.whatsapp_message_delay, '2000');
+                setValue('defaultPPPoEPassword', json.data.defaultPPPoEPassword, '');
+                setValue('welcomeMessageEnabled', json.data.welcomeMessage?.enabled !== false ? "true" : "false");
+                setValue('customerPortalUrl', json.data.welcomeMessage?.customerPortalUrl || json.data.company?.website || json.data.site_url_bot || 'https://rafnet.my.id/customer');
                 
                 // Load bank accounts
                 if (json.data.bankAccounts) {

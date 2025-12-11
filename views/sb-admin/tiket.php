@@ -25,13 +25,48 @@
         .modal-body { max-height: calc(100vh - 210px); overflow-y: auto; }
         
         /* Status badges per TICKET_STATUS_STANDARD.md */
-        .badge-status-baru { background: #6f42c1; color: #fff; }
-        .badge-status-process { background: #17a2b8; color: #fff; }
-        .badge-status-otw { background: #ffc107; color: #000; }
-        .badge-status-arrived { background: #fd7e14; color: #fff; }
-        .badge-status-working { background: #20c997; color: #fff; }
-        .badge-status-resolved { background: #28a745; color: #fff; }
-        .badge-status-cancelled { background: #6c757d; color: #fff; }
+        .badge-status-baru { 
+            background: #6f42c1 !important; 
+            color: #fff !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
+        .badge-status-process { 
+            background: #17a2b8 !important; 
+            color: #fff !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
+        .badge-status-otw { 
+            background: #ffc107 !important; 
+            color: #000 !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
+        .badge-status-arrived { 
+            background: #fd7e14 !important; 
+            color: #fff !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
+        .badge-status-working { 
+            background: #20c997 !important; 
+            color: #fff !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
+        .badge-status-resolved { 
+            background: #28a745 !important; 
+            color: #fff !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
+        .badge-status-cancelled { 
+            background: #6c757d !important; 
+            color: #fff !important; 
+            font-weight: 600;
+            padding: 0.4em 0.8em;
+        }
         
         /* Photo Gallery Styles */
         .photo-gallery {
@@ -67,6 +102,41 @@
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.8rem;
+        }
+        .photo-label-badge {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        /* Photo Category Header */
+        .photo-category-header {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            margin: 15px 0 10px 0;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .photo-category-header:first-child {
+            margin-top: 0;
+        }
+        .photo-category-header i {
+            font-size: 1rem;
         }
         
         /* Workflow Progress */
@@ -144,6 +214,14 @@
         .detail-value {
             color: #333;
         }
+        
+        /* Fix z-index for photo modal to appear above detail modal */
+        #photoModal {
+            z-index: 1060 !important;
+        }
+        #photoModal .modal-backdrop {
+            z-index: 1055 !important;
+        }
     </style>
 </head>
 
@@ -174,9 +252,14 @@
                                 <h1>Ticket Management</h1>
                                 <p>Kelola tiket laporan dan keluhan pelanggan</p>
                             </div>
-                            <button class="btn btn-primary-custom" data-toggle="modal" data-target="#createTicketModal">
-                                <i class="fas fa-ticket-alt"></i> Buat Tiket Baru
-                            </button>
+                            <div>
+                                <button class="btn btn-warning-custom mr-2" data-toggle="modal" data-target="#cleanupOrphanedPhotosModal">
+                                    <i class="fas fa-trash-alt"></i> Hapus Foto Tidak Terpakai
+                                </button>
+                                <button class="btn btn-primary-custom" data-toggle="modal" data-target="#createTicketModal">
+                                    <i class="fas fa-ticket-alt"></i> Buat Tiket Baru
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div id="globalAdminMessage" class="mb-3"></div>
@@ -266,6 +349,67 @@
 
     <a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
     <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="logoutModalLabel"><div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Ready to Leave?</h5><button class="close" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button></div><div class="modal-body">Select "Logout" below if you are ready to end your current session.</div><div class="modal-footer"><button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button><a class="btn btn-primary" href="/logout">Logout</a></div></div></div></div>
+
+    <!-- Cleanup Orphaned Photos Modal -->
+    <div class="modal fade" id="cleanupOrphanedPhotosModal" tabindex="-1" role="dialog" aria-labelledby="cleanupOrphanedPhotosModalLabel">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-white">
+                    <h5 class="modal-title" id="cleanupOrphanedPhotosModalLabel">
+                        <i class="fas fa-trash-alt"></i> Hapus Foto Tidak Terpakai
+                    </h5>
+                    <button class="close text-white" type="button" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> <strong>Peringatan!</strong>
+                        <p class="mb-0 mt-2">Tindakan ini akan menghapus semua foto yang tidak memiliki tiket terkait di database.</p>
+                        <p class="mb-0">Foto yang akan dihapus biasanya berasal dari ujicoba fitur atau tiket yang sudah terhapus.</p>
+                    </div>
+                    <p>Silakan masukkan password admin untuk melanjutkan:</p>
+                    <form id="cleanupOrphanedPhotosForm">
+                        <div class="form-group">
+                            <label for="cleanupAdminPassword">Password Admin</label>
+                            <input type="password" class="form-control" id="cleanupAdminPassword" required autocomplete="current-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button class="btn btn-warning" type="button" id="confirmCleanupOrphanedPhotos">
+                        <i class="fas fa-trash-alt"></i> Hapus Foto Tidak Terpakai
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Preview Modal -->
+    <div class="modal fade" id="photoModal" tabindex="-1" role="dialog" aria-labelledby="photoModalLabel">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="photoModalTitle">Foto Dokumentasi</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body text-center" style="background: #000;">
+                    <img id="photoModalImage" src="" alt="Photo" style="max-width: 100%; max-height: 80vh; object-fit: contain;">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="downloadPhoto()">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Ticket Detail Modal -->
     <div class="modal fade" id="ticketDetailModal" tabindex="-1" role="dialog" aria-labelledby="ticketDetailModalLabel">
@@ -461,15 +605,39 @@
         }
         function formatTicketDetailsAdmin(d) { return d ? `Nama: ${d.name||'N/A'}\nAlamat: ${d.address||'N/A'}\nPaket: ${d.subscription||'N/A'}\nPPPoE: ${d.pppoe_username||'N/A'}` : 'N/A';}
         function getStatusBadgeAdmin(s) { 
+            // Normalize status to lowercase for comparison
+            const status = (s || '').toLowerCase().trim();
+            
             // Per TICKET_STATUS_STANDARD.md
-            if (s === 'baru') return '<span class="badge badge-status-baru">Baru</span>';
-            if (s === 'process' || s === 'diproses teknisi') return '<span class="badge badge-status-process">Process</span>';
-            if (s === 'otw') return '<span class="badge badge-status-otw">OTW</span>';
-            if (s === 'arrived') return '<span class="badge badge-status-arrived">Arrived</span>';
-            if (s === 'working') return '<span class="badge badge-status-working">Working</span>';
-            if (s === 'resolved' || s === 'selesai') return '<span class="badge badge-status-resolved">Resolved</span>';
-            if (s === 'dibatalkan pelanggan') return '<span class="badge badge-status-cancelled">Dibatalkan Pelanggan</span>';
-            if (s === 'dibatalkan admin') return '<span class="badge badge-status-cancelled">Dibatalkan Admin</span>';
+            if (status === 'baru') return '<span class="badge badge-status-baru">Baru</span>';
+            
+            if (status === 'process' || status === 'diproses teknisi') {
+                return '<span class="badge badge-status-process">Process</span>';
+            }
+            
+            if (status === 'otw') return '<span class="badge badge-status-otw">OTW</span>';
+            
+            if (status === 'arrived') return '<span class="badge badge-status-arrived">Arrived</span>';
+            
+            if (status === 'working') return '<span class="badge badge-status-working">Working</span>';
+            
+            // Resolved/Selesai/Completed - all map to green badge
+            if (status === 'resolved' || status === 'selesai' || status === 'completed') {
+                return '<span class="badge badge-status-resolved">Selesai</span>';
+            }
+            
+            // Cancelled variations
+            if (status === 'dibatalkan pelanggan' || status === 'dibatalkan' || status.includes('dibatalkan')) {
+                if (status.includes('pelanggan')) {
+                    return '<span class="badge badge-status-cancelled">Dibatalkan Pelanggan</span>';
+                } else if (status.includes('admin')) {
+                    return '<span class="badge badge-status-cancelled">Dibatalkan Admin</span>';
+                } else {
+                    return '<span class="badge badge-status-cancelled">Dibatalkan</span>';
+                }
+            }
+            
+            // Default for unknown status
             return `<span class="badge badge-secondary">${s || 'N/A'}</span>`;
         }
         
@@ -509,62 +677,299 @@
             const photoContainer = $('#detail-photos');
             photoContainer.empty();
             
-            // Check BOTH teknisiPhotos (from WhatsApp) AND photos (from Web Dashboard)
+            // Collect ALL photos from various sources
             let allPhotos = [];
             
-            // Collect photos from teknisiPhotos field (WhatsApp uploads)
+            // 1. Collect photos from customerPhotos field (Customer uploads during report)
+            if (ticket.customerPhotos && ticket.customerPhotos.length > 0) {
+                ticket.customerPhotos.forEach(photo => {
+                    // Handle both object format with path field or just filename
+                    if (typeof photo === 'object') {
+                        // photo.path contains FULL system path, need to extract web path
+                        let webPath = photo.path;
+                        
+                        // If path contains full system path, extract uploads/... part
+                        if (webPath && webPath.includes('uploads')) {
+                            const uploadsIndex = webPath.indexOf('uploads');
+                            webPath = '/' + webPath.substring(uploadsIndex).replace(/\\/g, '/');
+                        } else {
+                            // Fallback: construct path from filename
+                            webPath = `/uploads/reports/${photo.fileName}`;
+                        }
+                        
+                        const customerPhoto = {
+                            type: 'customer',
+                            path: webPath,
+                            filename: photo.fileName || photo.filename,
+                            label: 'Foto Pelanggan'
+                        };
+                        allPhotos.push(customerPhoto);
+                    } else {
+                        // If it's a string, check if it's full path or web path
+                        let webPath = photo;
+                        if (webPath.includes('uploads')) {
+                            const uploadsIndex = webPath.indexOf('uploads');
+                            webPath = '/' + webPath.substring(uploadsIndex).replace(/\\/g, '/');
+                        }
+                        
+                        const customerPhoto = {
+                            type: 'customer',
+                            path: webPath,
+                            filename: webPath.split('/').pop(),
+                            label: 'Foto Pelanggan'
+                        };
+                        allPhotos.push(customerPhoto);
+                    }
+                });
+            }
+            
+            // 2. Collect photos from teknisiPhotos field (WhatsApp uploads)
+            // IMPORTANT: Skip photos that are already in photos field to avoid duplicates
             if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
+                // Get list of filenames already in photos field (to avoid duplicates)
+                const photosFilenames = new Set();
+                if (ticket.photos && Array.isArray(ticket.photos)) {
+                    ticket.photos.forEach(p => {
+                        if (typeof p === 'object' && p.filename) {
+                            photosFilenames.add(p.filename);
+                        }
+                    });
+                }
+                
+                // Get year and month from ticket creation date for structured path
+                const ticketDate = ticket.createdAt ? new Date(ticket.createdAt) : new Date();
+                const year = ticketDate.getFullYear();
+                const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
+                
                 ticket.teknisiPhotos.forEach(photo => {
+                    // Skip if this photo is already in photos field (to avoid duplicates)
+                    if (photosFilenames.has(photo)) {
+                        return; // Skip duplicate
+                    }
+                    
+                    // Try new structured path first: uploads/teknisi/YEAR/MONTH/TICKET_ID/
+                    // Backward compatibility: if old path exists, use it
+                    const structuredPath = `/uploads/teknisi/${year}/${month}/${ticket.ticketId}/${photo}`;
+                    const oldPath = `/uploads/teknisi/${photo}`;
+                    
                     allPhotos.push({
-                        type: 'whatsapp',
-                        path: `/uploads/teknisi/${photo}`,
-                        filename: photo
+                        type: 'teknisi',
+                        path: structuredPath, // Use new structure (browser will try this first)
+                        oldPath: oldPath, // Keep old path for backward compatibility check
+                        filename: photo,
+                        label: 'Foto Teknisi'
                     });
                 });
             }
             
-            // Collect photos from photos field (Web Dashboard uploads)
+            // 3. Collect photos from photos field (Web Dashboard uploads) - WITH CATEGORY SUPPORT
             if (ticket.photos && ticket.photos.length > 0) {
-                ticket.photos.forEach(photo => {
+                // Get year and month from ticket creation date for structured path (if path not already structured)
+                const ticketDate = ticket.createdAt ? new Date(ticket.createdAt) : new Date();
+                const year = ticketDate.getFullYear();
+                const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
+                
+                ticket.photos.forEach((photo, index) => {
                     // Handle both object format and string format
                     if (typeof photo === 'object') {
-                        allPhotos.push({
-                            type: 'web',
-                            path: photo.path || `/uploads/tickets/${photo.filename}`,
-                            filename: photo.filename
-                        });
+                        let photoPath = photo.path;
+                        
+                        // If path doesn't have structure (old format), construct new path
+                        if (!photoPath || (!photoPath.includes(`/${year}/${month}/${ticket.ticketId}/`) && !photoPath.includes('/tickets/'))) {
+                            // Construct new structured path
+                            photoPath = `/uploads/tickets/${year}/${month}/${ticket.ticketId}/${photo.filename}`;
+                        }
+                        
+                        // Check if photo has category (NEW guided upload)
+                        if (photo.category && photo.categoryLabel) {
+                            allPhotos.push({
+                                type: 'web',
+                                path: photoPath,
+                                filename: photo.filename,
+                                label: photo.categoryLabel, // Use category label
+                                category: photo.category,
+                                order: index + 1
+                            });
+                        } else {
+                            // Legacy web upload without category
+                            allPhotos.push({
+                                type: 'web',
+                                path: photoPath,
+                                filename: photo.filename,
+                                label: 'Foto Teknisi (Web)'
+                            });
+                        }
                     } else {
-                        // If it's a string, treat as filename
+                        // If it's a string, treat as filename (legacy) - construct new structured path
+                        const photoPath = `/uploads/tickets/${year}/${month}/${ticket.ticketId}/${photo}`;
                         allPhotos.push({
                             type: 'web',
-                            path: `/uploads/tickets/${photo}`,
-                            filename: photo
+                            path: photoPath,
+                            filename: photo,
+                            label: 'Foto Teknisi (Web)'
                         });
                     }
                 });
             }
             
-            // Also check completionPhotos field (alternative field sometimes used)
+            // 4. Also check completionPhotos field (with category support)
             if (ticket.completionPhotos && ticket.completionPhotos.length > 0) {
+                // Get year and month from ticket creation date for structured path
+                const ticketDate = ticket.createdAt ? new Date(ticket.createdAt) : new Date();
+                const year = ticketDate.getFullYear();
+                const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
+                
                 ticket.completionPhotos.forEach(photo => {
-                    allPhotos.push({
-                        type: 'completion',
-                        path: `/uploads/teknisi/${photo}`,
-                        filename: photo
-                    });
+                    // Get filename
+                    const photoFilename = typeof photo === 'object' ? (photo.filename || photo) : photo;
+                    
+                    // Construct structured path: uploads/teknisi/YEAR/MONTH/TICKET_ID/
+                    const structuredPath = `/uploads/teknisi/${year}/${month}/${ticket.ticketId}/${photoFilename}`;
+                    const oldPath = `/uploads/teknisi/${photoFilename}`;
+                    
+                    // Check if photo has category metadata (new format)
+                    if (typeof photo === 'object' && photo.category) {
+                        // NEW CATEGORIZED FORMAT
+                        allPhotos.push({
+                            type: 'completion',
+                            path: structuredPath,
+                            oldPath: oldPath, // For backward compatibility
+                            filename: photoFilename,
+                            label: photo.categoryLabel || 'Foto Selesai',
+                            category: photo.category,
+                            order: photo.order || 999
+                        });
+                    } else if (typeof photo === 'object') {
+                        // Object without category (legacy object format)
+                        allPhotos.push({
+                            type: 'completion',
+                            path: structuredPath,
+                            oldPath: oldPath, // For backward compatibility
+                            filename: photoFilename,
+                            label: 'Foto Selesai'
+                        });
+                    } else {
+                        // String format (legacy)
+                        allPhotos.push({
+                            type: 'completion',
+                            path: structuredPath,
+                            oldPath: oldPath, // For backward compatibility
+                            filename: photoFilename,
+                            label: 'Foto Selesai'
+                        });
+                    }
                 });
             }
             
-            // Display all collected photos
-            if (allPhotos.length > 0) {
-                allPhotos.forEach((photo, index) => {
+            // Sort and organize photos by category if available
+            const categorizedPhotos = allPhotos.filter(p => p.category);
+            const uncategorizedPhotos = allPhotos.filter(p => !p.category);
+            
+            // Define category order for sorting
+            const categoryOrder = { 'problem': 1, 'speedtest': 2, 'result': 3, 'extra': 4 };
+            
+            if (categorizedPhotos.length > 0) {
+                // Sort by category order
+                categorizedPhotos.sort((a, b) => {
+                    const orderA = categoryOrder[a.category] || 999;
+                    const orderB = categoryOrder[b.category] || 999;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return (a.order || 0) - (b.order || 0);
+                });
+            }
+            
+            // Combine: categorized first, then uncategorized
+            const sortedPhotos = [...categorizedPhotos, ...uncategorizedPhotos];
+            
+            if (sortedPhotos.length > 0) {
+                // Group photos by type and category for better display
+                const customerPhotos = sortedPhotos.filter(p => p.type === 'customer');
+                const teknisiPhotos = sortedPhotos.filter(p => p.type !== 'customer');
+                
+                // For teknisi photos, group by category
+                const photosByCategory = {};
+                teknisiPhotos.forEach(photo => {
+                    const cat = photo.category || 'other';
+                    if (!photosByCategory[cat]) photosByCategory[cat] = [];
+                    photosByCategory[cat].push(photo);
+                });
+                
+                // Display photos with clear grouping
+                let globalIndex = 0;
+                
+                // 1. FIRST: Display Customer Photos (if any)
+                if (customerPhotos.length > 0) {
                     photoContainer.append(`
-                        <div class="photo-thumbnail" onclick="viewPhotoFullPath('${photo.path}')" title="Photo ${index + 1} (${photo.type})">
-                            <img src="${photo.path}" alt="Photo ${index + 1}" onerror="this.onerror=null; this.src='/img/no-image.png';">
-                            <span class="photo-count-badge">${index + 1}</span>
+                        <div class="photo-category-header">
+                            <i class="fas fa-user-circle"></i> Foto Pelanggan (Saat Lapor)
                         </div>
                     `);
-                });
+                    
+                    customerPhotos.forEach(photo => {
+                        globalIndex++;
+                        const thumbnailHtml = `
+                            <div class="photo-thumbnail" onclick="openPhotoModal('${photo.path}', '${photo.label}', ${globalIndex}, ${sortedPhotos.length})" title="${photo.label} ${globalIndex}">
+                                <img src="${photo.path}" alt="${photo.label} ${globalIndex}" onerror="this.onerror=null; this.src='/img/no-image.png'; console.error('[IMG_ERROR] Failed to load:', '${photo.path}');">
+                                <span class="photo-count-badge">${globalIndex}</span>
+                                <div class="photo-label-badge">${photo.label}</div>
+                            </div>
+                        `;
+                        photoContainer.append(thumbnailHtml);
+                    });
+                }
+                
+                // 2. SECOND: Display Teknisi Photos by Category
+                const categorizedTekPhotos = teknisiPhotos.filter(p => p.category);
+                const uncategorizedTekPhotos = teknisiPhotos.filter(p => !p.category);
+                
+                if (categorizedTekPhotos.length > 0) {
+                    const categories = ['problem', 'speedtest', 'result', 'extra'];
+                    categories.forEach(cat => {
+                        if (photosByCategory[cat] && photosByCategory[cat].length > 0) {
+                            // Add category header
+                            const categoryLabel = photosByCategory[cat][0].label;
+                            photoContainer.append(`
+                                <div class="photo-category-header">
+                                    <i class="fas fa-wrench"></i> ${categoryLabel}
+                                </div>
+                            `);
+                            
+                            // Add photos in this category
+                            photosByCategory[cat].forEach(photo => {
+                                globalIndex++;
+                                const thumbnailHtml = `
+                                    <div class="photo-thumbnail" onclick="openPhotoModal('${photo.path}', '${photo.label}', ${globalIndex}, ${sortedPhotos.length})" title="${photo.label} ${globalIndex}">
+                                        <img src="${photo.path}" alt="${photo.label} ${globalIndex}" onerror="this.onerror=null; this.src='/img/no-image.png'; console.error('[IMG_ERROR] Failed to load:', '${photo.path}');">
+                                        <span class="photo-count-badge">${globalIndex}</span>
+                                        <div class="photo-label-badge">${photo.label}</div>
+                                    </div>
+                                `;
+                                photoContainer.append(thumbnailHtml);
+                            });
+                        }
+                    });
+                }
+                
+                // 3. LAST: Display Uncategorized Teknisi Photos (if any)
+                if (uncategorizedTekPhotos.length > 0) {
+                    photoContainer.append(`
+                        <div class="photo-category-header">
+                            <i class="fas fa-images"></i> Foto Teknisi Lainnya
+                        </div>
+                    `);
+                    
+                    uncategorizedTekPhotos.forEach(photo => {
+                        globalIndex++;
+                        const thumbnailHtml = `
+                            <div class="photo-thumbnail" onclick="openPhotoModal('${photo.path}', '${photo.label}', ${globalIndex}, ${sortedPhotos.length})" title="${photo.label} ${globalIndex}">
+                                <img src="${photo.path}" alt="${photo.label} ${globalIndex}" onerror="this.onerror=null; this.src='/img/no-image.png'; console.error('[IMG_ERROR] Failed to load:', '${photo.path}');">
+                                <span class="photo-count-badge">${globalIndex}</span>
+                                <div class="photo-label-badge">${photo.label}</div>
+                            </div>
+                        `;
+                        photoContainer.append(thumbnailHtml);
+                    });
+                }
             } else {
                 photoContainer.append('<p class="text-muted">Belum ada foto dokumentasi</p>');
             }
@@ -576,28 +981,98 @@
         }
         
         function updateWorkflowProgress(status) {
-            const steps = ['baru', 'process', 'otw', 'arrived', 'working', 'resolved'];
-            const currentIndex = steps.indexOf(status);
+            // Normalize status to handle variations
+            let normalizedStatus = (status || '').toLowerCase().trim();
             
+            // Map different status variations to standard workflow steps
+            if (normalizedStatus === 'diproses teknisi') normalizedStatus = 'process';
+            if (normalizedStatus === 'selesai') normalizedStatus = 'resolved';
+            if (normalizedStatus === 'completed') normalizedStatus = 'resolved'; // Additional mapping
+            
+            if (normalizedStatus.includes('dibatalkan')) {
+                // For cancelled tickets, mark all as inactive
+                $('.workflow-step').removeClass('completed active');
+                return;
+            }
+            
+            const steps = ['baru', 'process', 'otw', 'arrived', 'working', 'resolved'];
+            const currentIndex = steps.indexOf(normalizedStatus);
+            
+            // Clear all first
             $('.workflow-step').removeClass('completed active');
-            steps.forEach((step, index) => {
-                const stepEl = $(`#step-${step}`);
-                if (index < currentIndex) {
-                    stepEl.addClass('completed');
-                } else if (index === currentIndex) {
-                    stepEl.addClass('active');
+            
+            // Special handling for resolved status - mark ALL steps as completed (green)
+            if (normalizedStatus === 'resolved') {
+                steps.forEach((step, index) => {
+                    const stepEl = $(`#step-${step}`);
+                    if (stepEl.length === 0) {
+                        console.error('[WORKFLOW_STEP] Element not found for step:', step);
+                    } else {
+                        stepEl.addClass('completed');
+                    }
+                });
+                return; // Exit early after marking all as completed
+            }
+            
+            // Normal workflow progress (not resolved)
+            if (currentIndex >= 0) {
+                steps.forEach((step, index) => {
+                    const stepEl = $(`#step-${step}`);
+                    
+                    if (stepEl.length === 0) {
+                        console.error('[WORKFLOW_STEP] Element not found for step:', step);
+                        return;
+                    }
+                    
+                    if (index < currentIndex) {
+                        stepEl.addClass('completed');
+                    } else if (index === currentIndex) {
+                        stepEl.addClass('active');
+                    }
+                });
+            } else {
+                // Status not in workflow, default to first step
+                const baruStep = $('#step-baru');
+                if (baruStep.length > 0) {
+                    baruStep.addClass('active');
+                } else {
+                    console.error('[WORKFLOW_STEP] Element #step-baru not found!');
                 }
+            }
+        }
+        
+        function openPhotoModal(photoPath, label, photoNum, totalPhotos) {
+            // Set modal content
+            $('#photoModalImage').attr('src', photoPath);
+            $('#photoModalTitle').text(`${label} - Foto ${photoNum} dari ${totalPhotos}`);
+            
+            // Open modal with backdrop fix
+            $('#photoModal').modal({
+                show: true,
+                backdrop: true,
+                keyboard: true
+            });
+            
+            // Ensure photo modal appears above detail modal
+            $('#photoModal').on('shown.bs.modal', function() {
+                // Force higher z-index on the backdrop
+                $('.modal-backdrop').last().css('z-index', 1055);
+                $('#photoModal').css('z-index', 1060);
             });
         }
         
-        function viewPhoto(photoUrl) {
-            // Open photo in full screen modal
-            window.open(`/uploads/teknisi/${photoUrl}`, '_blank');
-        }
-        
-        function viewPhotoFullPath(fullPath) {
-            // Open photo with full path in new window
-            window.open(fullPath, '_blank');
+        function downloadPhoto() {
+            // Get current photo source
+            const photoSrc = $('#photoModalImage').attr('src');
+            if (!photoSrc) return;
+            
+            // Create temporary link and trigger download
+            const link = document.createElement('a');
+            link.href = photoSrc;
+            link.download = photoSrc.split('/').pop();
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
         
         let dataTableInstance;
@@ -701,20 +1176,40 @@
                         row.insertCell().innerHTML = `<div class="ticket-details-admin">${formatTicketDetailsAdmin(ticket.pelangganDataSystem)}</div>`;
                         row.insertCell().innerHTML = `<div class="report-text-admin">${ticket.laporanText || '-'}</div>`;
                         
-                        // Photo column
+                        // Photo column - Count ALL photos (customer + teknisi)
                         let photoCell = row.insertCell();
                         const ticketIdForPhoto = ticket.ticketId || ticket.id || 'unknown';
+                        
+                        // Count all photos from all sources
+                        let totalPhotos = 0;
+                        let photoLabels = [];
+                        
+                        // Count customer photos
+                        if (ticket.customerPhotos && ticket.customerPhotos.length > 0) {
+                            totalPhotos += ticket.customerPhotos.length;
+                            photoLabels.push(`${ticket.customerPhotos.length} foto pelanggan`);
+                        }
+                        
+                        // Count teknisi photos
                         if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
+                            totalPhotos += ticket.teknisiPhotos.length;
+                            photoLabels.push(`${ticket.teknisiPhotos.length} foto teknisi`);
+                        } else if (ticket.photos && ticket.photos.length > 0) {
+                            totalPhotos += ticket.photos.length;
+                            photoLabels.push(`${ticket.photos.length} foto teknisi`);
+                        }
+                        
+                        // Count completion photos
+                        if (ticket.completionPhotos && ticket.completionPhotos.length > 0) {
+                            totalPhotos += ticket.completionPhotos.length;
+                            photoLabels.push(`${ticket.completionPhotos.length} foto selesai`);
+                        }
+                        
+                        if (totalPhotos > 0) {
+                            const title = photoLabels.join(', ');
                             photoCell.innerHTML = `
-                                <button class="btn btn-sm btn-info" onclick="showTicketDetailById('${ticketIdForPhoto}')" title="Lihat ${ticket.teknisiPhotos.length} foto">
-                                    <i class="fas fa-camera"></i> ${ticket.teknisiPhotos.length}
-                                </button>
-                            `;
-                        } else if (ticket.photoCount > 0 || ticket.photos) {
-                            const count = ticket.photoCount || (ticket.photos ? ticket.photos.length : 0);
-                            photoCell.innerHTML = `
-                                <button class="btn btn-sm btn-info" onclick="showTicketDetailById('${ticketIdForPhoto}')" title="Lihat ${count} foto">
-                                    <i class="fas fa-camera"></i> ${count}
+                                <button class="btn btn-sm btn-info" onclick="showTicketDetailById('${ticketIdForPhoto}')" title="${title}">
+                                    <i class="fas fa-camera"></i> ${totalPhotos}
                                 </button>
                             `;
                         } else {
@@ -846,6 +1341,56 @@
                     executeAdminCancelTicket(ticketId, reason);
                 });
             }
+            
+            // Cleanup Orphaned Photos Handler
+            const confirmCleanupBtn = document.getElementById('confirmCleanupOrphanedPhotos');
+            if (confirmCleanupBtn) {
+                confirmCleanupBtn.addEventListener('click', async function() {
+                    const password = document.getElementById('cleanupAdminPassword').value;
+                    if (!password) {
+                        displayGlobalAdminMessage('Silakan masukkan password admin', 'warning');
+                        return;
+                    }
+                    
+                    // Disable button during request
+                    confirmCleanupBtn.disabled = true;
+                    confirmCleanupBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+                    
+                    try {
+                        const response = await fetch('/api/admin/cleanup-orphaned-photos', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'include',
+                            body: JSON.stringify({ password: password })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok && result.status === 200) {
+                            displayGlobalAdminMessage(
+                                `✅ ${result.message}${result.errors && result.errors.length > 0 ? '<br>⚠️ Beberapa file gagal dihapus: ' + result.errors.join(', ') : ''}`,
+                                'success'
+                            );
+                            $('#cleanupOrphanedPhotosModal').modal('hide');
+                            document.getElementById('cleanupAdminPassword').value = '';
+                        } else {
+                            displayGlobalAdminMessage(
+                                `❌ ${result.message || 'Gagal menghapus foto tidak terpakai'}`,
+                                'danger'
+                            );
+                        }
+                    } catch (error) {
+                        console.error('Error cleaning up orphaned photos:', error);
+                        displayGlobalAdminMessage('Terjadi kesalahan koneksi saat menghapus foto.', 'danger');
+                    } finally {
+                        // Re-enable button
+                        confirmCleanupBtn.disabled = false;
+                        confirmCleanupBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Hapus Foto Tidak Terpakai';
+                    }
+                });
+            }
 
             // Fix for createTicketModal aria-hidden issue
             $('#createTicketModal').on('show.bs.modal', function () {
@@ -916,6 +1461,28 @@
             $('#ticketDetailModal').on('hidden.bs.modal', function () {
                 // Return focus to the photo button that opened it
                 $('button[onclick*="showTicketDetailById"]').first().focus();
+            });
+            
+            // Fix for photo modal to ensure it's above detail modal
+            $('#photoModal').on('show.bs.modal', function() {
+                // Remove previous event handler to prevent memory leak
+                $(this).off('shown.bs.modal.zindex');
+            });
+            
+            $('#photoModal').on('shown.bs.modal.zindex', function() {
+                // Ensure photo modal has higher z-index than detail modal
+                const $photoModal = $(this);
+                const $lastBackdrop = $('.modal-backdrop').last();
+                
+                $lastBackdrop.css('z-index', 1055);
+                $photoModal.css('z-index', 1060);
+                
+                console.log('[PHOTO_MODAL] Z-index set - Modal:', $photoModal.css('z-index'), 'Backdrop:', $lastBackdrop.css('z-index'));
+            });
+            
+            $('#photoModal').on('hidden.bs.modal', function() {
+                // Clear image src to save memory
+                $('#photoModalImage').attr('src', '');
             });
 
             $('#customerSelect').select2({
@@ -988,7 +1555,15 @@
                     const result = await response.json();
 
                     if (response.ok && (result.status === 201 || result.status === 200) ) {
-                        displayGlobalAdminMessage(result.message, 'success');
+                        // Display message with working hours info if outside hours
+                        let messageToShow = result.message;
+                        if (result.workingHours && !result.workingHours.isWithinHours && result.workingHours.warning) {
+                            // Show warning style for outside working hours
+                            displayGlobalAdminMessage(messageToShow, 'warning');
+                        } else {
+                            displayGlobalAdminMessage(messageToShow, 'success');
+                        }
+                        
                         // Blur focus before hiding modal to prevent aria-hidden warning
                         $('#createTicketModal').find(':focus').blur();
                         $('#createTicketModal').modal('hide');

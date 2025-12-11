@@ -32,8 +32,19 @@ function log(message, type = 'info') {
 }
 
 async function runMigration() {
-    const dbPath = path.join(__dirname, '..', 'database.sqlite');
-    const backupPath = path.join(__dirname, '..', `database.backup.${Date.now()}.sqlite`);
+    // All databases stored in database/ folder
+    const dbDir = path.join(__dirname, '..', 'database');
+    if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+    }
+    const dbPath = path.join(dbDir, 'database.sqlite');
+    const backupPath = path.join(__dirname, '..', 'backups', `database.backup.${Date.now()}.sqlite`);
+    
+    // Ensure backups directory exists
+    const backupsDir = path.join(__dirname, '..', 'backups');
+    if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+    }
 
     log(`Database path: ${dbPath}`);
 

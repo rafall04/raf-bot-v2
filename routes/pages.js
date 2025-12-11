@@ -7,12 +7,26 @@ const router = express.Router();
 // Middleware to check user role
 function checkRole(allowedRoles) {
     return (req, res, next) => {
-        if (!req.user || !allowedRoles.includes(req.user.role)) {
-            if (req.user && req.user.role === 'teknisi') {
+        // Debug logging
+        console.log(`[CHECK_ROLE] Path: ${req.path}, User: ${req.user ? req.user.username : 'null'}, Role: ${req.user ? req.user.role : 'null'}, Allowed: ${allowedRoles.join(', ')}`);
+        
+        if (!req.user) {
+            console.log(`[CHECK_ROLE] No req.user found. Token: ${req.cookies?.token ? 'exists' : 'missing'}`);
+            // If no user but has token, might be expired or invalid
+            if (req.cookies?.token || req.headers?.authorization) {
+                return res.status(403).send("Akses ditolak. Token tidak valid atau expired. Silakan login ulang.");
+            }
+            return res.status(403).send("Akses ditolak. Silakan login terlebih dahulu.");
+        }
+        
+        if (!allowedRoles.includes(req.user.role)) {
+            console.log(`[CHECK_ROLE] Role mismatch. User role: ${req.user.role}, Required: ${allowedRoles.join(', ')}`);
+            if (req.user.role === 'teknisi') {
                 return res.status(403).send("Akses ditolak. Halaman ini khusus Administrator.");
             }
-            return res.status(403).send("Akses ditolak");
+            return res.status(403).send(`Akses ditolak. Role Anda (${req.user.role}) tidak memiliki akses ke halaman ini.`);
         }
+        
         next();
     };
 }
@@ -40,8 +54,21 @@ router.get('/wifi-logs', checkRole(['admin', 'owner', 'superadmin']), (req, res)
     res.render('sb-admin/wifi-logs.php');
 });
 
+router.get('/login-logs', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    console.log(`[ROUTE_HANDLER] /login-logs: Route handler called. User: ${req.user ? req.user.username : 'null'}, Role: ${req.user ? req.user.role : 'null'}`);
+    res.render('sb-admin/login-logs.php');
+});
+
+router.get('/activity-logs', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/activity-logs.php');
+});
+
 router.get('/speed-boost-config', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/speed-boost-config.php');
+});
+
+router.get('/speed-requests', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/speed-requests.php');
 });
 
 router.get('/agent-management', (req, res) => {
@@ -73,6 +100,23 @@ router.get('/teknisi-map-viewer', checkRole(['teknisi', 'admin', 'owner', 'super
     res.render('sb-admin/teknisi-map-viewer.php');
 });
 
+router.get('/teknisi-psb', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/teknisi-psb.php');
+});
+
+router.get('/teknisi-psb-installation', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/teknisi-psb-installation.php');
+});
+
+router.get('/teknisi-psb-setup', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/teknisi-psb-setup.php');
+});
+
+// PSB Rekap page - ADMIN ONLY
+router.get('/psb-rekap', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/psb-rekap.php');
+});
+
 // Working Hours page
 router.get('/teknisi-working-hours', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/teknisi-working-hours.php');
@@ -89,7 +133,27 @@ router.get('/views/sb-admin/view-invoice.php', (req, res) => {
 });
 
 // Logout
-router.get('/logout', (req, res) => {
+router.get('/logout', async (req, res) => {
+    // Log logout event before clearing token
+    if (req.user) {
+        try {
+            const { logLogout } = require('../lib/activity-logger');
+            const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown';
+            const userAgent = req.headers['user-agent'] || 'unknown';
+            
+            await logLogout({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                ipAddress,
+                userAgent
+            });
+        } catch (err) {
+            // Log error but don't fail logout
+            console.error(`[AUTH_LOG] ❌ Failed to log logout: ${req.user?.username || 'unknown'} - ${err.message}`);
+        }
+    }
+    
     res.cookie("token", "", { httpOnly: true, maxAge: 0, path: "/" });
     return res.redirect("/login");
 });

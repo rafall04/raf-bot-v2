@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
+const fs = require('fs');
 const { exec } = require('child_process');
 const util = require('util');
 const { getSSIDInfo, rebootRouter } = require('../lib/wifi');
@@ -8,7 +9,48 @@ const { getSSIDInfo, rebootRouter } = require('../lib/wifi');
 const router = express.Router();
 const execPromise = util.promisify(exec);
 
-// Middleware to ensure user is authenticated
+// OPTIMASI: Perpanjang cache time untuk mengurangi API calls
+const statusCache = {
+    genieacs: null,
+    mikrotik: null,
+    ppp: null,
+    hotspot: null,
+    cacheTime: 0,
+    TTL: 60000 // 60 detik (diperpanjang dari 30 detik)
+};
+
+function withTimeout(promise, timeoutMs, defaultValue = null) {
+    return Promise.race([
+        promise,
+        new Promise((resolve) => {
+            setTimeout(() => resolve(defaultValue), timeoutMs);
+        })
+    ]);
+}
+
+function execPHPWithTimeout(scriptPath, timeoutMs = 2000) {
+    return withTimeout(
+        execPromise(`php "${scriptPath}"`, { maxBuffer: 1024 * 1024 }),
+        timeoutMs,
+        { error: true, connected: false, message: 'Timeout', timeout: true }
+    ).then(({ stdout, stderr }) => {
+        if (stderr && !stdout) {
+            throw new Error(stderr);
+        }
+        try {
+            const parsed = JSON.parse(stdout || '{}');
+            if (parsed.connected === undefined) {
+                parsed.connected = false;
+            }
+            return parsed;
+        } catch (e) {
+            return { error: true, connected: false, message: 'Invalid JSON response', raw: stdout };
+        }
+    }).catch(e => {
+        return { error: true, connected: false, message: e.message || 'Execution failed' };
+    });
+}
+
 function ensureAuthenticated(req, res, next) {
     if (!req.user) {
         return res.status(401).json({ status: 401, message: "Unauthorized" });
@@ -16,20 +58,66 @@ function ensureAuthenticated(req, res, next) {
     next();
 }
 
-// GET /api/me
 router.get('/me', ensureAuthenticated, (req, res) => {
     if (req.user && req.user.username) {
+        // Cari account dari global.accounts untuk mendapatkan field 'name'
+        let account = null;
+        if (global.accounts && Array.isArray(global.accounts)) {
+            account = global.accounts.find(acc => String(acc.id) === String(req.user.id));
+        }
+        
         res.json({
             status: 200,
             message: "User details fetched successfully.",
             data: {
                 id: req.user.id,
                 username: req.user.username,
+                name: account && account.name ? account.name : (req.user.name || req.user.username),
                 role: req.user.role
             }
         });
     } else {
         res.status(401).json({ status: 401, message: "Not authenticated or user details not found." });
+    }
+});
+
+router.get('/stats/config', async (req, res) => {
+    try {
+        let mainConfig = global.config || {};
+        let cronConfig = global.cronConfig || {};
+        
+        try {
+            // Try to read from file to get latest config
+            const mainConfigPath = path.join(__dirname, '..', 'config.json');
+            if (fs.existsSync(mainConfigPath)) {
+                mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
+            }
+        } catch (err) {
+            console.warn('[STATS_CONFIG] Failed to read config.json, using global.config:', err.message);
+        }
+        
+        try {
+            // Try to read from file to get latest cron config
+            const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
+            if (fs.existsSync(cronConfigPath)) {
+                cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+            }
+        } catch (err) {
+            console.warn('[STATS_CONFIG] Failed to read cron.json, using global.cronConfig:', err.message);
+        }
+        
+        // Merge configs: mainConfig first, then cronConfig (cronConfig can override)
+        // But accessLimit should be in mainConfig, so we prioritize mainConfig for accessLimit
+        const mergedConfig = { ...mainConfig, ...cronConfig };
+        // Ensure accessLimit from mainConfig is preserved if it exists
+        if (mainConfig?.accessLimit !== undefined) {
+            mergedConfig.accessLimit = mainConfig.accessLimit;
+        }
+        
+        return res.json({ data: mergedConfig });
+    } catch (err) {
+        console.error('[STATS_CONFIG_ERROR]', err);
+        return res.status(500).json({ status: 500, message: 'Gagal mengambil konfigurasi.', error: err.message });
     }
 });
 
@@ -134,8 +222,34 @@ router.get('/:type/:id?', async (req, res) => {
                     const paidUsersCount = global.users.filter(user => user.paid === true || user.paid === 1).length;
                     const unpaidUsers = totalUsers - paidUsersCount;
                     
-                    // ORIGINAL LOGIC - JANGAN DIUBAH! INI SUDAH BEKERJA UNTUK WIDGET BAWAH!
-                    const botStatus = !!global.raf && global.whatsappConnectionState === 'open';
+                    // PENTING: Pastikan botStatus selalu boolean (true/false), bukan undefined
+                    // Gunakan monitoring service sebagai primary check karena lebih akurat
+                    let botStatus = false;
+                    
+                    // Method 1: Gunakan monitoring service (lebih akurat, cek multiple conditions)
+                    if (global.monitoring && typeof global.monitoring.checkWhatsAppConnection === 'function') {
+                        botStatus = global.monitoring.checkWhatsAppConnection();
+                    } else {
+                        // Fallback: Manual check jika monitoring service tidak tersedia
+                        // Check connection state
+                        if (global.whatsappConnectionState === 'open') {
+                            // Verify dengan global.raf atau global.conn
+                            if (global.raf) {
+                                const wsState = global.raf.ws?.readyState || global.raf.ws?._ws?.readyState;
+                                const hasUser = !!(global.raf.user && global.raf.user.id);
+                                
+                                // WebSocket state: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+                                if (wsState === 1 || hasUser) {
+                                    botStatus = true;
+                                }
+                            } else if (global.conn && global.conn.user) {
+                                botStatus = true;
+                            }
+                        }
+                    }
+                    
+                    // Final check: Pastikan selalu boolean
+                    botStatus = !!botStatus;
                     
                     let totalRevenue = 0;
                     if (global.users && global.packages) {
@@ -150,20 +264,80 @@ router.get('/:type/:id?', async (req, res) => {
                             }
                         });
                     }
-                    const pppPromise = execPromise(`php "${path.join(__dirname, '..', 'views', 'get_ppp_stats.php')}"`).then(({ stdout }) => JSON.parse(stdout)).catch(e => { console.error("[STATS_API_ERROR] PPP Stats failed:", e.message); return { error: true }; });
-                    const hotspotPromise = execPromise(`php "${path.join(__dirname, '..', 'views', 'get_hotspot_stats.php')}"`).then(({ stdout }) => JSON.parse(stdout)).catch(e => { console.error("[STATS_API_ERROR] Hotspot Stats failed:", e.message); return { error: true }; });
-                    const mikrotikPromise = execPromise(`php "${path.join(__dirname, '..', 'views', 'check_mikrotik_connection.php')}"`).then(({ stdout }) => JSON.parse(stdout)).catch(e => { console.error("[STATS_API_ERROR] Mikrotik check failed:", e.message); return { error: true, connected: false, message: e.message }; });
-                    const genieAcsPromise = (async () => {
-                        if (!global.config.genieacsBaseUrl) return { connected: false, message: 'Not Configured' };
+                    
+                    // OPTIMASI: Gunakan cache yang lebih agresif (60 detik) untuk mengurangi API calls
+                    const now = Date.now();
+                    const useCache = (now - statusCache.cacheTime) < (statusCache.TTL * 2); // Double cache time
+                    
+                    // Fungsi untuk mendapatkan status dengan caching
+                    const getCachedOrFetch = async (key, fetchFn) => {
+                        if (useCache && statusCache[key]) {
+                            return statusCache[key];
+                        }
+                        const result = await fetchFn();
+                        statusCache[key] = result;
+                        statusCache.cacheTime = now;
+                        return result;
+                    };
+                    
+                    // OPTIMASI: Kurangi timeout untuk response lebih cepat
+                    const pppPromise = getCachedOrFetch('ppp', () => 
+                        execPHPWithTimeout(path.join(__dirname, '..', 'views', 'get_ppp_stats.php'), 1000)
+                            .catch(e => {
+                                return { error: true };
+                            })
+                    );
+                    
+                    const hotspotPromise = getCachedOrFetch('hotspot', () =>
+                        execPHPWithTimeout(path.join(__dirname, '..', 'views', 'get_hotspot_stats.php'), 1000)
+                            .catch(e => {
+                                return { error: true };
+                            })
+                    );
+                    
+                    const mikrotikPromise = getCachedOrFetch('mikrotik', () =>
+                        execPHPWithTimeout(path.join(__dirname, '..', 'views', 'check_mikrotik_connection.php'), 800)
+                            .catch(e => {
+                                return { error: true, connected: false, message: e.message };
+                            })
+                    );
+                    
+                    const genieAcsPromise = getCachedOrFetch('genieacs', async () => {
+                        if (!global.config.genieacsBaseUrl) {
+                            return { connected: false, message: 'Not Configured' };
+                        }
                         try {
-                            await axios.get(`${global.config.genieacsBaseUrl}/devices?projection=_id&limit=1`, { timeout: 3500 });
+                            await axios.get(`${global.config.genieacsBaseUrl}/devices?projection=_id&limit=1`, { 
+                                timeout: 500 
+                            });
                             return { connected: true, message: 'Connected' };
                         } catch (error) {
-                            console.error("[STATS_API_ERROR] GenieACS check failed:", error.message);
                             return { connected: false, message: error.code || 'Request Failed' };
                         }
-                    })();
-                    const [pppResult, hotspotResult, mikrotikResult, genieAcsResult] = await Promise.all([pppPromise, hotspotPromise, mikrotikPromise, genieAcsPromise]);
+                    });
+                    
+                    // OPTIMASI: Gunakan Promise.allSettled dengan timeout lebih agresif
+                    const results = await Promise.allSettled([pppPromise, hotspotPromise, mikrotikPromise, genieAcsPromise]);
+                    
+                    const pppResult = results[0].status === 'fulfilled' ? results[0].value : { error: true };
+                    const hotspotResult = results[1].status === 'fulfilled' ? results[1].value : { error: true };
+                    const mikrotikResult = results[2].status === 'fulfilled' ? results[2].value : { error: true, connected: false, message: 'Check failed' };
+                    const genieAcsResult = results[3].status === 'fulfilled' ? results[3].value : { connected: false, message: 'Check failed' };
+                    
+                    const normalizedMikrotikResult = {
+                        connected: typeof mikrotikResult.connected === 'boolean' 
+                            ? mikrotikResult.connected 
+                            : (mikrotikResult.connected === true || mikrotikResult.connected === 'true' || mikrotikResult.connected === 1),
+                        message: mikrotikResult.message || mikrotikResult.status || (mikrotikResult.connected ? 'Connected' : 'Offline')
+                    };
+                    
+                    const normalizedGenieAcsResult = {
+                        connected: typeof genieAcsResult.connected === 'boolean' 
+                            ? genieAcsResult.connected 
+                            : (genieAcsResult.connected === true || genieAcsResult.connected === 'true' || genieAcsResult.connected === 1),
+                        message: genieAcsResult.message || (genieAcsResult.connected ? 'Connected' : 'Offline')
+                    };
+                    
                     return res.json({
                         users: totalUsers,
                         paidUsers: paidUsersCount,
@@ -172,8 +346,8 @@ router.get('/:type/:id?', async (req, res) => {
                         botStatus: botStatus,
                         pppStats: pppResult.error ? { online: 'N/A', offline: 'N/A' } : (pppResult.data || pppResult),
                         hotspotStats: hotspotResult.error ? { total: 'N/A', active: 'N/A' } : (hotspotResult.data || hotspotResult),
-                        mikrotikStatus: { connected: mikrotikResult.connected, message: mikrotikResult.message || (mikrotikResult.connected ? 'Connected' : 'Offline') },
-                        genieAcsStatus: genieAcsResult,
+                        mikrotikStatus: normalizedMikrotikResult,
+                        genieAcsStatus: normalizedGenieAcsResult,
                     });
                 } catch (e) {
                     console.error("[STATS_API_FATAL_ERROR] A critical error occurred while fetching dashboard stats:", e);
@@ -238,7 +412,46 @@ router.get('/:type/:id?', async (req, res) => {
                 return res.json({ data: validAndMappedRequests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) });
             
             case "config":
-                return res.json({ data: { ...global.config, ...global.cronConfig } });
+                // Read config directly from file to ensure we get the latest value
+                // This is important because global.config might not be updated after save
+                // Note: path and fs are already required at the top of the file
+                let mainConfig = global.config || {};
+                let cronConfig = global.cronConfig || {};
+                
+                try {
+                    // Try to read from file to get latest config
+                    const mainConfigPath = path.join(__dirname, '..', 'config.json');
+                    if (fs.existsSync(mainConfigPath)) {
+                        mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
+                    }
+                } catch (err) {
+                    console.warn('[STATS_CONFIG] Failed to read config.json, using global.config:', err.message);
+                }
+                
+                try {
+                    // Try to read from file to get latest cron config
+                    const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
+                    if (fs.existsSync(cronConfigPath)) {
+                        cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+                    }
+                } catch (err) {
+                    console.warn('[STATS_CONFIG] Failed to read cron.json, using global.cronConfig:', err.message);
+                }
+                
+                // Merge configs: mainConfig first, then cronConfig (cronConfig can override)
+                // But accessLimit should be in mainConfig, so we prioritize mainConfig for accessLimit
+                const mergedConfig = { ...mainConfig, ...cronConfig };
+                // Ensure accessLimit from mainConfig is preserved if it exists
+                if (mainConfig?.accessLimit !== undefined) {
+                    mergedConfig.accessLimit = mainConfig.accessLimit;
+                }
+                
+                // Debug logging
+                console.log('[STATS_CONFIG] mainConfig.accessLimit:', mainConfig?.accessLimit, 'type:', typeof mainConfig?.accessLimit);
+                console.log('[STATS_CONFIG] mergedConfig.accessLimit:', mergedConfig.accessLimit, 'type:', typeof mergedConfig.accessLimit);
+                console.log('[STATS_CONFIG] mergedConfig keys count:', Object.keys(mergedConfig).length);
+                
+                return res.json({ data: mergedConfig });
             
             case "speed-requests":
                 if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {

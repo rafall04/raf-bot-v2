@@ -38,5 +38,20 @@
         ],
         "createdAt": "2025-01-09T12:00:00.000Z",
         "createdBy": "system"
+    },
+    {
+        "id": "serialnumber_default_001",
+        "type": "serialNumber",
+        "name": "Serial Number (Default)",
+        "description": "Parameter untuk mendapatkan Serial Number perangkat",
+        "paths": [
+            "VirtualParameters.getSerialNumber",
+            "VirtualParameters.serialNumber",
+            "Device.DeviceInfo.SerialNumber",
+            "InternetGatewayDevice.DeviceInfo.SerialNumber",
+            "_serialNumber"
+        ],
+        "createdAt": "2025-01-19T14:00:00.000Z",
+        "createdBy": "system"
     }
 ]

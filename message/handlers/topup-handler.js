@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const saldoManager = require('../../lib/saldo-manager');
 const { logger } = require('../../lib/logger');
+const { renderTemplate } = require('../../lib/templating');
 
 /**
  * Handle topup payment proof upload
@@ -56,15 +57,24 @@ async function handleTopupPaymentProof(msg, user, pushname = '') {
         if (pendingRequests.length === 0) {
             logger.warn('[TOPUP_PROOF] No pending topup request found', { sender });
             
-            if (!global.raf || !global.raf.sendMessage) {
-                logger.error('[TOPUP_PROOF] global.raf not available!');
-                throw new Error('WhatsApp connection not available');
-            }
+            const message = renderTemplate('topup_no_pending', {});
             
-            await global.raf.sendMessage(sender, { 
-                text: '❌ Tidak ada request topup yang menunggu bukti transfer.\n\nSilakan buat request topup baru dengan mengetik *topup*' 
-            });
-            logger.info('[TOPUP_PROOF] Sent no pending request message');
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    await global.raf.sendMessage(sender, { text: message }, { skipDuplicateCheck: true });
+                    logger.info('[TOPUP_PROOF] Sent no pending request message');
+                } catch (error) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        sender,
+                        error: error.message
+                    });
+                    logger.error('[TOPUP_PROOF] Failed to send no pending message:', error);
+                }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', sender);
+                logger.warn('[TOPUP_PROOF] WhatsApp not connected, cannot send no pending message');
+            }
             return;
         }
         
@@ -133,12 +143,22 @@ async function handleTopupPaymentProof(msg, user, pushname = '') {
         confirmMsg += `⏳ Admin akan memverifikasi pembayaran dalam 1x24 jam.\n\n`;
         confirmMsg += `_Anda akan menerima notifikasi setelah pembayaran diverifikasi._`;
         
-        if (global.raf && global.raf.sendMessage) {
-            await global.raf.sendMessage(sender, { text: confirmMsg });
-            logger.info('Confirmation message sent to user', { userId: sender });
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
+                await global.raf.sendMessage(sender, { text: confirmMsg }, { skipDuplicateCheck: true });
+                logger.info('Confirmation message sent to user', { userId: sender });
+            } catch (error) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    sender,
+                    error: error.message
+                });
+                logger.error('Failed to send confirmation message:', error);
+                // Jangan throw - notification tidak critical
+            }
         } else {
-            logger.error('Cannot send confirmation - global.raf not available');
-            throw new Error('WhatsApp connection not available');
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', sender);
+            logger.warn('Cannot send confirmation - WhatsApp not connected');
         }
         
         // Notify admins with the proof
@@ -153,19 +173,25 @@ async function handleTopupPaymentProof(msg, user, pushname = '') {
         });
         
         // Always try to send error message to user
-        try {
-            if (global.raf && global.raf.sendMessage) {
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules
+        if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+            try {
                 await global.raf.sendMessage(sender, { 
                     text: `❌ Gagal mengupload bukti transfer. Silakan coba lagi.\n\nError: ${error.message}\n\n_Jika masalah berlanjut, hubungi admin._`
-                });
+                }, { skipDuplicateCheck: true });
                 logger.info('[TOPUP_PROOF] Error message sent to user');
-            } else {
-                logger.error('[TOPUP_PROOF] Cannot send error message - global.raf unavailable');
+            } catch (sendError) {
+                console.error('[SEND_MESSAGE_ERROR]', {
+                    sender,
+                    error: sendError.message
+                });
+                logger.error('[TOPUP_PROOF] Failed to send error message', {
+                    error: sendError.message
+                });
             }
-        } catch (sendError) {
-            logger.error('[TOPUP_PROOF] Failed to send error message', {
-                error: sendError.message
-            });
+        } else {
+            console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', sender);
+            logger.warn('[TOPUP_PROOF] Cannot send error message - WhatsApp not connected');
         }
     }
 }
@@ -194,24 +220,36 @@ async function notifyAdminsWithProof(request, proofPath, user, pushname = '') {
         const adminRecipients = await getAdminRecipients();
         
         // Send to each admin with the proof image
+        // PENTING: Cek connection state dan gunakan error handling sesuai rules untuk multiple recipients
         for (const adminJid of adminRecipients) {
-            try {
-                // Send the proof image/document first
-                if (proofPath.endsWith('.jpg') || proofPath.endsWith('.png')) {
-                    await global.raf.sendMessage(adminJid, {
-                        image: { url: proofPath },
-                        caption: adminMessage
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
+                try {
+                    // Send the proof image/document first
+                    if (proofPath.endsWith('.jpg') || proofPath.endsWith('.png')) {
+                        await global.raf.sendMessage(adminJid, {
+                            image: { url: proofPath },
+                            caption: adminMessage
+                        });
+                    } else {
+                        await global.raf.sendMessage(adminJid, {
+                            document: { url: proofPath },
+                            fileName: path.basename(proofPath),
+                            caption: adminMessage
+                        });
+                    }
+                    logger.info('Admin notified with topup proof', { admin: adminJid, requestId: request.id });
+                } catch (error) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        adminJid,
+                        type: proofPath.endsWith('.jpg') || proofPath.endsWith('.png') ? 'image' : 'document',
+                        error: error.message
                     });
-                } else {
-                    await global.raf.sendMessage(adminJid, {
-                        document: { url: proofPath },
-                        fileName: path.basename(proofPath),
-                        caption: adminMessage
-                    });
+                    logger.error('Failed to notify admin', { admin: adminJid, error });
+                    // Continue to next recipient
                 }
-                logger.info('Admin notified with topup proof', { admin: adminJid, requestId: request.id });
-            } catch (error) {
-                logger.error('Failed to notify admin', { admin: adminJid, error });
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', adminJid);
+                logger.warn('Cannot notify admin - WhatsApp not connected', { admin: adminJid });
             }
         }
     } catch (error) {
@@ -294,30 +332,38 @@ async function handleTopupVerification(requestId, approved, adminName, notes = '
             const customerName = request.customerName || null;
             
             // Create user saldo if not exists (with pushname for better UX)
-            saldoManager.createUserSaldo(userJid, customerName);
+            await saldoManager.createUserSaldo(userJid, customerName);
             
             // Add saldo to user (pass customerName for pushname update AND requestId for proof linking)
-            const transaction = saldoManager.addSaldo(userJid, request.amount, `Topup verified - ${request.paymentMethod}`, customerName, requestId);
+            const transaction = await saldoManager.addSaldo(userJid, request.amount, `Topup verified - ${request.paymentMethod}`, customerName, requestId);
             
             // Save changes
             saldoManager.saveTopupRequests();
             
             // Notify user (only if WhatsApp is connected)
-            if (global.raf && global.raf.sendMessage) {
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                 try {
-                    let successMsg = `🎉 *TOPUP BERHASIL DIVERIFIKASI*\n\n`;
-                    successMsg += `ID Request: *${request.id}*\n`;
-                    successMsg += `Jumlah: *Rp ${request.amount.toLocaleString('id-ID')}*\n`;
-                    successMsg += `Saldo Sekarang: *Rp ${saldoManager.getSaldo(userJid).toLocaleString('id-ID')}*\n\n`;
-                    successMsg += `✅ Saldo Anda telah ditambahkan.\n`;
-                    successMsg += `Terima kasih atas pembayaran Anda! 🙏\n\n`;
-                    successMsg += `_Gunakan saldo untuk membeli voucher atau layanan lainnya._`;
+                    // Ambil saldo setelah transaksi (await karena getSaldo return Promise)
+                    const currentSaldo = await saldoManager.getSaldo(userJid);
+                    const successMsg = renderTemplate('topup_verified_success', {
+                        request_id: request.id,
+                        harga: `Rp ${request.amount.toLocaleString('id-ID')}`,
+                        formattedSaldo: `Rp ${currentSaldo.toLocaleString('id-ID')}`
+                    });
                     
                     await global.raf.sendMessage(userJid, { text: successMsg });
                 } catch (waError) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        userJid,
+                        error: waError.message
+                    });
                     logger.warn('Failed to send WhatsApp notification:', waError.message);
                     // Don't throw, just log - WhatsApp notification is not critical
                 }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', userJid);
+                logger.warn('Cannot send topup success notification - WhatsApp not connected');
             }
             
             logger.info('Topup verified and approved', { 
@@ -340,20 +386,27 @@ async function handleTopupVerification(requestId, approved, adminName, notes = '
             saldoManager.saveTopupRequests();
             
             // Notify user (only if WhatsApp is connected)
-            if (global.raf && global.raf.sendMessage) {
+            // PENTING: Cek connection state dan gunakan error handling sesuai rules
+            if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                 try {
-                    let rejectMsg = `❌ *TOPUP DITOLAK*\n\n`;
-                    rejectMsg += `ID Request: *${request.id}*\n`;
-                    rejectMsg += `Jumlah: *Rp ${request.amount.toLocaleString('id-ID')}*\n\n`;
-                    rejectMsg += `📋 *Alasan:* ${request.rejectionReason}\n\n`;
-                    rejectMsg += `Silakan buat request topup baru dengan bukti transfer yang valid.\n`;
-                    rejectMsg += `Jika ada pertanyaan, silakan hubungi admin.`;
+                    const rejectMsg = renderTemplate('topup_rejected', {
+                        request_id: request.id,
+                        harga: `Rp ${request.amount.toLocaleString('id-ID')}`,
+                        alasan: request.rejectionReason || 'Bukti transfer tidak valid'
+                    });
                     
                     await global.raf.sendMessage(userJid, { text: rejectMsg });
                 } catch (waError) {
+                    console.error('[SEND_MESSAGE_ERROR]', {
+                        userJid,
+                        error: waError.message
+                    });
                     logger.warn('Failed to send WhatsApp rejection notification:', waError.message);
                     // Don't throw, just log - WhatsApp notification is not critical
                 }
+            } else {
+                console.warn('[SEND_MESSAGE_SKIP] WhatsApp not connected, skipping send to', userJid);
+                logger.warn('Cannot send topup rejection notification - WhatsApp not connected');
             }
             
             logger.info('Topup rejected', { 

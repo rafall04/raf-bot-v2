@@ -129,13 +129,13 @@
                         </div>
                     </div>
 
-                    <!-- Test Connection Card -->
+                    <!-- Test Parameter Card (Registered) -->
                     <div class="row">
                         <div class="col-lg-12">
                             <div class="card shadow mb-4">
                                 <div class="card-header py-3">
-                                    <h6 class="m-0 font-weight-bold text-success">Test Parameter</h6>
-                                    <small class="text-muted">Test parameter dengan device ID tertentu</small>
+                                    <h6 class="m-0 font-weight-bold text-success">Test Parameter (Terdaftar)</h6>
+                                    <small class="text-muted">Test parameter yang sudah terdaftar di sistem</small>
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
@@ -152,6 +152,7 @@
                                                     <option value="redaman">Redaman</option>
                                                     <option value="temperature">Temperature</option>
                                                     <option value="modemType">Modem Type</option>
+                                                    <option value="serialNumber">Serial Number</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -165,6 +166,45 @@
                                         </div>
                                     </div>
                                     <div id="testResults"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test Parameter Custom Card (Not Registered) -->
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">Test Parameter Custom</h6>
+                                    <small class="text-muted">Test parameter langsung dengan path GenieACS tanpa perlu mendaftar</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="testCustomDeviceId">Device ID <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="testCustomDeviceId" placeholder="e.g., 94BF80-F663NV3A-ZTEGCB683800">
+                                                <small class="form-text text-muted">Device ID dari GenieACS</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label for="testCustomParameterPath">GenieACS Parameter Path <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="testCustomParameterPath" placeholder="e.g., Events.Registered, VirtualParameters.RXPower">
+                                                <small class="form-text text-muted">Path parameter GenieACS (gunakan dot notation, contoh: Events.Registered)</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="form-group">
+                                                <label>&nbsp;</label>
+                                                <button type="button" class="btn btn-primary btn-block" id="testCustomParameterBtn">
+                                                    <i class="fas fa-flask"></i> Test
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="testCustomResults"></div>
                                 </div>
                             </div>
                         </div>
@@ -219,6 +259,7 @@
                                 <option value="redaman">Redaman (Signal Strength)</option>
                                 <option value="temperature">Temperature</option>
                                 <option value="modemType">Modem Type</option>
+                                <option value="serialNumber">Serial Number</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -270,6 +311,7 @@
                                 <option value="redaman">Redaman (Signal Strength)</option>
                                 <option value="temperature">Temperature</option>
                                 <option value="modemType">Modem Type</option>
+                                <option value="serialNumber">Serial Number</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -318,7 +360,6 @@
                     if (data.status === 200 && data.data && data.data.username) {
                         $('#username-placeholder').text(data.data.username);
                     }
-                  credentials: 'include', // ✅ Fixed by script
                 }).catch(err => console.warn("Could not fetch user data: ", err));
         });
 
@@ -356,8 +397,10 @@
             }
 
             parameters.forEach(param => {
-                const badgeColor = param.type === 'redaman' ? 'primary' : 
-                                 param.type === 'temperature' ? 'warning' : 'info';
+                let badgeColor = 'info';
+                if (param.type === 'redaman') badgeColor = 'primary';
+                else if (param.type === 'temperature') badgeColor = 'warning';
+                else if (param.type === 'serialNumber') badgeColor = 'success';
                 
                 const pathsHtml = param.paths.map(path => 
                     `<code class="d-block mb-1">${path}</code>`
@@ -558,8 +601,8 @@
 
             try {
                 const response = await fetch(`/api/genieacs-parameters/${id}`, {
-                    method: 'DELETE'
-                  credentials: 'include', // ✅ Fixed by script
+                    method: 'DELETE',
+                    credentials: 'include'
                 });
 
                 const result = await response.json();
@@ -614,6 +657,7 @@
                     icon = 'fas fa-exclamation-triangle';
                 }
 
+                const messageHtml = result.message ? '<p><strong>Message:</strong> ' + result.message + '</p>' : '';
                 $('#testResults').html(`
                     <div class="${resultClass}">
                         <h6><i class="${icon}"></i> Test Result</h6>
@@ -621,7 +665,7 @@
                         <p><strong>Parameter:</strong> ${parameterType}</p>
                         <p><strong>Value:</strong> ${result.data?.value || 'N/A'}</p>
                         <p><strong>Path Found:</strong> ${result.data?.pathFound || 'None'}</p>
-                        ${result.message ? `<p><strong>Message:</strong> ${result.message}</p>` : ''}
+                        ${messageHtml}
                     </div>
                 `);
                 
@@ -639,6 +683,89 @@
         }
 
         $('#testParameterBtn').click(testParameter);
+
+        // Test Custom Parameter (not registered)
+        async function testCustomParameter() {
+            const deviceId = $('#testCustomDeviceId').val().trim();
+            const parameterPath = $('#testCustomParameterPath').val().trim();
+            
+            if (!deviceId) {
+                showAlert('Device ID harus diisi', 'warning');
+                return;
+            }
+            
+            if (!parameterPath) {
+                showAlert('Parameter Path harus diisi', 'warning');
+                return;
+            }
+
+            $('#testCustomParameterBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Testing...');
+            $('#testCustomResults').empty();
+
+            try {
+                const response = await fetch('/api/test-parameter-custom', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        deviceId,
+                        parameterPath
+                    })
+                });
+
+                const result = await response.json();
+                
+                let resultClass = 'test-success';
+                let icon = 'fas fa-check-circle';
+                
+                if (result.status !== 200) {
+                    resultClass = 'test-error';
+                    icon = 'fas fa-times-circle';
+                } else if (result.data.value === null || result.data.value === undefined) {
+                    resultClass = 'test-warning';
+                    icon = 'fas fa-exclamation-triangle';
+                }
+
+                let valueDisplay = 'N/A';
+                if (result.data.value !== null && result.data.value !== undefined) {
+                    if (typeof result.data.value === 'object') {
+                        valueDisplay = JSON.stringify(result.data.value, null, 2);
+                    } else {
+                        valueDisplay = String(result.data.value);
+                    }
+                }
+
+                const messageHtml = result.message ? '<p><strong>Message:</strong> ' + result.message + '</p>' : '';
+                const rawValueHtml = result.data.rawValue ? '<p><strong>Raw Value (JSON):</strong><pre class="bg-light p-2 rounded mt-2" style="max-height: 200px; overflow-y: auto;">' + JSON.stringify(result.data.rawValue, null, 2) + '</pre></p>' : '';
+                
+                $('#testCustomResults').html(`
+                    <div class="test-result ${resultClass}">
+                        <h6><i class="${icon}"></i> Test Result</h6>
+                        <p><strong>Device ID:</strong> ${deviceId}</p>
+                        <p><strong>Parameter Path:</strong> <code>${parameterPath}</code></p>
+                        <p><strong>Value:</strong> <code>${valueDisplay}</code></p>
+                        <p><strong>Value Type:</strong> ${result.data.valueType || 'N/A'}</p>
+                        ${rawValueHtml}
+                        ${messageHtml}
+                    </div>
+                `);
+                
+            } catch (error) {
+                console.error('Error testing custom parameter:', error);
+                $('#testCustomResults').html(`
+                    <div class="test-result test-error">
+                        <h6><i class="fas fa-times-circle"></i> Test Error</h6>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `);
+            } finally {
+                $('#testCustomParameterBtn').prop('disabled', false).html('<i class="fas fa-flask"></i> Test');
+            }
+        }
+
+        $('#testCustomParameterBtn').click(testCustomParameter);
 
         function showAlert(message, type) {
             const alert = $(`

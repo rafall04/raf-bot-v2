@@ -79,7 +79,7 @@ router.post('/:id/credentials', ensureAdmin, async (req, res) => {
         // Send notification
         if (global.raf && templatesCache.notificationTemplates?.customer_welcome) {
             const templateData = {
-                nama: userToUpdate.name,
+                nama_pelanggan: userToUpdate.name,
                 username: finalUsername,
                 password: plainTextPassword,
                 nama_wifi: global.config.nama_wifi || 'Layanan Kami'

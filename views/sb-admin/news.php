@@ -146,7 +146,17 @@
                 processing: true,
                 ajax: {
                     url: '/api/news',
-                    dataSrc: ''
+                    dataSrc: function(json) {
+                        // Handle response format: {status, success, message, data: [...]}
+                        if (json && json.data && Array.isArray(json.data)) {
+                            return json.data;
+                        }
+                        // Fallback: jika response langsung array (backward compatibility)
+                        if (Array.isArray(json)) {
+                            return json;
+                        }
+                        return [];
+                    }
                 },
                 columns: [
                     { data: 'title' },
@@ -154,6 +164,7 @@
                     {
                         data: 'createdAt',
                         render: function(data, type, row) {
+                            if (!data) return '';
                             return new Date(data).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
                         }
                     },
@@ -260,7 +271,6 @@
             if (data.status === 200 && data.data && data.data.username) {
                 $('#username-placeholder').text(data.data.username);
             }
-          credentials: 'include', // ✅ Fixed by script
         }).catch(err => console.warn("Could not fetch user data: ", err));
     });
     </script>
