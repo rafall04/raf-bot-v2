@@ -38,8 +38,9 @@ async function runAutoMigration() {
         }
         
         if (hasErrors) {
-            console.error('[AUTO_MIGRATION] Some migrations failed. Check logs above.');
-            process.exit(1);
+            console.warn('[AUTO_MIGRATION] Some migrations failed. Check logs above. Application will continue.');
+            // Jangan exit(1) karena beberapa database mungkin tidak perlu migration
+            // Biarkan aplikasi tetap jalan, hanya log warning
         } else if (hasChanges) {
             console.log('[AUTO_MIGRATION] All migrations completed successfully.');
         } else {
