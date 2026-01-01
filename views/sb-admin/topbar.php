@@ -1,19 +1,12 @@
 <?php
-// Pastikan session sudah dimulai
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-// Get current user info - prioritaskan name dari JWT token atau session
+// Get current user info dari JWT token (tidak perlu session)
 $userName = 'User'; // Default fallback
 $role = 'user'; // Default fallback
 
-// DEBUG: Log untuk melihat cookie dan session
+// DEBUG: Log untuk melihat cookie
 $debugInfo = [];
 $debugInfo['has_token_cookie'] = isset($_COOKIE['token']);
 $debugInfo['token_length'] = isset($_COOKIE['token']) ? strlen($_COOKIE['token']) : 0;
-$debugInfo['has_session_name'] = isset($_SESSION['name']);
-$debugInfo['has_session_username'] = isset($_SESSION['username']);
 
 // Prioritas 1: Coba ambil dari JWT token (cookie)
 if (isset($_COOKIE['token']) && !empty($_COOKIE['token'])) {
@@ -74,25 +67,8 @@ if (isset($_COOKIE['token']) && !empty($_COOKIE['token'])) {
     }
 }
 
-// Prioritas 2: Ambil dari session (jika JWT tidak memiliki name)
-if ($userName === 'User' && isset($_SESSION['name']) && !empty(trim($_SESSION['name']))) {
-    $userName = trim($_SESSION['name']);
-    $debugInfo['selected_source'] = 'SESSION_name';
-    $debugInfo['session_name_value'] = $userName;
-} elseif ($userName === 'User' && isset($_SESSION['username']) && !empty(trim($_SESSION['username']))) {
-    // Fallback ke username hanya jika name tidak ada
-    $userName = trim($_SESSION['username']);
-    $debugInfo['selected_source'] = 'SESSION_username';
-    $debugInfo['session_username_value'] = $userName;
-}
-
-if ($role === 'user' && isset($_SESSION['role']) && !empty(trim($_SESSION['role']))) {
-    $role = trim($_SESSION['role']);
-    $debugInfo['session_role_value'] = $role;
-}
-
-// DEBUG: Log semua session values untuk debugging
-$debugInfo['session_all'] = $_SESSION;
+// Prioritas 2: Tidak ada lagi - hanya pakai JWT
+// Session tidak digunakan karena menyebabkan error "headers already sent"
 
 $debugInfo['final_userName'] = $userName;
 $debugInfo['final_role'] = $role;
