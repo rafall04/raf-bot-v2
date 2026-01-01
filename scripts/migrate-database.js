@@ -37,8 +37,15 @@ async function runMigration() {
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
-    const dbPath = path.join(dbDir, 'database.sqlite');
-    const backupPath = path.join(__dirname, '..', 'backups', `database.backup.${Date.now()}.sqlite`);
+    
+    // Try users.sqlite first (new format), fallback to database.sqlite (old format)
+    let dbPath = path.join(dbDir, 'users.sqlite');
+    if (!fs.existsSync(dbPath)) {
+        dbPath = path.join(dbDir, 'database.sqlite');
+    }
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const backupPath = path.join(__dirname, '..', 'backups', `users_backup_${timestamp}.sqlite`);
     
     // Ensure backups directory exists
     const backupsDir = path.join(__dirname, '..', 'backups');

@@ -4854,11 +4854,28 @@ router.post('/api/database/check-schema', ensureAuthenticatedStaff, async (req, 
             'corporate_address', 'corporate_npwp', 'corporate_pic_name',
             'corporate_pic_phone', 'corporate_pic_email', 'pppoe_username',
             'pppoe_password', 'connected_odp_id', 'bulk', 'created_at',
-            'updated_at', 'otp', 'otpTimestamp'
+            'updated_at', 'otp', 'otpTimestamp',
+            // Additional fields from migrate-database.js
+            'subscription_price', 'payment_due_date', 'is_paid', 'auto_isolir',
+            'odc', 'odp', 'olt', 'maps_url', 'registration_date', 'last_login',
+            'last_payment_date', 'reminder_sent', 'isolir_sent', 'compensation_minutes',
+            'email', 'alternative_phone', 'notes'
         ];
         
-        // All databases stored in database/ folder
-        const dbPath = path.join(__dirname, '..', 'database', 'users.sqlite');
+        // Try users.sqlite first (new format), fallback to database.sqlite (old format)
+        let dbPath = path.join(__dirname, '..', 'database', 'users.sqlite');
+        if (!fs.existsSync(dbPath)) {
+            dbPath = path.join(__dirname, '..', 'database', 'database.sqlite');
+        }
+        
+        if (!fs.existsSync(dbPath)) {
+            return res.status(404).json({
+                status: 404,
+                message: "Database file not found (users.sqlite or database.sqlite)",
+                data: null
+            });
+        }
+        
         const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
         
         const checkSchema = () => new Promise((resolve, reject) => {
