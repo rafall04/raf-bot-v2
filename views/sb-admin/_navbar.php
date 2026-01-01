@@ -116,20 +116,24 @@ function isParentActive($pages, $current) {
         </div>
     </li>
 
-    <li class="nav-item <?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'active' : ''; ?>">
-        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseAgent" aria-expanded="<?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseAgent">
+    <li class="nav-item <?php echo isParentActive(['/agent-management', '/agent-voucher-management', '/voucher'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseAgent" aria-expanded="<?php echo isParentActive(['/agent-management', '/agent-voucher-management', '/voucher'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseAgent">
             <i class="fas fa-fw fa-store"></i>
             <span>Agent & Reseller</span>
         </a>
-        <div id="collapseAgent" class="collapse <?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingAgent" data-parent="#accordionSidebar">
+        <div id="collapseAgent" class="collapse <?php echo isParentActive(['/agent-management', '/agent-voucher-management', '/voucher'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingAgent" data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-management', $current_page) ? 'active' : ''; ?>" href="/agent-management">
                     <i class="fas fa-fw fa-store mr-2"></i>
                     <span>Agent & Outlet</span>
                 </a>
-                <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-voucher-management', $current_page) ? 'active' : ''; ?>" href="/agent-voucher-management">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/voucher', $current_page) ? 'active' : ''; ?>" href="/voucher">
                     <i class="fas fa-fw fa-ticket-alt mr-2"></i>
-                    <span>Agent Voucher</span>
+                    <span>Paket Voucher</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-voucher-management', $current_page) ? 'active' : ''; ?>" href="/agent-voucher-management">
+                    <i class="fas fa-fw fa-boxes mr-2"></i>
+                    <span>Stok Voucher Agent</span>
                 </a>
             </div>
         </div>
