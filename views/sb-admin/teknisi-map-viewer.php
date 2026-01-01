@@ -34,6 +34,26 @@
             padding: 1rem;
             overflow: hidden;
         }
+        
+        /* CRITICAL FIX: Ensure sidebar navbar is ALWAYS visible and clickable */
+        #accordionSidebar {
+            z-index: 1200 !important;
+            position: relative !important;
+        }
+        
+        /* Ensure sidebar collapse menus are above content */
+        #accordionSidebar .collapse,
+        #accordionSidebar .collapsing,
+        #accordionSidebar .collapse.show {
+            z-index: 1201 !important;
+        }
+        
+        /* Ensure sidebar dropdown inner content is clickable */
+        #accordionSidebar .collapse-inner {
+            z-index: 1202 !important;
+            position: relative !important;
+        }
+        
         #mapContainer {
             position: relative;
             width: 100%;

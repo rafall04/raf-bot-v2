@@ -268,6 +268,8 @@ router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
                 userName: user.name,
                 newStatus: newStatus,
                 status: 'pending',
+                // Teknisi request = pembayaran CASH (diterima langsung oleh teknisi)
+                payment_method: newStatus === true ? 'CASH' : null,
                 created_at: new Date().toISOString(),
                 updated_at: null,
                 updated_by: null,
@@ -275,7 +277,7 @@ router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
             };
             allRequests.push(newRequest);
             saveJSON('database/requests.json', allRequests);
-            console.log(`[REQUEST_CREATE_LOG] Teknisi ID ${req.user.id} (${req.user.username}) membuat pengajuan baru untuk User ID ${userId} (${user.name}).`);
+            console.log(`[REQUEST_CREATE_LOG] Teknisi ID ${req.user.id} (${req.user.username}) membuat pengajuan baru untuk User ID ${userId} (${user.name}). Payment method: ${newRequest.payment_method || 'N/A'}`);
             
             // Broadcast ke semua admin dan owner
             const teknisiName = req.user.name || req.user.username;
@@ -503,12 +505,33 @@ router.post('/approve-paid-change', rateLimit('approve-request', 20, 60000), asy
                     }
                     
                     if (userToUpdate.paid === true) {
+                        // Determine payment method:
+                        // 1. If admin provides payment_method in request body, use that
+                        // 2. Otherwise, use payment_method from the original request
+                        // 3. If request is from teknisi and newStatus is true (Sudah Bayar), default to CASH
+                        //    because teknisi receives cash directly from customer in the field
+                        // 4. Fallback to TRANSFER_BANK for backward compatibility
+                        let paymentMethod = 'TRANSFER_BANK';
+                        if (req.body.payment_method && ['CASH', 'TRANSFER_BANK'].includes(req.body.payment_method)) {
+                            paymentMethod = req.body.payment_method;
+                        } else if (requestToUpdate.payment_method) {
+                            paymentMethod = requestToUpdate.payment_method;
+                        } else if (requestToUpdate.requested_by_teknisi_id && requestToUpdate.newStatus === true) {
+                            // Old teknisi requests without payment_method field - default to CASH
+                            paymentMethod = 'CASH';
+                        }
+                        
+                        // Store payment_method in request for history
+                        requestToUpdate.payment_method = paymentMethod;
+                        
+                        console.log(`[APPROVE_PAID] Payment method for ${userToUpdate.name}: ${paymentMethod}`);
+                        
                         // handlePaidStatusChange now handles invoice PDF sending based on send_invoice flag
                         await handlePaidStatusChange(userToUpdate, {
                             paidDate: new Date().toISOString(),
-                            method: 'TRANSFER_BANK', // Admin approval = bank transfer
+                            method: paymentMethod,
                             approvedBy: req.user ? req.user.username : 'Admin',
-                            notes: 'Pembayaran disetujui melalui sistem approval'
+                            notes: `Pembayaran disetujui melalui sistem approval (${paymentMethod === 'CASH' ? 'Tunai' : 'Transfer Bank'})`
                         });
                     }
                 } catch (e) {
@@ -658,11 +681,15 @@ router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000),
                 
                 // Handle paid status change (send invoice if needed)
                 if (newPaidStatus === true) {
+                    // Use payment_method from original request (CASH for teknisi) or fallback to TRANSFER_BANK
+                    const paymentMethod = request.payment_method || 'TRANSFER_BANK';
+                    request.payment_method = paymentMethod; // Store for history
+                    
                     await handlePaidStatusChange(user, {
                         paidDate: new Date().toISOString(),
-                        method: 'TRANSFER_BANK', // Admin update = bank transfer
+                        method: paymentMethod,
                         approvedBy: req.user.username,
-                        notes: 'Status pembayaran diperbarui'
+                        notes: `Status pembayaran diperbarui (${paymentMethod === 'CASH' ? 'Tunai' : 'Transfer Bank'})`
                     });
                 }
                 

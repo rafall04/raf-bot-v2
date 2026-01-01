@@ -509,8 +509,8 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="photoInput">Upload Foto (Opsional):</label>
-                            <input type="file" class="form-control-file" id="photoInput" name="photos" accept="image/*" multiple>
+                            <label for="createTicketPhotoInput">Upload Foto (Opsional):</label>
+                            <input type="file" class="form-control-file" id="createTicketPhotoInput" name="photos" accept="image/*" multiple>
                             <small class="form-text text-muted">Maksimal 3 foto, ukuran maksimal 5MB per foto. Format: JPG, PNG, GIF, WebP</small>
                             <div id="photoPreview" class="mt-2"></div>
                         </div>
@@ -866,7 +866,17 @@
         function renderActionButtons(row) {
             const ticketId = row.ticketId || row.id;
             const status = (row.status || 'baru').toLowerCase();
-            const photoCount = (row.photos && Array.isArray(row.photos)) ? row.photos.length : 0;
+            // Count ALL photos (customerPhotos + teknisiPhotos + photos)
+            let photoCount = 0;
+            if (row.customerPhotos && Array.isArray(row.customerPhotos)) {
+                photoCount += row.customerPhotos.length;
+            }
+            if (row.teknisiPhotos && Array.isArray(row.teknisiPhotos)) {
+                photoCount += row.teknisiPhotos.length;
+            } else if (row.photos && Array.isArray(row.photos)) {
+                // Fallback: jika teknisiPhotos tidak ada, gunakan photos
+                photoCount += row.photos.length;
+            }
             const hasMinPhotos = photoCount >= 2;
             
             // Safety check
@@ -1484,12 +1494,21 @@
         });
         
         /**
-         * Handle photo file selection and upload
+         * Handle photo file selection and upload (HANYA untuk upload photo modal, bukan create ticket form)
          */
         $('#photoInput').on('change', async function(e) {
             const files = e.target.files;
             
             if (!files || files.length === 0) {
+                return;
+            }
+            
+            // PENTING: Cek apakah upload photo modal terbuka (untuk menghindari konflik dengan create ticket form)
+            // Event listener ini HANYA untuk upload photo modal (#photoInput di dalam #uploadPhotoModal)
+            // Create ticket form menggunakan #createTicketPhotoInput (ID berbeda)
+            const uploadModal = $('#uploadPhotoModal');
+            if (!uploadModal.length || (!uploadModal.hasClass('show') && !uploadModal.is(':visible'))) {
+                // Jika modal tidak terbuka, ini mungkin dari create ticket form, skip
                 return;
             }
             
@@ -1746,18 +1765,75 @@
             // Clear resolution notes
             $('#resolutionNotes').val('');
             
-            // Display photos in modal
+            // Display photos in modal - Collect ALL photos (customerPhotos + teknisiPhotos + photos)
             const photoContainer = $('#completedPhotosPreview');
             photoContainer.empty();
             
-            if (ticket.photos && ticket.photos.length > 0) {
-                ticket.photos.forEach((photo, index) => {
-                    const photoPath = photo.path || photo;
+            let allPhotos = [];
+            let photoIndex = 0;
+            
+            // 1. Customer photos
+            if (ticket.customerPhotos && Array.isArray(ticket.customerPhotos)) {
+                ticket.customerPhotos.forEach(photo => {
+                    photoIndex++;
+                    const photoPath = typeof photo === 'object' ? (photo.path || photo.fileName) : photo;
+                    allPhotos.push({
+                        path: photoPath,
+                        label: `Foto Pelanggan ${photoIndex}`,
+                        type: 'customer'
+                    });
+                });
+            }
+            
+            // 2. Teknisi photos
+            if (ticket.teknisiPhotos && Array.isArray(ticket.teknisiPhotos)) {
+                ticket.teknisiPhotos.forEach(photo => {
+                    photoIndex++;
+                    let photoPath = null;
+                    if (typeof photo === 'object' && photo.path) {
+                        photoPath = photo.path;
+                    } else if (typeof photo === 'object' && photo.fileName) {
+                        // Construct path from fileName
+                        const ticketDate = ticket.createdAt ? new Date(ticket.createdAt) : new Date();
+                        const year = ticketDate.getFullYear();
+                        const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
+                        photoPath = `/uploads/reports/${year}/${month}/${ticket.ticketId}/${photo.fileName}`;
+                    } else if (typeof photo === 'string') {
+                        // String format (filename only)
+                        const ticketDate = ticket.createdAt ? new Date(ticket.createdAt) : new Date();
+                        const year = ticketDate.getFullYear();
+                        const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
+                        photoPath = `/uploads/reports/${year}/${month}/${ticket.ticketId}/${photo}`;
+                    }
+                    
+                    if (photoPath) {
+                        allPhotos.push({
+                            path: photoPath,
+                            label: `Foto Teknisi ${photoIndex}`,
+                            type: 'teknisi'
+                        });
+                    }
+                });
+            } else if (ticket.photos && Array.isArray(ticket.photos)) {
+                // Fallback: jika teknisiPhotos tidak ada, gunakan photos
+                ticket.photos.forEach(photo => {
+                    photoIndex++;
+                    const photoPath = typeof photo === 'object' ? (photo.path || photo.fileName) : photo;
+                    allPhotos.push({
+                        path: photoPath,
+                        label: `Foto Teknisi ${photoIndex}`,
+                        type: 'teknisi'
+                    });
+                });
+            }
+            
+            if (allPhotos.length > 0) {
+                allPhotos.forEach((photo, index) => {
                     const html = `
                         <div class="photo-preview-item">
-                            <img src="${photoPath}" alt="Foto ${index + 1}">
+                            <img src="${photo.path}" alt="${photo.label}" onerror="this.onerror=null; this.src='/img/no-image.png';">
                             <div class="text-center mt-1">
-                                <small class="text-muted">Foto ${index + 1}</small>
+                                <small class="text-muted">${photo.label}</small>
                             </div>
                         </div>
                     `;
@@ -2084,8 +2160,8 @@
                 }
             });
 
-            // Handle photo preview
-            document.getElementById('photoInput').addEventListener('change', function(e) {
+            // Handle photo preview untuk create ticket form (ID berbeda untuk menghindari konflik)
+            document.getElementById('createTicketPhotoInput').addEventListener('change', function(e) {
                 const preview = document.getElementById('photoPreview');
                 preview.innerHTML = '';
                 
@@ -2126,7 +2202,7 @@
                 const laporanText = document.getElementById('laporanTextInput').value;
                 const priority = document.getElementById('prioritySelect').value;
                 const issueType = document.getElementById('issueTypeSelect').value;
-                const photoInput = document.getElementById('photoInput');
+                const photoInput = document.getElementById('createTicketPhotoInput');
                 const submitBtn = document.getElementById('submitNewTicketBtn');
 
                 if (!customerUserId) {
@@ -2135,7 +2211,7 @@
                 }
 
                 // Validate photos
-                if (photoInput.files.length > 3) {
+                if (photoInput && photoInput.files && photoInput.files.length > 3) {
                     displayGlobalMessage('Maksimal 3 foto yang bisa diupload', 'warning');
                     return;
                 }
@@ -2166,7 +2242,7 @@
                     const ticketId = createResult.data.ticketId || createResult.data.id;
                     
                     // Step 2: Upload photos if any
-                    if (photoInput.files.length > 0) {
+                    if (photoInput && photoInput.files && photoInput.files.length > 0) {
                         let uploadedCount = 0;
                         let failedCount = 0;
                         

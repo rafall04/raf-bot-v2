@@ -523,7 +523,9 @@
 
                 switch (log.changeType) {
                     case 'ssid_name':
-                        details = `<strong>SSID:</strong> "${changes.oldSsidName}" → "${changes.newSsidName}"`;
+                        // PENTING: Handle null oldSsidName dengan lebih baik
+                        const oldSsidDisplay = changes.oldSsidName || '(belum ada)';
+                        details = `<strong>SSID:</strong> "${oldSsidDisplay}" → "${changes.newSsidName}"`;
                         break;
                     case 'password':
                         if (changes.newPassword) {
@@ -533,7 +535,9 @@
                         }
                         break;
                     case 'both':
-                        details = `<strong>SSID:</strong> "${changes.oldSsidName}" → "${changes.newSsidName}"<br><strong>Password:</strong> diubah`;
+                        // PENTING: Handle null oldSsidName dengan lebih baik untuk PSB setup
+                        const oldSsidDisplayBoth = changes.oldSsidName || '(belum ada)';
+                        details = `<strong>SSID:</strong> "${oldSsidDisplayBoth}" → "${changes.newSsidName}"<br><strong>Password:</strong> diubah`;
                         break;
                     case 'transmit_power':
                         details = `<strong>Transmit Power:</strong> ${changes.oldTransmitPower} → ${changes.newTransmitPower}`;

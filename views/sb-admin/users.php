@@ -543,6 +543,9 @@
                                 <button id="refreshDataBtn" class="btn btn-primary-custom btn-sm" disabled>
                                     <i class="fas fa-sync-alt"></i> <span>Refresh Data</span>
                                 </button>
+                                <button data-toggle="modal" data-target="#bulkChangePackageModal" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px;" title="Rubah profil MikroTik untuk semua pelanggan dengan paket tertentu">
+                                    <i class="fas fa-exchange-alt"></i> <span>Rubah Profil Massal</span>
+                                </button>
                                 <button data-toggle="modal" data-target="#createModal" class="btn btn-success-custom btn-sm">
                                     <i class="fas fa-user-plus"></i> <span>Tambah Pelanggan</span>
                                 </button>
@@ -643,6 +646,74 @@
                 <div class="modal-footer">
                     <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
                     <button class="btn btn-danger" id="confirmDeleteAllUsers">Delete All Users</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Change Profile Modal -->
+    <div class="modal fade" id="bulkChangePackageModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h5 class="modal-title"><i class="fas fa-exchange-alt"></i> Rubah Profil MikroTik Massal</h5>
+                    <button class="close text-white" type="button" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Fitur ini akan mengubah <strong>profil PPPoE di MikroTik</strong> untuk semua pelanggan dengan paket tertentu. 
+                        <br><small class="text-muted"><i class="fas fa-sync-alt"></i> Profil di konfigurasi paket (packages.json) juga akan otomatis diperbarui agar sinkron.</small>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="bulk-from-package"><strong>Pilih Paket Pelanggan:</strong></label>
+                                <select class="form-control" id="bulk-from-package" required>
+                                    <option value="">-- Pilih Paket --</option>
+                                </select>
+                                <small class="form-text text-muted">Semua pelanggan dengan paket ini akan diubah profilnya</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="bulk-to-profile"><strong>Profil MikroTik Baru:</strong></label>
+                                <select class="form-control" id="bulk-to-profile" required>
+                                    <option value="">-- Pilih Profil --</option>
+                                </select>
+                                <small class="form-text text-muted">Profil PPPoE yang akan diterapkan di MikroTik</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div id="bulk-preview-section" style="display: none;">
+                        <h6><i class="fas fa-users"></i> Preview Pelanggan yang Akan Diubah:</h6>
+                        <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered" id="bulk-preview-table">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nama</th>
+                                        <th>PPPoE Username</th>
+                                        <th>Paket</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <p class="mt-2"><strong>Total: <span id="bulk-affected-count">0</span> pelanggan</strong></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Batal</button>
+                    <button class="btn btn-info" type="button" id="bulk-preview-btn">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
+                    <button class="btn" type="button" id="bulk-execute-btn" disabled style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                        <i class="fas fa-check"></i> Terapkan Perubahan
+                    </button>
                 </div>
             </div>
         </div>
@@ -914,6 +985,7 @@
     <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
         // PASTIKAN HALAMAN INI DIAKSES MELALUI HTTPS JIKA BUKAN DARI LOCALHOST
@@ -2069,6 +2141,9 @@
             fetch('/api/packages').then(res => res.json().then(({ data }) => {
                 const createSubscriptionSelect = document.getElementById('create_subscription');
                 const editSubscriptionSelect = document.getElementById('edit_subscription');
+
+                // Store packages data globally for bulk change feature
+                window.packagesData = data || [];
 
                 if(createSubscriptionSelect) createSubscriptionSelect.innerHTML = '<option value="">-- Pilih Paket --</option>';
                 if(editSubscriptionSelect) editSubscriptionSelect.innerHTML = '<option value="">-- Pilih Paket --</option>';
@@ -3399,6 +3474,236 @@
                 displayGlobalUserMessage('Terjadi kesalahan jaringan: ' + error.message, 'danger', true);
             });
         });
+
+        // ========== BULK CHANGE PROFILE FUNCTIONS ==========
+        
+        // Store MikroTik profiles
+        let mikrotikProfiles = [];
+        
+        // Load packages and profiles for bulk change dropdowns
+        async function loadPackagesForBulkChange() {
+            const packageSelect = $('#bulk-from-package');
+            const profileSelect = $('#bulk-to-profile');
+            
+            // Clear existing options except placeholder
+            packageSelect.find('option:not(:first)').remove();
+            profileSelect.find('option:not(:first)').remove();
+            
+            // Get users data from DataTable
+            let usersData = [];
+            if (dataTableInstance) {
+                usersData = dataTableInstance.rows().data().toArray();
+            }
+            
+            // Get unique subscriptions from current users
+            const subscriptions = [...new Set(usersData.filter(u => u.subscription).map(u => u.subscription))].sort();
+            
+            // Populate "Package" dropdown with subscriptions that have users
+            subscriptions.forEach(sub => {
+                const count = usersData.filter(u => u.subscription === sub && u.pppoe_username).length;
+                if (count > 0) {
+                    packageSelect.append(`<option value="${sub}">${sub} (${count} pelanggan)</option>`);
+                }
+            });
+            
+            // Fetch MikroTik profiles
+            try {
+                const response = await fetch('/api/mikrotik/ppp-profiles', { credentials: 'include' });
+                const result = await response.json();
+                
+                if (result.status === 200 && result.data) {
+                    mikrotikProfiles = result.data;
+                    result.data.forEach(profile => {
+                        profileSelect.append(`<option value="${profile.name}">${profile.name}</option>`);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load MikroTik profiles:', error);
+                // Fallback: use profiles from packages
+                if (window.packagesData && Array.isArray(window.packagesData)) {
+                    const profiles = [...new Set(window.packagesData.filter(p => p.profile).map(p => p.profile))];
+                    profiles.forEach(profile => {
+                        profileSelect.append(`<option value="${profile}">${profile}</option>`);
+                    });
+                }
+            }
+        }
+        
+        // Preview affected customers
+        function previewBulkChange() {
+            const selectedPackage = $('#bulk-from-package').val();
+            const targetProfile = $('#bulk-to-profile').val();
+            
+            if (!selectedPackage) {
+                displayGlobalUserMessage('Pilih paket pelanggan terlebih dahulu.', 'warning', true);
+                return;
+            }
+            
+            if (!targetProfile) {
+                displayGlobalUserMessage('Pilih profil MikroTik tujuan.', 'warning', true);
+                return;
+            }
+            
+            // Get users data from DataTable
+            let usersData = [];
+            if (dataTableInstance) {
+                usersData = dataTableInstance.rows().data().toArray();
+            }
+            
+            // Filter users with matching subscription AND pppoe_username
+            const affectedUsers = usersData.filter(u => 
+                u.subscription === selectedPackage && u.pppoe_username
+            );
+            
+            const tbody = $('#bulk-preview-table tbody');
+            tbody.empty();
+            
+            if (affectedUsers.length === 0) {
+                tbody.append(`<tr><td colspan="4" class="text-center text-muted">Tidak ada pelanggan dengan paket "${selectedPackage}" yang memiliki PPPoE username.</td></tr>`);
+                $('#bulk-affected-count').text('0');
+                $('#bulk-execute-btn').prop('disabled', true);
+            } else {
+                affectedUsers.forEach(user => {
+                    tbody.append(`
+                        <tr>
+                            <td>${user.id}</td>
+                            <td>${user.name || '-'}</td>
+                            <td>${user.pppoe_username || '-'}</td>
+                            <td>${user.subscription || '-'}</td>
+                        </tr>
+                    `);
+                });
+                $('#bulk-affected-count').text(affectedUsers.length);
+                $('#bulk-execute-btn').prop('disabled', false);
+            }
+            
+            $('#bulk-preview-section').show();
+        }
+        
+        // Execute bulk change
+        async function executeBulkChange() {
+            const selectedPackage = $('#bulk-from-package').val();
+            const targetProfile = $('#bulk-to-profile').val();
+            
+            if (!selectedPackage || !targetProfile) {
+                displayGlobalUserMessage('Pilih paket dan profil tujuan.', 'warning', true);
+                return;
+            }
+            
+            const affectedCount = parseInt($('#bulk-affected-count').text()) || 0;
+            if (affectedCount === 0) {
+                displayGlobalUserMessage('Tidak ada pelanggan yang akan diubah.', 'warning', true);
+                return;
+            }
+            
+            // Confirmation
+            const confirmResult = await Swal.fire({
+                title: 'Konfirmasi Perubahan Profil Massal',
+                html: `
+                    <p>Anda akan mengubah profil MikroTik untuk <strong>${affectedCount}</strong> pelanggan dengan paket <strong>${selectedPackage}</strong>:</p>
+                    <p><strong>Profil Baru:</strong> ${targetProfile}</p>
+                    <hr>
+                    <p class="text-info small"><i class="fas fa-sync-alt"></i> Profil di konfigurasi paket juga akan otomatis diperbarui agar sinkron.</p>
+                    <p class="text-danger mt-3"><strong>Apakah Anda yakin?</strong></p>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#667eea',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Terapkan!',
+                cancelButtonText: 'Batal'
+            });
+            
+            if (!confirmResult.isConfirmed) return;
+            
+            const btn = $('#bulk-execute-btn');
+            const originalHtml = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+            
+            try {
+                const response = await fetch('/api/users/bulk-change-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        packageName: selectedPackage,
+                        targetProfile: targetProfile
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.status === 200) {
+                    $('#bulkChangePackageModal').modal('hide');
+                    
+                    // Show detailed result
+                    let resultHtml = `<p><strong>Berhasil:</strong> ${result.successCount} pelanggan</p>`;
+                    if (result.failedCount > 0) {
+                        resultHtml += `<p class="text-danger"><strong>Gagal:</strong> ${result.failedCount} pelanggan</p>`;
+                        if (result.errors && result.errors.length > 0) {
+                            resultHtml += `<details><summary>Detail Error</summary><ul>`;
+                            result.errors.slice(0, 5).forEach(err => {
+                                resultHtml += `<li>${err.username}: ${err.error}</li>`;
+                            });
+                            if (result.errors.length > 5) {
+                                resultHtml += `<li>...dan ${result.errors.length - 5} lainnya</li>`;
+                            }
+                            resultHtml += `</ul></details>`;
+                        }
+                    }
+                    
+                    displayGlobalUserMessage(resultHtml, result.failedCount > 0 ? 'warning' : 'success', true);
+                    
+                    // Reset modal
+                    resetBulkChangeModal();
+                } else {
+                    displayGlobalUserMessage(`Gagal: ${result.message || 'Error tidak diketahui'}`, 'danger', true);
+                }
+            } catch (error) {
+                displayGlobalUserMessage(`Terjadi kesalahan: ${error.message}`, 'danger', true);
+            } finally {
+                btn.prop('disabled', false).html(originalHtml);
+            }
+        }
+        
+        // Reset bulk change modal
+        function resetBulkChangeModal() {
+            $('#bulk-from-package').val('');
+            $('#bulk-to-profile').val('');
+            $('#bulk-preview-section').hide();
+            $('#bulk-preview-table tbody').empty();
+            $('#bulk-affected-count').text('0');
+            $('#bulk-execute-btn').prop('disabled', true);
+        }
+        
+        // Event handlers for bulk change modal
+        $('#bulkChangePackageModal').on('show.bs.modal', function() {
+            loadPackagesForBulkChange();
+            resetBulkChangeModal();
+        });
+        
+        $('#bulk-preview-btn').on('click', function() {
+            previewBulkChange();
+        });
+        
+        $('#bulk-execute-btn').on('click', function() {
+            executeBulkChange();
+        });
+        
+        // Auto-preview when both selections are made
+        $('#bulk-from-package, #bulk-to-profile').on('change', function() {
+            const selectedPackage = $('#bulk-from-package').val();
+            const targetProfile = $('#bulk-to-profile').val();
+            
+            if (selectedPackage && targetProfile) {
+                previewBulkChange();
+            } else {
+                $('#bulk-preview-section').hide();
+                $('#bulk-execute-btn').prop('disabled', true);
+            }
+        });
+        
+        // ========== END BULK CHANGE PROFILE FUNCTIONS ==========
     </script>
 </body>
 </html>

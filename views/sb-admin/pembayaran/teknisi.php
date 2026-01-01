@@ -559,34 +559,50 @@
             showMessageModal("Peringatan", "Silakan pilih pelanggan terlebih dahulu.", "warning");
             return;
         }
-        const submitButton = $('#request-form button[type="submit"]');
-        const originalButtonText = submitButton.html();
-        submitButton.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Mengajukan...');
         
-        fetch('/api/requests', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }, 
-            credentials: 'include', // ✅ Fixed by script
-            body: JSON.stringify({ userId: userId, newStatus: newStatusIsPaid }) 
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(errData => { throw new Error(errData.message || `Server error: ${response.status}`); })
-                                 .catch(() => { throw new Error(`Server error: ${response.status}`); });
-            }
-            return response.json();
-        })
-        .then(data => {
-            showMessageModal("Pengajuan Terkirim", data.message || "Permintaan perubahan status Anda telah diterima.", "success", 3500); 
-            dataTable.ajax.reload(null, false); 
-        })
-        .catch(error => {
-            showMessageModal("Error Pengajuan", error.message || 'Terjadi kesalahan saat mengajukan perubahan.', "error");
-        })
-        .finally(() => {
-            submitButton.prop('disabled', false).html(originalButtonText);
-            $('#requestModal').modal('hide'); 
-            document.getElementById('request-form').reset(); 
+        // Get selected user info for confirmation
+        const selectedOption = document.getElementById('user-select').selectedOptions[0];
+        const customerName = selectedOption ? selectedOption.textContent : 'Pelanggan';
+        const statusText = newStatusIsPaid ? 'SUDAH BAYAR (CASH)' : 'BELUM BAYAR';
+        
+        // Show confirmation before submit
+        const confirmMessage = `Anda akan mengajukan perubahan status pembayaran:\n\n` +
+            `Pelanggan: ${customerName.split(' (')[0]}\n` +
+            `Status Baru: ${statusText}\n\n` +
+            (newStatusIsPaid ? '💵 Metode pembayaran akan dicatat sebagai CASH karena diterima langsung oleh teknisi.\n\n' : '') +
+            `Lanjutkan pengajuan ini?`;
+        
+        showConfirmationModal(confirmMessage, function() {
+            // User confirmed, proceed with submission
+            const submitButton = $('#request-form button[type="submit"]');
+            const originalButtonText = submitButton.html();
+            submitButton.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Mengajukan...');
+            
+            fetch('/api/requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }, 
+                credentials: 'include',
+                body: JSON.stringify({ userId: userId, newStatus: newStatusIsPaid }) 
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errData => { throw new Error(errData.message || `Server error: ${response.status}`); })
+                                     .catch(() => { throw new Error(`Server error: ${response.status}`); });
+                }
+                return response.json();
+            })
+            .then(data => {
+                showMessageModal("Pengajuan Terkirim", data.message || "Permintaan perubahan status Anda telah diterima.", "success", 3500); 
+                dataTable.ajax.reload(null, false); 
+            })
+            .catch(error => {
+                showMessageModal("Error Pengajuan", error.message || 'Terjadi kesalahan saat mengajukan perubahan.', "error");
+            })
+            .finally(() => {
+                submitButton.prop('disabled', false).html(originalButtonText);
+                $('#requestModal').modal('hide'); 
+                document.getElementById('request-form').reset(); 
+            });
         });
       });
 

@@ -9,6 +9,9 @@ const { getSSIDInfo, rebootRouter } = require('../lib/wifi');
 const router = express.Router();
 const execPromise = util.promisify(exec);
 
+// Debug flag for verbose logging
+const DEBUG = process.env.STATS_DEBUG === 'true' || false;
+
 // OPTIMASI: Perpanjang cache time untuk mengurangi API calls
 const statusCache = {
     genieacs: null,
@@ -155,7 +158,7 @@ router.get('/:type/:id?', async (req, res) => {
                     if (global.whatsappConnectionState !== actualState) {
                         const oldState = global.whatsappConnectionState;
                         global.whatsappConnectionState = actualState;
-                        console.log(`[SYNC] State updated: ${oldState} → ${actualState}`);
+                        if (DEBUG) console.log(`[SYNC] State updated: ${oldState} → ${actualState}`);
                     }
                     
                     return res.json({
@@ -203,7 +206,7 @@ router.get('/:type/:id?', async (req, res) => {
                         // Fix out-of-sync state
                         if (global.whatsappConnectionState !== 'open' && (wsState === 1 || userInfo)) {
                             global.whatsappConnectionState = 'open';
-                            console.log('[BOT-STATUS] Fixed out-of-sync connection state');
+                            if (DEBUG) console.log('[BOT-STATUS] Fixed out-of-sync connection state');
                         }
                     }
                     
@@ -361,7 +364,7 @@ router.get('/:type/:id?', async (req, res) => {
             case "reboot":
                 try {
                     await rebootRouter(req.params.id);
-                    console.log(`[API_REBOOT] Perintah reboot untuk device ID ${req.params.id} berhasil dikirim.`);
+                    if (DEBUG) console.log(`[API_REBOOT] Perintah reboot untuk device ID ${req.params.id} berhasil dikirim.`);
                     return res.status(200).json({ status: 200, message: `Perintah reboot untuk device ID ${req.params.id} berhasil dikirim.` });
                 } catch (error) {
                     console.error(`[API_REBOOT_ERROR] Gagal reboot device ${req.params.id}:`, error.response ? error.response.data : error.message);
@@ -447,8 +450,10 @@ router.get('/:type/:id?', async (req, res) => {
                 }
                 
                 // Debug logging
-                console.log('[STATS_CONFIG] mainConfig.accessLimit:', mainConfig?.accessLimit, 'type:', typeof mainConfig?.accessLimit);
-                console.log('[STATS_CONFIG] mergedConfig.accessLimit:', mergedConfig.accessLimit, 'type:', typeof mergedConfig.accessLimit);
+                if (DEBUG) {
+                    console.log('[STATS_CONFIG] mainConfig.accessLimit:', mainConfig?.accessLimit, 'type:', typeof mainConfig?.accessLimit);
+                    console.log('[STATS_CONFIG] mergedConfig.accessLimit:', mergedConfig.accessLimit, 'type:', typeof mergedConfig.accessLimit);
+                }
                 console.log('[STATS_CONFIG] mergedConfig keys count:', Object.keys(mergedConfig).length);
                 
                 return res.json({ data: mergedConfig });

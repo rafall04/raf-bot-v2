@@ -21,30 +21,6 @@
 
   <!-- Custom styles for this page -->
   <link href="/vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
-  
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="">
-  <meta name="author" content="">
-
-  <title>RAF BOT - Config</title>
-
-  <!-- Custom fonts for this template -->
-  <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Custom styles for this template -->
-  <link href="/css/sb-admin-2.min.css" rel="stylesheet">
-  <link href="/css/dashboard-modern.css" rel="stylesheet">
-
-  <!-- Custom styles for this page -->
-  <link href="/vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
 </head>
@@ -125,6 +101,11 @@
                   <div class="mb-3">
                     <label for="telfon" class="form-label">Nomor Telfon Kontak</label>
                     <input type="text" class="form-control" id="telfon" name="telfon" />
+                  </div>
+                  <div class="mb-3">
+                    <label for="adminPhone" class="form-label">Nomor Admin WhatsApp</label>
+                    <input type="text" class="form-control" id="adminPhone" name="adminPhone" placeholder="089685645956" />
+                    <small class="form-text text-muted">Nomor WhatsApp admin yang akan digunakan di template pesan. Format: 08xxxx atau 628xxxx. Link WhatsApp akan otomatis dibuat dari nomor ini.</small>
                   </div>
                   <div class="mb-3">
                     <label for="parentbinding" class="form-label">Parent Binding</label>
@@ -300,6 +281,64 @@
               </div>
             </div>
 
+            <!-- Telegram Backup Configuration -->
+            <h4 class="dashboard-section-title">Backup Database ke Telegram</h4>
+            <div class="card table-card mb-4">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h6>Konfigurasi Backup Telegram</h6>
+                <div>
+                  <button type="button" class="btn btn-info btn-sm mr-2" id="testTelegramBtn">
+                    <i class="fas fa-paper-plane"></i> Test Koneksi
+                  </button>
+                  <button type="button" class="btn btn-success btn-sm" id="runBackupBtn">
+                    <i class="fas fa-cloud-upload-alt"></i> Backup Sekarang
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle"></i> 
+                  <strong>Cara mendapatkan Bot Token & Chat ID:</strong>
+                  <ol class="mb-0 mt-2">
+                    <li>Buat bot baru di <a href="https://t.me/BotFather" target="_blank">@BotFather</a> dan dapatkan Bot Token</li>
+                    <li>Untuk Chat ID pribadi: kirim pesan ke bot Anda, lalu buka <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code></li>
+                    <li>Untuk Group: tambahkan bot ke group, kirim pesan, lalu cek getUpdates (Chat ID group biasanya negatif, contoh: -123456789)</li>
+                  </ol>
+                </div>
+                <div class="mb-3">
+                  <label for="telegramBotToken" class="form-label">Bot Token</label>
+                  <input type="text" class="form-control" id="telegramBotToken" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" />
+                  <small class="form-text text-muted">Token bot Telegram dari @BotFather</small>
+                </div>
+                <div class="mb-3">
+                  <label for="telegramChatId" class="form-label">Chat ID</label>
+                  <input type="text" class="form-control" id="telegramChatId" placeholder="123456789 atau -123456789" />
+                  <small class="form-text text-muted">ID chat/group Telegram untuk menerima backup. Gunakan angka negatif untuk group.</small>
+                </div>
+                <div class="mb-3">
+                  <label for="telegramBackupEnabled" class="form-label">Status Backup Otomatis</label>
+                  <select class="form-control" id="telegramBackupEnabled" name="telegramBackupEnabled">
+                    <option value="true">Aktif</option>
+                    <option value="false">Nonaktif</option>
+                  </select>
+                  <small class="form-text text-muted">Aktifkan untuk menjalankan backup otomatis sesuai jadwal</small>
+                </div>
+                <div class="mb-3">
+                  <label for="telegramBackupSchedule" class="form-label">Jadwal Backup (Cron)</label>
+                  <input type="text" class="form-control" id="telegramBackupSchedule" value="0 4 * * *" />
+                  <small class="form-text text-muted">
+                    Format cron: menit jam tanggal bulan hari. Default: <code>0 4 * * *</code> (setiap jam 4 pagi).<br>
+                    Contoh lain: <code>0 */6 * * *</code> (setiap 6 jam), <code>0 4,16 * * *</code> (jam 4 pagi dan 4 sore)
+                  </small>
+                </div>
+                <div class="d-flex justify-content-end">
+                  <button type="button" class="btn btn-primary" id="saveTelegramConfigBtn">
+                    <i class="fas fa-save"></i> Simpan Konfigurasi Telegram
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div class="d-flex w-100 mb-4" style="justify-content: end;">
               <button type="submit" class="btn btn-primary">Simpan Semua Konfigurasi</button>
             </div>
@@ -428,6 +467,7 @@
                 setValue('nama', json.data.nama);
                 setValue('namabot', json.data.namabot);
                 setValue('telfon', json.data.telfon);
+                setValue('adminPhone', json.data.adminPhone || '089685645956');
                 setValue('parentbinding', json.data.parentbinding);
                 setValue('tanggal_pengingat', json.data.tanggal_pengingat, '1');
                 setValue('tanggal_batas_bayar', json.data.tanggal_batas_bayar, '10');
@@ -562,18 +602,33 @@
         const url = id ? `/api/mikrotik-devices/${id}` : '/api/mikrotik-devices';
         const method = id ? 'PUT' : 'POST';
 
+        // PENTING: Validasi data sebelum submit
+        if (!data.ip || !data.name || !data.password) {
+          Swal.fire('Error', 'IP Address, Username, dan Password harus diisi', 'error');
+          return;
+        }
+
         fetch(url, {
           method: method,
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify(data)
         })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            return res.json().then(err => Promise.reject(err));
+          }
+          return res.json();
+        })
         .then(result => {
-          Swal.fire('Success', result.message, 'success');
+          Swal.fire('Success', result.message || 'Perangkat berhasil disimpan', 'success');
           mikrotikDeviceModal.modal('hide');
           loadMikrotikDevices();
         })
-        .catch(err => Swal.fire('Error', err.message, 'error'));
+        .catch(err => {
+          console.error('Error saving device:', err);
+          Swal.fire('Error', err.message || 'Gagal menyimpan perangkat', 'error');
+        });
       });
 
       mikrotikDevicesTable.addEventListener('click', (e) => {
@@ -581,16 +636,34 @@
         const id = target.dataset.id;
 
         if (target.classList.contains('editBtn')) {
-          fetch('/api/mikrotik-devices/${id}', { credentials: 'include' })
-            .then(res => res.json())
+          // PENTING: Gunakan backtick (`) bukan single quote (') untuk template literal
+          fetch(`/api/mikrotik-devices/${id}`, { credentials: 'include' })
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+              }
+              return res.json();
+            })
             .then(device => {
-              document.getElementById('mikrotikDeviceId').value = device.id;
-              document.getElementById('mikrotikIp').value = device.ip;
-              document.getElementById('mikrotikName').value = device.name;
-              document.getElementById('mikrotikPassword').value = device.password;
-              document.getElementById('mikrotikPort').value = device.port || '8728'; // Set port with fallback
+              // PENTING: Validasi data device sebelum mengisi form
+              if (!device || !device.id) {
+                Swal.fire('Error', 'Data perangkat tidak valid atau tidak ditemukan', 'error');
+                return;
+              }
+              
+              // Isi form dengan data device
+              document.getElementById('mikrotikDeviceId').value = device.id || '';
+              document.getElementById('mikrotikIp').value = device.ip || '';
+              document.getElementById('mikrotikName').value = device.name || '';
+              document.getElementById('mikrotikPassword').value = device.password || '';
+              document.getElementById('mikrotikPort').value = device.port || '8728';
+              
               mikrotikDeviceModal.find('.modal-title').text('Edit Perangkat MikroTik');
               mikrotikDeviceModal.modal('show');
+            })
+            .catch(err => {
+              console.error('Error loading device:', err);
+              Swal.fire('Error', 'Gagal memuat data perangkat: ' + err.message, 'error');
             });
         }
 
@@ -717,6 +790,182 @@ a.n ${account.name || '[Nama]'}</small>
         }
       });
     }
+    
+    // =====================================================
+    // TELEGRAM BACKUP CONFIGURATION
+    // =====================================================
+    
+    // Load Telegram config on page load
+    function loadTelegramConfig() {
+      fetch('/api/telegram-backup/config', { credentials: 'include' })
+        .then(res => res.json())
+        .then(json => {
+          if (json.status === 200 && json.data) {
+            document.getElementById('telegramBotToken').value = json.data.botToken || '';
+            document.getElementById('telegramChatId').value = json.data.chatId || '';
+            document.getElementById('telegramBackupEnabled').value = json.data.status_telegram_backup ? 'true' : 'false';
+            document.getElementById('telegramBackupSchedule').value = json.data.schedule || '0 4 * * *';
+          }
+        })
+        .catch(err => {
+          console.error('Error loading Telegram config:', err);
+        });
+    }
+    
+    // Save Telegram config
+    document.getElementById('saveTelegramConfigBtn').addEventListener('click', function() {
+      const btn = this;
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Menyimpan...';
+      
+      const data = {
+        botToken: document.getElementById('telegramBotToken').value.trim(),
+        chatId: document.getElementById('telegramChatId').value.trim(),
+        enabled: document.getElementById('telegramBackupEnabled').value === 'true',
+        status_telegram_backup: document.getElementById('telegramBackupEnabled').value === 'true',
+        schedule: document.getElementById('telegramBackupSchedule').value.trim()
+      };
+      
+      fetch('/api/telegram-backup/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data)
+      })
+      .then(res => res.json())
+      .then(result => {
+        if (result.status === 200) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Berhasil!',
+            text: result.message,
+            timer: 2000,
+            showConfirmButton: false
+          });
+        } else {
+          throw new Error(result.message);
+        }
+      })
+      .catch(err => {
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal',
+          text: err.message || 'Terjadi kesalahan saat menyimpan konfigurasi'
+        });
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      });
+    });
+    
+    // Test Telegram connection
+    document.getElementById('testTelegramBtn').addEventListener('click', function() {
+      const btn = this;
+      const originalText = btn.innerHTML;
+      
+      const botToken = document.getElementById('telegramBotToken').value.trim();
+      const chatId = document.getElementById('telegramChatId').value.trim();
+      
+      if (!botToken || !chatId) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Data Tidak Lengkap',
+          text: 'Silakan isi Bot Token dan Chat ID terlebih dahulu'
+        });
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+      
+      fetch('/api/telegram-backup/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ botToken, chatId })
+      })
+      .then(res => res.json())
+      .then(result => {
+        if (result.status === 200) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Koneksi Berhasil!',
+            text: result.message
+          });
+        } else {
+          throw new Error(result.message);
+        }
+      })
+      .catch(err => {
+        Swal.fire({
+          icon: 'error',
+          title: 'Koneksi Gagal',
+          text: err.message || 'Tidak dapat terhubung ke Telegram'
+        });
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      });
+    });
+    
+    // Run backup manually
+    document.getElementById('runBackupBtn').addEventListener('click', function() {
+      const btn = this;
+      const originalText = btn.innerHTML;
+      
+      Swal.fire({
+        title: 'Jalankan Backup?',
+        text: 'Database akan di-backup dan dikirim ke Telegram sekarang',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Ya, Backup Sekarang',
+        cancelButtonText: 'Batal'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Memproses...';
+          
+          fetch('/api/telegram-backup/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
+          })
+          .then(res => res.json())
+          .then(result => {
+            if (result.status === 200) {
+              Swal.fire({
+                icon: 'success',
+                title: 'Backup Dimulai!',
+                text: result.message
+              });
+            } else {
+              throw new Error(result.message);
+            }
+          })
+          .catch(err => {
+            Swal.fire({
+              icon: 'error',
+              title: 'Gagal',
+              text: err.message || 'Terjadi kesalahan saat menjalankan backup'
+            });
+          })
+          .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+          });
+        }
+      });
+    });
+    
+    // Load Telegram config when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      loadTelegramConfig();
+    });
   </script>
 
 </body>

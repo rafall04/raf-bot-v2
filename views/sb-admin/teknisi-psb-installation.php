@@ -421,7 +421,21 @@
                 ],
                 order: [[0, 'desc']],
                 language: {
-                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/id.json'
+                    "emptyTable": "Tidak ada data yang tersedia",
+                    "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ entri",
+                    "infoEmpty": "Menampilkan 0 sampai 0 dari 0 entri",
+                    "infoFiltered": "(disaring dari _MAX_ total entri)",
+                    "lengthMenu": "Tampilkan _MENU_ entri",
+                    "loadingRecords": "Memuat...",
+                    "processing": "Memproses...",
+                    "search": "Cari:",
+                    "zeroRecords": "Tidak ditemukan data yang cocok",
+                    "paginate": {
+                        "first": "Pertama",
+                        "last": "Terakhir",
+                        "next": "Selanjutnya",
+                        "previous": "Sebelumnya"
+                    }
                 }
             });
         }
@@ -480,7 +494,6 @@
             $('#installation-form')[0].reset();
             
             // Reset ODP dropdown (disabled until ODC is selected)
-            const odpSelect = $('#modal-installed-odp-id');
             odpSelect.empty();
             odpSelect.append('<option value="">Pilih ODP...</option>');
             odpSelect.prop('disabled', true);

@@ -466,6 +466,21 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.1);
 }
 
+/* Hostname badge styling */
+.user-card .badge-secondary {
+    background-color: #6c757d;
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    font-weight: 500;
+}
+
+/* MAC address monospace font */
+.font-monospace {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+}
+
 .user-list-container {
     max-height: 60vh;
     overflow-y: auto;
@@ -491,9 +506,40 @@
     }
 }
 
-/* Chart Canvas */
+/* Chart Canvas - Smooth and Modern */
 #traffic-chart {
     max-height: 280px;
+    transition: opacity 0.3s ease;
+}
+
+/* Smooth chart container */
+.panel-body {
+    position: relative;
+    overflow: hidden;
+}
+
+.panel-body canvas {
+    transition: transform 0.3s ease;
+}
+
+/* Chart loading state */
+#traffic-chart.loading {
+    opacity: 0.5;
+}
+
+/* Smooth stat value transitions */
+.traffic-stat .stat-value {
+    transition: all 0.3s ease;
+    font-variant-numeric: tabular-nums; /* Monospace numbers untuk smooth transitions */
+}
+
+.traffic-stat .stat-total {
+    transition: color 0.3s ease;
+}
+
+/* Hover effect untuk chart container */
+.modern-panel:hover .panel-body {
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.02) 100%);
 }
 
 /* Temperature specific styling */

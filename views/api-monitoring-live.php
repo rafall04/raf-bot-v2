@@ -6,6 +6,15 @@
 
 require 'conn.php'; // Use same method as working files
 
+// PENTING: Tingkatkan timeout untuk operasi monitoring yang kompleks
+// Monitoring API melakukan banyak API calls (17+) yang memerlukan waktu lebih lama
+$API->timeout = 10; // Increase timeout to 10 seconds untuk operasi kompleks
+$API->attempts = 3; // Increase attempts untuk reliability
+
+// PENTING: Set PHP execution time limit untuk operasi monitoring
+// Default PHP timeout mungkin terlalu pendek untuk operasi kompleks
+set_time_limit(30); // Maximum 30 seconds execution time untuk monitoring
+
 // Function to send JSON error and exit
 function send_json_error($message, $code = 500) {
     header('Content-Type: application/json');
@@ -25,8 +34,25 @@ function send_json_error($message, $code = 500) {
 }
 
 // Check connection first - EXACTLY like working files
+// PENTING: Coba reconnect jika connection terputus (untuk handle timeout atau connection drop)
 if (!$API->connected) {
-    send_json_error('Failed to connect to MikroTik router. Please check connection settings.', 503);
+    // Coba reconnect sekali sebelum return error
+    $ip = getenv('IP_MC');
+    $name = getenv('NAME_MC');
+    $password = getenv('PASSWORD_MC');
+    
+    if ($ip && $name && $password) {
+        // Increase timeout untuk retry connection
+        $API->timeout = 10;
+        $API->attempts = 3;
+        if ($API->connect($ip, $name, $password)) {
+            // Reconnection successful, continue
+        } else {
+            send_json_error('Failed to connect to MikroTik router. Please check connection settings.', 503);
+        }
+    } else {
+        send_json_error('Failed to connect to MikroTik router. Please check connection settings.', 503);
+    }
 }
 
 // We are connected, get real data
@@ -43,11 +69,39 @@ $totalTx = 0;
 $hotspotSessions = [];
 $pppoeSessions = [];
 
-// Get system resources
-$resources = $API->comm('/system/resource/print');
+// PENTING: Wrap API calls dengan try-catch untuk handle timeout atau error
+// Jangan langsung return error jika satu API call gagal - lanjutkan dengan data yang berhasil
+
+// Get system resources dengan error handling
+$resources = null;
+try {
+    $resources = $API->comm('/system/resource/print');
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting system resources: " . $e->getMessage());
+    // Check if connection is still alive
+    if (!$API->connected) {
+        // Try reconnect once
+        $ip = getenv('IP_MC');
+        $name = getenv('NAME_MC');
+        $password = getenv('PASSWORD_MC');
+        if ($ip && $name && $password) {
+            $API->timeout = 10;
+            $API->attempts = 3;
+            if ($API->connect($ip, $name, $password)) {
+                // Retry once
+                try {
+                    $resources = $API->comm('/system/resource/print');
+                } catch (Exception $e2) {
+                    error_log("[MONITORING] Retry failed: " . $e2->getMessage());
+                }
+            }
+        }
+    }
+}
+
 if ($resources && isset($resources[0])) {
     $mikrotikData = [
-        'connected' => true,  // Add connection status
+        'connected' => $API->connected,  // Use actual connection status
         'cpu' => intval($resources[0]['cpu-load'] ?? 0),
         'memory' => isset($resources[0]['total-memory']) && isset($resources[0]['free-memory']) 
             ? round(100 - ($resources[0]['free-memory'] / $resources[0]['total-memory'] * 100), 1)
@@ -59,8 +113,9 @@ if ($resources && isset($resources[0])) {
     ];
 } else {
     // If resources call failed, still mark as connected but with default values
+    // Jangan langsung return error - biarkan operasi lain tetap berjalan
     $mikrotikData = [
-        'connected' => true,
+        'connected' => $API->connected, // Use actual connection status
         'cpu' => 0,
         'memory' => 0,
         'disk' => 0,
@@ -68,41 +123,60 @@ if ($resources && isset($resources[0])) {
     ];
 }
 
-// Get temperature if available
-$health = $API->comm('/system/health/print');
-if ($health && isset($health[0]['temperature'])) {
-    $mikrotikData['temperature'] = intval($health[0]['temperature']);
-} else {
-    $mikrotikData['temperature'] = 0; // No dummy data
+// Get temperature if available dengan error handling
+try {
+    $health = $API->comm('/system/health/print');
+    if ($health && isset($health[0]['temperature'])) {
+        $mikrotikData['temperature'] = intval($health[0]['temperature']);
+    } else {
+        $mikrotikData['temperature'] = 0; // No dummy data
+    }
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting system health: " . $e->getMessage());
+    $mikrotikData['temperature'] = 0; // Default value on error
 }
 
 // Get ALL PPPoE active sessions with proper traffic data parsing
 // Try to get interface name by using detail parameter or by querying each session individually
-$pppActiveSessions = $API->comm('/ppp/active/print');
+$pppActiveSessions = null;
+try {
+    $pppActiveSessions = $API->comm('/ppp/active/print');
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting PPPoE active sessions: " . $e->getMessage());
+    $pppActiveSessions = []; // Empty array on error
+}
 
 // Get queue statistics for traffic data - CRITICAL: This is the main source for traffic data
 $queueStats = [];
-$queues = $API->comm('/queue/simple/print');
-if ($queues && is_array($queues)) {
-    foreach ($queues as $queue) {
-        // Index by target address for quick lookup
-        $target = $queue['target'] ?? '';
-        if ($target && isset($queue['bytes'])) {
-            $queueStats[$target] = $queue['bytes'];
+try {
+    $queues = $API->comm('/queue/simple/print');
+    if ($queues && is_array($queues)) {
+        foreach ($queues as $queue) {
+            // Index by target address for quick lookup
+            $target = $queue['target'] ?? '';
+            if ($target && isset($queue['bytes'])) {
+                $queueStats[$target] = $queue['bytes'];
+            }
         }
     }
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting queue stats: " . $e->getMessage());
 }
 
 // Also try queue tree (alternative queue type)
 $queueTreeStats = [];
-$queueTrees = $API->comm('/queue/tree/print');
-if ($queueTrees && is_array($queueTrees)) {
-    foreach ($queueTrees as $queue) {
-        $target = $queue['parent'] ?? $queue['name'] ?? '';
-        if ($target && isset($queue['bytes'])) {
-            $queueTreeStats[$target] = $queue['bytes'];
+try {
+    $queueTrees = $API->comm('/queue/tree/print');
+    if ($queueTrees && is_array($queueTrees)) {
+        foreach ($queueTrees as $queue) {
+            $target = $queue['parent'] ?? $queue['name'] ?? '';
+            if ($target && isset($queue['bytes'])) {
+                $queueTreeStats[$target] = $queue['bytes'];
+            }
         }
     }
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting queue tree stats: " . $e->getMessage());
 }
 
 // CRITICAL: Traffic PPPoE berada di INTERFACE, bukan di PPP sessions!
@@ -113,6 +187,8 @@ $allInterfaces = [];
 $pppoeInterfaces = []; // Store all PPPoE interfaces specifically
 $allInterfaceNames = []; // For debugging - store all interface names
 
+// PENTING: Wrap interface API call dengan try-catch
+$interfaces = null;
 try {
     $interfaces = $API->comm('/interface/print');
     if ($interfaces && is_array($interfaces)) {
@@ -247,12 +323,16 @@ try {
     foreach ($pppoeInterfaces as $pppoeIfaceName => $pppoeIfaceStats) {
         // Try to get more info about this interface
         // FIX: Use correct array format - key should be '?name', not '?name=value'
-        $ifaceDetails = $API->comm('/interface/print', ['?name' => $pppoeIfaceName]);
-        if ($ifaceDetails && is_array($ifaceDetails) && isset($ifaceDetails[0])) {
-            $macAddress = $ifaceDetails[0]['mac-address'] ?? '';
-            if ($macAddress) {
-                $callerIdToInterfaceMap[$macAddress] = $pppoeIfaceName;
+        try {
+            $ifaceDetails = $API->comm('/interface/print', ['?name' => $pppoeIfaceName]);
+            if ($ifaceDetails && is_array($ifaceDetails) && isset($ifaceDetails[0])) {
+                $macAddress = $ifaceDetails[0]['mac-address'] ?? '';
+                if ($macAddress) {
+                    $callerIdToInterfaceMap[$macAddress] = $pppoeIfaceName;
+                }
             }
+        } catch (Exception $e) {
+            // Interface details might not be available, ignore
         }
         
         // Also try to get IP address from interface (if available)
@@ -568,18 +648,60 @@ if ($pppActiveSessions && is_array($pppActiveSessions)) {
     }
 }
 
+// Get DHCP server leases untuk mapping MAC address ke hostname
+$dhcpLeases = [];
+try {
+    $leases = $API->comm('/ip/dhcp-server/lease/print');
+    if ($leases && is_array($leases)) {
+        foreach ($leases as $lease) {
+            $macAddress = $lease['mac-address'] ?? '';
+            $hostName = $lease['host-name'] ?? '';
+            if ($macAddress && $hostName) {
+                // Normalize MAC address untuk matching (uppercase, remove colons/dashes)
+                $normalizedMac = strtoupper(str_replace([':', '-', ' '], '', $macAddress));
+                $dhcpLeases[$normalizedMac] = $hostName;
+            }
+        }
+    }
+} catch (Exception $e) {
+    // DHCP leases mungkin tidak tersedia, ignore error
+    // Jangan log error untuk DHCP karena ini optional
+    // error_log("[DHCP] Error fetching DHCP leases: " . $e->getMessage());
+}
+
 // Get Hotspot active sessions with traffic data
-$hotspotActiveSessions = $API->comm('/ip/hotspot/active/print');
+$hotspotActiveSessions = null;
+try {
+    $hotspotActiveSessions = $API->comm('/ip/hotspot/active/print');
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting hotspot active sessions: " . $e->getMessage());
+    $hotspotActiveSessions = []; // Empty array on error
+}
+
 if ($hotspotActiveSessions && is_array($hotspotActiveSessions)) {
     foreach ($hotspotActiveSessions as $session) {
         // Hotspot uses different field names for traffic
         $rxBytes = intval($session['bytes-in'] ?? 0);
         $txBytes = intval($session['bytes-out'] ?? 0);
         
+        // Get MAC address dari session
+        $macAddress = $session['mac-address'] ?? '';
+        $hostname = '';
+        
+        // Cari hostname dari DHCP lease berdasarkan MAC address
+        if ($macAddress && !empty($dhcpLeases)) {
+            // Normalize MAC address untuk matching
+            $normalizedMac = strtoupper(str_replace([':', '-', ' '], '', $macAddress));
+            if (isset($dhcpLeases[$normalizedMac])) {
+                $hostname = $dhcpLeases[$normalizedMac];
+            }
+        }
+        
         $hotspotSessions[] = [
             'user' => $session['user'] ?? '',
             'address' => $session['address'] ?? '',
-            'mac' => $session['mac-address'] ?? '',
+            'mac' => $macAddress,
+            'hostname' => $hostname, // Hostname dari DHCP server
             'uptime' => $session['uptime'] ?? '0s',
             'rx_bytes' => $rxBytes,
             'tx_bytes' => $txBytes,
@@ -609,7 +731,16 @@ $totalRx = 0;
 $totalTx = 0;
 
 // Get interface traffic with monitor data for real-time rates
-$interfaces = $API->comm('/interface/print');
+// PENTING: Reuse interfaces data jika sudah diambil sebelumnya, atau ambil lagi
+if (!$interfaces) {
+    try {
+        $interfaces = $API->comm('/interface/print');
+    } catch (Exception $e) {
+        error_log("[MONITORING] Error getting interfaces for traffic: " . $e->getMessage());
+        $interfaces = [];
+    }
+}
+
 if ($interfaces && is_array($interfaces)) {
     foreach ($interfaces as $iface) {
         $name = $iface['name'] ?? '';
@@ -640,11 +771,17 @@ if ($interfaces && is_array($interfaces)) {
 }
 
 // Get real-time traffic monitor for current rates
-$monitor = $API->comm('/interface/monitor-traffic', [
-    'interface' => $selectedInterface,
-    'once' => '',
-    'duration' => '1'
-]);
+$monitor = null;
+try {
+    $monitor = $API->comm('/interface/monitor-traffic', [
+        'interface' => $selectedInterface,
+        'once' => '',
+        'duration' => '1'
+    ]);
+} catch (Exception $e) {
+    error_log("[MONITORING] Error getting traffic monitor: " . $e->getMessage());
+    $monitor = null; // Will use default values
+}
 
 $currentRxRate = 0;
 $currentTxRate = 0;
@@ -658,13 +795,16 @@ if ($monitor && isset($monitor[0])) {
 }
 
 // Build response with REAL data only
+// PENTING: Set mikrotik check berdasarkan connection status yang sebenarnya
+$mikrotikCheck = $API->connected && isset($mikrotikData['connected']) && $mikrotikData['connected'];
+
 $responseData['data'] = [
     'systemHealth' => [
         'score' => 95,
         'status' => 'healthy',
         'checks' => [
             'whatsapp' => false, // Will be updated by JavaScript from /api/stats
-            'mikrotik' => true,
+            'mikrotik' => $mikrotikCheck, // Use actual connection status
             'database' => true,
             'api' => true
         ]
@@ -713,7 +853,18 @@ $responseData['data'] = [
     'timestamp' => date('c')
 ];
 
-// Disconnect and output
-$API->disconnect();
+// PENTING: Disconnect hanya jika koneksi masih aktif
+// Jangan disconnect jika sudah terputus (untuk menghindari error)
+if ($API && $API->connected) {
+    try {
+        $API->disconnect();
+    } catch (Exception $e) {
+        // Ignore disconnect error - connection mungkin sudah terputus
+        error_log("[MONITORING] Error disconnecting: " . $e->getMessage());
+    }
+}
+
+// PENTING: Pastikan response selalu dikembalikan meskipun ada error
+// Frontend akan handle error dengan lebih baik jika ada data parsial
 echo json_encode($responseData);
 ?>

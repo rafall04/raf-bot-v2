@@ -28,7 +28,7 @@
     "id": "1759860675446",
     "name": "Paket-10Mbps",
     "price": 100000,
-    "profile": "10Mbps",
+    "profile": "15Mbps",
     "whitelist": false,
     "isSpeedBoost": false,
     "speedBoostPrices": {

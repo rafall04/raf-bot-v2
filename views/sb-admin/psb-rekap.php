@@ -131,6 +131,9 @@
                             <i class="fas fa-clipboard-list"></i> Rekap PSB (Pasang Baru)
                         </h1>
                         <div>
+                            <button class="btn btn-danger" onclick="showDeleteAllModal()">
+                                <i class="fas fa-trash-alt"></i> Hapus Semua Data
+                            </button>
                             <button class="btn btn-success" onclick="exportToExcel()">
                                 <i class="fas fa-file-excel"></i> Export Excel
                             </button>
@@ -328,6 +331,40 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete All Modal -->
+    <div class="modal fade" id="deleteAllModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle"></i> Hapus Semua Data PSB
+                    </h5>
+                    <button type="button" class="close text-white" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <strong><i class="fas fa-warning"></i> PERINGATAN!</strong><br>
+                        Tindakan ini akan menghapus <strong>SEMUA</strong> data PSB secara permanen dan tidak dapat dikembalikan.
+                    </div>
+                    <p>Total data yang akan dihapus: <strong id="delete-count">0</strong> record</p>
+                    <hr>
+                    <div class="form-group">
+                        <label for="delete-password"><strong>Masukkan Password Anda untuk Konfirmasi:</strong></label>
+                        <input type="password" class="form-control" id="delete-password" placeholder="Password akun Anda">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDeleteAll()">
+                        <i class="fas fa-trash-alt"></i> Hapus Semua Data
+                    </button>
                 </div>
             </div>
         </div>
@@ -807,6 +844,78 @@
             setTimeout(() => {
                 $('#message-container .alert').fadeOut();
             }, 5000);
+        }
+
+        // Show delete all modal
+        function showDeleteAllModal() {
+            if (allPSBData.length === 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Tidak Ada Data',
+                    text: 'Tidak ada data PSB yang bisa dihapus.'
+                });
+                return;
+            }
+            
+            $('#delete-count').text(allPSBData.length);
+            $('#delete-password').val('');
+            $('#deleteAllModal').modal('show');
+        }
+
+        // Confirm delete all with password verification
+        function confirmDeleteAll() {
+            const password = $('#delete-password').val();
+            
+            if (!password) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Password Diperlukan',
+                    text: 'Masukkan password Anda untuk konfirmasi.'
+                });
+                return;
+            }
+            
+            // Disable button to prevent double click
+            $('#confirm-delete-btn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+            
+            fetch('/api/psb/delete-all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password: password }),
+                credentials: 'include'
+            })
+            .then(res => res.json())
+            .then(data => {
+                $('#confirm-delete-btn').prop('disabled', false).html('<i class="fas fa-trash-alt"></i> Hapus Semua Data');
+                
+                if (data.status === 200) {
+                    $('#deleteAllModal').modal('hide');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: data.message || 'Semua data PSB berhasil dihapus.'
+                    }).then(() => {
+                        loadPSBData();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: data.message || 'Gagal menghapus data PSB.'
+                    });
+                }
+            })
+            .catch(err => {
+                $('#confirm-delete-btn').prop('disabled', false).html('<i class="fas fa-trash-alt"></i> Hapus Semua Data');
+                console.error('Delete all error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Terjadi kesalahan saat menghapus data.'
+                });
+            });
         }
     </script>
 </body>

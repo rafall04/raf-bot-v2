@@ -157,14 +157,14 @@ function renderTable() {
                 </td>
                 <td class="text-center">
                     <div class="btn-group" role="group">
-                        <button class="btn btn-sm ${user.paid ? 'btn-success' : 'btn-warning'} btn-toggle-status" 
+                        <button class="btn btn-sm ${user.paid ? 'btn-warning' : 'btn-success'} btn-toggle-status" 
                                 data-id="${user.id}" 
                                 data-paid="${user.paid}" 
                                 data-name="${user.name}"
                                 data-phone="${user.phone_number || ''}"
                                 data-send-invoice="${user.send_invoice || false}"
-                                title="Ubah status pembayaran">
-                            <i class="fas fa-${user.paid ? 'check-circle' : 'times-circle'}"></i>
+                                title="${user.paid ? 'Tandai belum bayar' : 'Tandai sudah bayar'}">
+                            <i class="fas fa-${user.paid ? 'times-circle' : 'check-circle'}"></i>
                         </button>
                         ${isPaid && (user.send_invoice === true || user.send_invoice === 1) ? 
                             `<button class="btn btn-sm btn-info btn-send-invoice" 

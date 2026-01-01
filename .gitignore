@@ -63,13 +63,18 @@ database/network_assets.json
 database/mikrotik_devices.json
 database/wifi_change_logs.json
 database/metrics.json
+database/wifi_templates.json
 
 # Announcements & News (berisi data user-generated)
 database/announcements.json
 database/news.json
 
-# File JSON yang BOLEH di-commit (templates & config):
-# - database/*_templates.json (message_templates.json, wifi_menu_templates.json, dll)
+# Template files - customized di production, jangan overwrite!
+database/message_templates.json
+database/wifi_menu_templates.json
+database/handler_messages.json
+
+# File JSON yang BOLEH di-commit (config & definitions):
 # - database/packages.json (package definitions)
 # - database/cron.json (cron config)
 # - database/speed_boost_matrix.json (speed boost config)

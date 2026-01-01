@@ -510,7 +510,8 @@
                                                     <div class="card-body p-2">
                                                         <ul class="placeholder-list">
                                                             <li><code>${list}</code> - Daftar dinamis</li>
-                                                            <li><code>${adminWaLink}</code> - Link WA admin</li>
+                                                            <li><code>${adminWaLink}</code> - Link WA admin (https://wa.me/628xxxx)</li>
+                                                            <li><code>${nomor_admin}</code> - Nomor admin WhatsApp (089685645956)</li>
                                                             <li><code>${targetUserName}</code> - Target user</li>
                                                         </ul>
                                                     </div>

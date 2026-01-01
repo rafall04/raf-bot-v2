@@ -29,6 +29,25 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@1.6.0/Control.FullScreen.css" />
 
     <style>
+        /* CRITICAL FIX: Ensure sidebar navbar is ALWAYS visible and clickable */
+        #accordionSidebar {
+            z-index: 1200 !important;
+            position: relative !important;
+        }
+        
+        /* Ensure sidebar collapse menus are above content */
+        #accordionSidebar .collapse,
+        #accordionSidebar .collapsing,
+        #accordionSidebar .collapse.show {
+            z-index: 1201 !important;
+        }
+        
+        /* Ensure sidebar dropdown inner content is clickable */
+        #accordionSidebar .collapse-inner {
+            z-index: 1202 !important;
+            position: relative !important;
+        }
+        
         /* Map-specific styles only - let sb-admin-2.css handle the layout */
         #content { 
             flex-grow: 1; 
@@ -75,12 +94,14 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
             border-radius: .35rem;
             box-shadow: 0 .15rem 1.75rem 0 rgba(58,59,69,.15)!important;
             overflow: hidden;
+            z-index: 1 !important;
         }
         #interactiveMap {
             width: 100%;
             height: 100%;
             border-radius: .35rem;
             background-color: #f0f0f0;
+            z-index: 1 !important;
         }
 
         #mapContainer:-webkit-full-screen { width: 100vw; height: 100vh; padding: 0; margin: 0; background-color: #fff; }
@@ -1377,11 +1398,12 @@ header("X-Debug-Version: NO-PLUGIN-2025-11-07");
 @media (max-width: 768px) {
     #content .container-fluid {
         padding: 0.5rem !important;
-        height: calc(100vh - 60px);
+        height: auto;
+        overflow-y: auto;
     }
     
     #mapContainer {
-        height: calc(100vh - 80px) !important;
+        height: calc(100vh - 180px) !important;
         border-radius: 0;
         margin: 0;
         width: 100%;

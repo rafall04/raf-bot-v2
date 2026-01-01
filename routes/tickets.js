@@ -12,6 +12,9 @@ const { withLock } = require('../lib/request-lock');
 const router = express.Router();
 const reportsDbPath = path.join(__dirname, '..', 'database', 'reports.json');
 
+// Debug flag for verbose logging
+const DEBUG = process.env.TICKET_DEBUG === 'true' || false;
+
 // Import working hours helper
 const { isWithinWorkingHours, getNextAvailableMessage, getResponseTimeMessage } = require('../lib/working-hours-helper');
 
@@ -23,12 +26,15 @@ const { getTicketsUploadsPathByTicket, getReportsUploadsPath } = require('../lib
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const ticketId = req.body.ticketId || 'UNKNOWN';
+        // PENTING: req.body mungkin belum tersedia saat destination dipanggil untuk multipart/form-data
+        // Gunakan query parameter atau header sebagai fallback
+        const ticketId = req.query?.ticketId || req.body?.ticketId || req.headers['x-ticket-id'] || 'UNKNOWN';
         
         // Get year and month from ticket creation date (if available) or current date
         let year, month;
-        if (req.body.ticketCreatedAt) {
-            const ticketDate = new Date(req.body.ticketCreatedAt);
+        const ticketCreatedAt = req.query?.ticketCreatedAt || req.body?.ticketCreatedAt || req.headers['x-ticket-created-at'];
+        if (ticketCreatedAt) {
+            const ticketDate = new Date(ticketCreatedAt);
             year = ticketDate.getFullYear();
             month = String(ticketDate.getMonth() + 1).padStart(2, '0');
         } else {
@@ -112,7 +118,7 @@ async function notifyAllCustomerNumbers(ticket, message) {
     if (customerJid && global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
         try {
             await global.raf.sendMessage(customerJid, { text: message });
-            console.log(`[NOTIFY_CUSTOMER] Sent to main customer: ${customerJid}`);
+            if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Sent to main customer: ${customerJid}`);
             
             // Track the actual phone number that received the message
             if (customerJid.endsWith('@lid')) {
@@ -122,14 +128,14 @@ async function notifyAllCustomerNumbers(ticket, message) {
                     if (phones.length > 0) {
                         const mainPhone = phones[0].replace(/\D/g, '');
                         sentNumbers.add(mainPhone);
-                        console.log(`[NOTIFY_CUSTOMER] Tracking main phone: ${mainPhone} (via @lid)`);
+                        if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Tracking main phone: ${mainPhone} (via @lid)`);
                     }
                 }
             } else {
                 // For regular format, extract the number
                 const mainPhone = customerJid.replace(/\D/g, '');
                 sentNumbers.add(mainPhone);
-                console.log(`[NOTIFY_CUSTOMER] Tracking main phone: ${mainPhone}`);
+                if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Tracking main phone: ${mainPhone}`);
             }
         } catch (err) {
             hasError = true;
@@ -147,20 +153,20 @@ async function notifyAllCustomerNumbers(ticket, message) {
     // 2. Send to ALL registered phone numbers (skip duplicates)
     if (ticket.pelangganPhone) {
         const phones = ticket.pelangganPhone.split('|').map(p => p.trim()).filter(p => p);
-        console.log(`[NOTIFY_CUSTOMER] Processing ${phones.length} phone numbers`);
+        if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Processing ${phones.length} phone numbers`);
         
         for (const phone of phones) {
             const phoneNumber = phone.replace(/\D/g, '');
             
             // Skip if this phone number was already notified
             if (sentNumbers.has(phoneNumber)) {
-                console.log(`[NOTIFY_CUSTOMER] Skipping duplicate: ${phoneNumber}`);
+                if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Skipping duplicate: ${phoneNumber}`);
                 continue;
             }
             
             const phoneJid = normalizePhoneToJID(phone);
             if (!phoneJid) {
-                console.log(`[NOTIFY_CUSTOMER] Invalid phone number: ${phone}`);
+                if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Invalid phone number: ${phone}`);
                 continue;
             }
             
@@ -168,7 +174,7 @@ async function notifyAllCustomerNumbers(ticket, message) {
             if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                 try {
                     await global.raf.sendMessage(phoneJid, { text: message });
-                    console.log(`[NOTIFY_CUSTOMER] Sent to additional number: ${phoneJid}`);
+                    if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Sent to additional number: ${phoneJid}`);
                     sentNumbers.add(phoneNumber);
                 } catch (err) {
                     hasError = true;
@@ -186,7 +192,7 @@ async function notifyAllCustomerNumbers(ticket, message) {
         }
     }
     
-    console.log(`[NOTIFY_CUSTOMER] Notification sent to ${sentNumbers.size} unique recipients`);
+    if (DEBUG) console.log(`[NOTIFY_CUSTOMER] Notification sent to ${sentNumbers.size} unique recipients`);
     
     // If no messages were sent and there was an error, throw error
     if (sentNumbers.size === 0 && hasError && lastError) {
@@ -220,7 +226,7 @@ function ensureAdmin(req, res, next) {
 async function broadcastToAdmins(message, excludeNumbers = []) {
     try {
         if (!global.raf) {
-            console.log('[BROADCAST] WhatsApp not connected, skipping broadcast');
+            if (DEBUG) console.log('[BROADCAST] WhatsApp not connected, skipping broadcast');
             return;
         }
 
@@ -255,7 +261,7 @@ async function broadcastToAdmins(message, excludeNumbers = []) {
             if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                 try {
                     await global.raf.sendMessage(jid, { text: message });
-                    console.log(`[BROADCAST] Sent to ${number}`);
+                    if (DEBUG) console.log(`[BROADCAST] Sent to ${number}`);
                 } catch (err) {
                     console.error('[SEND_MESSAGE_ERROR]', {
                         jid,
@@ -421,7 +427,7 @@ router.post('/ticket/process', ensureAuthenticatedStaff, rateLimit('ticket-proce
             const ticket = global.reports[reportIndex];
             
             // Log current ticket status for debugging
-            console.log(`[TICKET_PROCESS] Ticket ${ticketId} current status: "${ticket.status}"`);
+            if (DEBUG) console.log(`[TICKET_PROCESS] Ticket ${ticketId} current status: "${ticket.status}"`);
             
             // Check if ticket is already being processed (support multiple status formats)
             if (ticket.status === 'process' || ticket.status === 'diproses teknisi' || 
@@ -457,11 +463,11 @@ router.post('/ticket/process', ensureAuthenticatedStaff, rateLimit('ticket-proce
                 });
             }
             
-            console.log(`[TICKET_PROCESS] Teknisi found: ${teknisi.name || teknisi.username} (ID: ${teknisi.id})`);
+            if (DEBUG) console.log(`[TICKET_PROCESS] Teknisi found: ${teknisi.name || teknisi.username} (ID: ${teknisi.id})`);
             
             // Generate OTP (same as WhatsApp bot)
             const otp = generateOTP();
-            console.log(`[TICKET_PROCESS] Generated OTP: ${otp} for ticket ${ticketId}`);
+            if (DEBUG) console.log(`[TICKET_PROCESS] Generated OTP: ${otp} for ticket ${ticketId}`);
             
             // Update ticket with all required fields (following WhatsApp bot pattern)
             ticket.status = 'process';  // Use 'process' status like in bot
@@ -481,7 +487,7 @@ router.post('/ticket/process', ensureAuthenticatedStaff, rateLimit('ticket-proce
             
             // Save to database
             saveReports(global.reports);
-            console.log(`[TICKET_PROCESS] Ticket ${ticketId} updated with status=process, OTP=${otp}`);
+            if (DEBUG) console.log(`[TICKET_PROCESS] Ticket ${ticketId} updated with status=process, OTP=${otp}`);
             
             // Log activity
             try {
@@ -505,7 +511,7 @@ router.post('/ticket/process', ensureAuthenticatedStaff, rateLimit('ticket-proce
             
             // Get customer (user) details - support both field names for backward compatibility
             const userId = ticket.pelangganUserId || ticket.user_id;
-            console.log(`[TICKET_PROCESS] Looking for user with ID: ${userId}`);
+            if (DEBUG) console.log(`[TICKET_PROCESS] Looking for user with ID: ${userId}`);
             
             const user = global.users.find(u => u.id === userId);
             
@@ -518,7 +524,7 @@ router.post('/ticket/process', ensureAuthenticatedStaff, rateLimit('ticket-proce
                 });
             }
             
-            console.log(`[TICKET_PROCESS] User found: ${user.name} (ID: ${user.id})`);
+            if (DEBUG) console.log(`[TICKET_PROCESS] User found: ${user.name} (ID: ${user.id})`);
             
             // Get teknisi phone for customer contact (format for wa.me link)
             const teknisiPhone = (() => {
@@ -652,7 +658,7 @@ router.post('/ticket/otw', ensureAuthenticatedStaff, rateLimit('ticket-otw', 10,
         
         // Save to database
         saveReports(global.reports);
-        console.log(`[TICKET_OTW] Ticket ${ticketId} status updated to OTW`);
+        if (DEBUG) console.log(`[TICKET_OTW] Ticket ${ticketId} status updated to OTW`);
         
         // Get teknisi phone for customer contact
         const teknisiPhone = (() => {
@@ -685,7 +691,7 @@ router.post('/ticket/otw', ensureAuthenticatedStaff, rateLimit('ticket-otw', 10,
         try {
             await notifyAllCustomerNumbers(ticket, customerMessage);
             notificationSent = true;
-            console.log(`[TICKET_OTW] Customer notification sent successfully for ticket ${ticketId}`);
+            if (DEBUG) console.log(`[TICKET_OTW] Customer notification sent successfully for ticket ${ticketId}`);
         } catch (notifyError) {
             notificationError = notifyError.message;
             console.error(`[TICKET_OTW] Failed to send customer notification:`, notifyError);
@@ -789,7 +795,7 @@ router.post('/ticket/arrived', ensureAuthenticatedStaff, rateLimit('ticket-arriv
         
         // Save to database
         saveReports(global.reports);
-        console.log(`[TICKET_ARRIVED] Ticket ${ticketId} status updated to arrived, OTP: ${ticket.otp}`);
+        if (DEBUG) console.log(`[TICKET_ARRIVED] Ticket ${ticketId} status updated to arrived, OTP: ${ticket.otp}`);
         
         // Get teknisi phone for customer contact
         const teknisiPhone = (() => {
@@ -966,7 +972,7 @@ router.post('/ticket/verify-otp', ensureAuthenticatedStaff, rateLimit('ticket-ve
         
         // Save to database (OTP attempts already reset above)
         saveReports(global.reports);
-        console.log(`[TICKET_VERIFY_OTP] Ticket ${ticketId} OTP verified, status updated to working`);
+        if (DEBUG) console.log(`[TICKET_VERIFY_OTP] Ticket ${ticketId} OTP verified, status updated to working`);
         
         // Prepare customer notification using template
         const customerTemplateData = {
@@ -1109,7 +1115,7 @@ router.post('/ticket/upload-photo', ensureAuthenticatedStaff, rateLimit('ticket-
         
         // Save to database
         saveReports(global.reports);
-        console.log(`[TICKET_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId}. Total: ${ticket.photos.length}`);
+        if (DEBUG) console.log(`[TICKET_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId}. Total: ${ticket.photos.length}`);
         
         // Update photoCount for consistency
         ticket.teknisiPhotoCount = ticket.teknisiPhotos.length;
@@ -1236,7 +1242,7 @@ router.post('/ticket/complete', ensureAuthenticatedStaff, rateLimit('ticket-comp
         
         // Save to database
         saveReports(global.reports);
-        console.log(`[TICKET_COMPLETE] Ticket ${ticketId} completed. Duration: ${durationMinutes} min, Photos: ${ticket.photos.length}`);
+        if (DEBUG) console.log(`[TICKET_COMPLETE] Ticket ${ticketId} completed. Duration: ${durationMinutes} min, Photos: ${ticket.photos.length}`);
         
         // Log activity
         try {
@@ -1549,10 +1555,15 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
         }
         
         // Send response immediately (don't wait for notifications)
+        // PENTING: Pastikan ticketId ada di response untuk frontend (explicit)
         res.json({
             status: 200,
             message: responseMessage,
-            data: newTicket,
+            data: {
+                ...newTicket,
+                ticketId: ticketId,  // Explicit ticketId untuk memastikan frontend mendapatkannya
+                id: ticketId  // Juga sebagai id untuk kompatibilitas
+            },
             workingHours: {
                 isWithinHours: workingStatus.isWithinHours,
                 warning: workingHoursWarning,
@@ -1620,7 +1631,7 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
                                 console.warn(`[ADMIN_CREATE_TICKET] Failed to send to ${phoneJid}: ${result.error}`);
                                 errorCount++;
                             } else {
-                                console.log(`[ADMIN_CREATE_TICKET] Customer notification sent: ${phoneJid}`);
+                                if (DEBUG) console.log(`[ADMIN_CREATE_TICKET] Customer notification sent: ${phoneJid}`);
                                 successCount++;
                             }
                             
@@ -1640,7 +1651,7 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
                         }
                     }
                     
-                    console.log(`[ADMIN_CREATE_TICKET] Customer notifications: ${successCount} success, ${errorCount} failed out of ${phoneNumbers.length} numbers`);
+                    if (DEBUG) console.log(`[ADMIN_CREATE_TICKET] Customer notifications: ${successCount} success, ${errorCount} failed out of ${phoneNumbers.length} numbers`);
                 } catch (err) {
                     const errorMsg = err.message || err.toString();
                     console.error('[ADMIN_CREATE_TICKET] Error in customer notification loop:', errorMsg);
@@ -1734,7 +1745,7 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
                         }
                     }
                 }
-                console.log(`[ADMIN_CREATE_TICKET] Notifications: ${successCount} success, ${errorCount} failed out of ${teknisiAccounts.length} teknisi`);
+                if (DEBUG) console.log(`[ADMIN_CREATE_TICKET] Notifications: ${successCount} success, ${errorCount} failed out of ${teknisiAccounts.length} teknisi}`);
             })();
         } else {
             console.warn(`[ADMIN_CREATE_TICKET] WhatsApp not available (raf: ${!!global.raf}, state: ${global.whatsappConnectionState}), skipping teknisi notifications`);
@@ -1752,10 +1763,18 @@ router.post('/admin/ticket/create', ensureAdmin, async (req, res) => {
 // Multer storage khusus untuk upload foto saat create ticket (menggunakan struktur reports)
 const createTicketPhotoStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const { ticketId } = req.body;
+        // PENTING: req.body mungkin belum tersedia saat destination dipanggil untuk multipart/form-data
+        // Gunakan query parameter atau header sebagai fallback
+        const ticketId = req.query?.ticketId || req.body?.ticketId || req.headers['x-ticket-id'];
         
         if (!ticketId) {
-            return cb(new Error('Ticket ID harus diisi'), null);
+            // Jangan throw error di destination, biarkan handler yang handle
+            // Gunakan temporary directory dan akan dipindahkan di handler
+            const tempDir = path.join(__dirname, '..', 'uploads', 'temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+            return cb(null, tempDir);
         }
         
         // Find report to get creation date
@@ -1782,10 +1801,12 @@ const createTicketPhotoStorage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
+        // PENTING: req.body mungkin belum tersedia, gunakan query/header sebagai fallback
+        const ticketId = req.query?.ticketId || req.body?.ticketId || req.headers['x-ticket-id'] || 'UNKNOWN';
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(7);
         const ext = path.extname(file.originalname);
-        cb(null, `teknisi_${req.body.ticketId}_${timestamp}_${random}${ext}`);
+        cb(null, `teknisi_${ticketId}_${timestamp}_${random}${ext}`);
     }
 });
 
@@ -1806,7 +1827,8 @@ const createTicketPhotoUpload = multer({
 // Endpoint ini digunakan setelah ticket dibuat untuk upload foto opsional
 router.post('/ticket/create/upload-photo', ensureAuthenticatedStaff, rateLimit('ticket-create-upload-photo', 10, 60000), createTicketPhotoUpload.single('photo'), async (req, res) => {
     try {
-        const { ticketId } = req.body;
+        // PENTING: req.body sudah tersedia di handler (setelah multer parse)
+        const ticketId = req.query?.ticketId || req.body?.ticketId || req.headers['x-ticket-id'];
         
         if (!ticketId) {
             // Clean up uploaded file if exists
@@ -1830,92 +1852,213 @@ router.post('/ticket/create/upload-photo', ensureAuthenticatedStaff, rateLimit('
             });
         }
         
-        // Find the ticket
-        const reportIndex = global.reports.findIndex(r => 
-            r.ticketId === ticketId || r.id === ticketId
-        );
+        // Helper function untuk process photo upload (didefinisikan di sini untuk digunakan di retry dan normal flow)
+        const processPhotoUpload = (report) => {
+            // Initialize arrays untuk foto (konsisten dengan struktur yang ada)
+            if (!report.teknisiPhotos) report.teknisiPhotos = [];
+            if (!report.photos) report.photos = [];
+            if (!report.customerPhotos) report.customerPhotos = [];
+            
+            // Check max photos (3 photos max untuk create ticket - total customer + teknisi saat create)
+            const totalPhotos = report.customerPhotos.length + report.teknisiPhotos.length;
+            if (totalPhotos >= 3) {
+                // Clean up uploaded file
+                if (req.file && req.file.path) {
+                    try {
+                        fs.unlinkSync(req.file.path);
+                    } catch (err) {
+                        console.error('[TICKET_CREATE_UPLOAD_PHOTO] Failed to delete file:', err);
+                    }
+                }
+                return {
+                    error: true,
+                    status: 400,
+                    message: 'Maksimal 3 foto per laporan (termasuk foto dari customer)'
+                };
+            }
+            
+            // Get year and month from ticket creation date
+            const ticketDate = report.createdAt ? new Date(report.createdAt) : new Date();
+            const year = ticketDate.getFullYear();
+            const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
+            
+            // Store photo info (konsisten dengan struktur customerPhotos)
+            const photoInfo = {
+                fileName: req.file.filename,
+                path: `/uploads/reports/${year}/${month}/${ticketId}/${req.file.filename}`,
+                uploadedAt: new Date().toISOString(),
+                size: req.file.size,
+                uploadedBy: req.user.username || req.user.name || 'teknisi',
+                uploadedVia: 'teknisi_panel_create'
+            };
+            
+            // Add to teknisiPhotos (array object, konsisten dengan customerPhotos)
+            report.teknisiPhotos.push(photoInfo);
+            // Juga simpan ke photos untuk kompatibilitas (tapi cek duplicate dulu)
+            // Cek apakah foto dengan filename yang sama sudah ada di photos
+            const existingPhotoIndex = report.photos.findIndex(p => {
+                if (typeof p === 'object' && p.fileName) {
+                    return p.fileName === photoInfo.fileName;
+                } else if (typeof p === 'string') {
+                    return p === photoInfo.fileName;
+                }
+                return false;
+            });
+            if (existingPhotoIndex === -1) {
+                report.photos.push(photoInfo);
+            }
+            report.hasTeknisiPhotos = true;
+            report.photoCount = report.customerPhotos.length + report.teknisiPhotos.length;
+            
+            // Save to database
+            saveReports(global.reports);
+            
+            return {
+                error: false,
+                photoInfo,
+                report
+            };
+        };
+        
+        // Jika file di-upload ke temp directory (karena ticketId tidak ada saat destination), pindahkan ke lokasi yang benar
+        const isTempFile = req.file.path && req.file.path.includes(path.join('uploads', 'temp'));
+        if (isTempFile && ticketId) {
+            // Find report to get creation date
+            const report = global.reports.find(r => r.ticketId === ticketId || r.id === ticketId);
+            let year, month;
+            
+            if (report && report.createdAt) {
+                const reportDate = new Date(report.createdAt);
+                year = reportDate.getFullYear();
+                month = String(reportDate.getMonth() + 1).padStart(2, '0');
+            } else {
+                const now = new Date();
+                year = now.getFullYear();
+                month = String(now.getMonth() + 1).padStart(2, '0');
+            }
+            
+            const correctDir = getReportsUploadsPath(year, month, ticketId, __dirname);
+            if (!fs.existsSync(correctDir)) {
+                fs.mkdirSync(correctDir, { recursive: true });
+            }
+            
+            const correctPath = path.join(correctDir, req.file.filename);
+            try {
+                fs.renameSync(req.file.path, correctPath);
+                req.file.path = correctPath;
+                req.file.destination = correctDir;
+            } catch (err) {
+                console.error('[TICKET_CREATE_UPLOAD_PHOTO] Failed to move file from temp:', err);
+                // Continue with temp path, will be cleaned up later
+            }
+        }
+        
+        // Find the ticket - normalize ticketId untuk matching (case-insensitive, trim whitespace)
+        const normalizedTicketId = String(ticketId).trim().toUpperCase();
+        const reportIndex = global.reports.findIndex(r => {
+            const rTicketId = r.ticketId ? String(r.ticketId).trim().toUpperCase() : null;
+            const rId = r.id ? String(r.id).trim().toUpperCase() : null;
+            return rTicketId === normalizedTicketId || rId === normalizedTicketId;
+        });
         
         if (reportIndex === -1) {
-            // Clean up uploaded file
-            if (req.file && req.file.path) {
+            // Retry: Mungkin ticket baru saja dibuat dan belum ter-sync
+            // Reload reports dari file dan coba lagi (max 3 retries dengan delay)
+            let found = false;
+            for (let retry = 0; retry < 3; retry++) {
+                await new Promise(resolve => setTimeout(resolve, 100 * (retry + 1)));
+                
+                // Reload reports dari file untuk memastikan data ter-update
                 try {
-                    fs.unlinkSync(req.file.path);
+                    const { loadReports } = require('../lib/database');
+                    loadReports();
                 } catch (err) {
-                    console.error('[TICKET_CREATE_UPLOAD_PHOTO] Failed to delete file:', err);
+                    console.warn('[TICKET_CREATE_UPLOAD_PHOTO] Failed to reload reports:', err.message);
+                }
+                
+                // Coba cari lagi setelah reload
+                const retryIndex = global.reports.findIndex(r => {
+                    const rTicketId = r.ticketId ? String(r.ticketId).trim().toUpperCase() : null;
+                    const rId = r.id ? String(r.id).trim().toUpperCase() : null;
+                    return rTicketId === normalizedTicketId || rId === normalizedTicketId;
+                });
+                
+                if (retryIndex !== -1) {
+                    found = true;
+                    const actualReport = global.reports[retryIndex];
+                    const uploadResult = processPhotoUpload(actualReport);
+                    
+                    if (uploadResult.error) {
+                        return res.status(uploadResult.status).json({
+                            status: uploadResult.status,
+                            message: uploadResult.message
+                        });
+                    }
+                    
+                    if (DEBUG) console.log(`[TICKET_CREATE_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId} during creation (after retry ${retry + 1}). Total: ${uploadResult.report.teknisiPhotos.length}`);
+                    
+                    return res.json({
+                        status: 200,
+                        message: `Foto berhasil diupload (${uploadResult.report.teknisiPhotos.length}/3)`,
+                        data: {
+                            ticketId: uploadResult.report.ticketId || uploadResult.report.id,
+                            photoCount: uploadResult.report.teknisiPhotos.length,
+                            totalPhotos: uploadResult.report.photoCount,
+                            maxPhotos: 3,
+                            photo: uploadResult.photoInfo
+                        }
+                    });
                 }
             }
-            return res.status(404).json({
-                status: 404,
-                message: 'Tiket tidak ditemukan'
-            });
+            
+            // Jika masih tidak ditemukan setelah retry
+            if (!found) {
+                // Debug: Log untuk troubleshooting
+                console.warn(`[TICKET_CREATE_UPLOAD_PHOTO] Ticket not found after retries. Looking for: "${ticketId}" (normalized: "${normalizedTicketId}")`);
+                console.warn(`[TICKET_CREATE_UPLOAD_PHOTO] Total reports: ${global.reports.length}`);
+                console.warn(`[TICKET_CREATE_UPLOAD_PHOTO] Last 5 tickets:`, global.reports.slice(-5).map(r => ({
+                    ticketId: r.ticketId,
+                    id: r.id,
+                    status: r.status,
+                    createdAt: r.createdAt
+                })));
+                
+                // Clean up uploaded file
+                if (req.file && req.file.path) {
+                    try {
+                        fs.unlinkSync(req.file.path);
+                    } catch (err) {
+                        console.error('[TICKET_CREATE_UPLOAD_PHOTO] Failed to delete file:', err);
+                    }
+                }
+                return res.status(404).json({
+                    status: 404,
+                    message: 'Tiket tidak ditemukan. Pastikan tiket sudah dibuat sebelum upload foto. Silakan refresh halaman dan coba lagi.'
+                });
+            }
         }
         
         const report = global.reports[reportIndex];
+        const uploadResult = processPhotoUpload(report);
         
-        // Initialize arrays untuk foto (konsisten dengan struktur yang ada)
-        if (!report.teknisiPhotos) {
-            report.teknisiPhotos = [];
-        }
-        if (!report.photos) {
-            report.photos = [];
-        }
-        if (!report.customerPhotos) {
-            report.customerPhotos = [];
-        }
-        
-        // Check max photos (3 photos max untuk create ticket - total customer + teknisi saat create)
-        const totalPhotos = report.customerPhotos.length + report.teknisiPhotos.length;
-        if (totalPhotos >= 3) {
-            // Clean up uploaded file
-            if (req.file && req.file.path) {
-                try {
-                    fs.unlinkSync(req.file.path);
-                } catch (err) {
-                    console.error('[TICKET_CREATE_UPLOAD_PHOTO] Failed to delete file:', err);
-                }
-            }
-            return res.status(400).json({
-                status: 400,
-                message: 'Maksimal 3 foto per laporan (termasuk foto dari customer)'
+        if (uploadResult.error) {
+            return res.status(uploadResult.status).json({
+                status: uploadResult.status,
+                message: uploadResult.message
             });
         }
         
-        // Get year and month from ticket creation date
-        const ticketDate = report.createdAt ? new Date(report.createdAt) : new Date();
-        const year = ticketDate.getFullYear();
-        const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
-        
-        // Store photo info (konsisten dengan struktur customerPhotos)
-        const photoInfo = {
-            fileName: req.file.filename,
-            path: `/uploads/reports/${year}/${month}/${ticketId}/${req.file.filename}`,
-            uploadedAt: new Date().toISOString(),
-            size: req.file.size,
-            uploadedBy: req.user.username || req.user.name || 'teknisi',
-            uploadedVia: 'teknisi_panel_create'
-        };
-        
-        // Add to teknisiPhotos (array object, konsisten dengan customerPhotos)
-        report.teknisiPhotos.push(photoInfo);
-        // Juga simpan ke photos untuk kompatibilitas
-        report.photos.push(photoInfo);
-        report.hasTeknisiPhotos = true;
-        report.photoCount = report.customerPhotos.length + report.teknisiPhotos.length;
-        
-        // Save to database
-        saveReports(global.reports);
-        
-        console.log(`[TICKET_CREATE_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId} during creation. Total: ${report.teknisiPhotos.length}`);
+        if (DEBUG) console.log(`[TICKET_CREATE_UPLOAD_PHOTO] Photo uploaded for ticket ${ticketId} during creation. Total: ${uploadResult.report.teknisiPhotos.length}`);
         
         return res.json({
             status: 200,
-            message: `Foto berhasil diupload (${report.teknisiPhotos.length}/3)`,
+            message: `Foto berhasil diupload (${uploadResult.report.teknisiPhotos.length}/3)`,
             data: {
-                ticketId: report.ticketId || report.id,
-                photoCount: report.teknisiPhotos.length,
-                totalPhotos: report.photoCount,
+                ticketId: uploadResult.report.ticketId || uploadResult.report.id,
+                photoCount: uploadResult.report.teknisiPhotos.length,
+                totalPhotos: uploadResult.report.photoCount,
                 maxPhotos: 3,
-                photo: photoInfo
+                photo: uploadResult.photoInfo
             }
         });
     } catch (error) {
@@ -2036,10 +2179,15 @@ router.post('/ticket/create', ensureAuthenticatedStaff, rateLimit('ticket-create
         }
         
         // Send response immediately (don't wait for notifications)
+        // PENTING: Pastikan ticketId ada di response untuk frontend (explicit)
         res.json({
             status: 200,
             message: responseMessage,
-            data: newTicket,
+            data: {
+                ...newTicket,
+                ticketId: ticketId,  // Explicit ticketId untuk memastikan frontend mendapatkannya
+                id: ticketId  // Juga sebagai id untuk kompatibilitas
+            },
             workingHours: {
                 isWithinHours: workingStatus.isWithinHours,
                 warning: workingHoursWarning,
@@ -2104,7 +2252,7 @@ router.post('/ticket/create', ensureAuthenticatedStaff, rateLimit('ticket-create
                             if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                                 try {
                                     await global.raf.sendMessage(phoneJid, { text: customerMsg });
-                                    console.log(`[CREATE_TICKET] Customer notification sent: ${phoneJid}`);
+                                    if (DEBUG) console.log(`[CREATE_TICKET] Customer notification sent: ${phoneJid}`);
                                     successCount++;
                                 } catch (err) {
                                     console.error('[SEND_MESSAGE_ERROR]', {
@@ -2136,7 +2284,7 @@ router.post('/ticket/create', ensureAuthenticatedStaff, rateLimit('ticket-create
                         }
                     }
                     
-                    console.log(`[CREATE_TICKET] Customer notifications: ${successCount} success, ${errorCount} failed out of ${phoneNumbers.length} numbers`);
+                    if (DEBUG) console.log(`[CREATE_TICKET] Customer notifications: ${successCount} success, ${errorCount} failed out of ${phoneNumbers.length} numbers`);
                 } catch (err) {
                     const errorMsg = err.message || err.toString();
                     console.error('[CREATE_TICKET] Error in customer notification loop:', errorMsg);
@@ -2396,7 +2544,7 @@ router.post('/admin/ticket/cancel', ensureAdmin, async (req, res) => {
                 if (global.whatsappConnectionState === 'open' && global.raf && global.raf.sendMessage) {
                     try {
                         await global.raf.sendMessage(teknisiJid, { text: teknisiMessage });
-                        console.log(`[ADMIN_CANCEL_TICKET] Notification sent to technician ${teknisi.name || teknisi.username}`);
+                        if (DEBUG) console.log(`[ADMIN_CANCEL_TICKET] Notification sent to technician ${teknisi.name || teknisi.username}`);
                     } catch (err) {
                         console.error('[SEND_MESSAGE_ERROR]', {
                             teknisiJid,

@@ -8,6 +8,7 @@ class MonitoringController {
         this.socket = null;
         this.charts = {};
         this.updateInterval = null;
+        this.trafficUpdateInterval = null; // Interval terpisah untuk traffic data
         this.trafficPeriod = '5m';
         this.alerts = [];
         this.currentInterface = 'ether1';
@@ -15,6 +16,12 @@ class MonitoringController {
         this.mikrotikConnected = false;
         this.useSocketIO = false;
         this.socketErrorLogged = false;
+        this.lastWhatsAppStatus = undefined; // Untuk menyimpan status WhatsApp terakhir
+        this.lastHealthData = null; // Untuk menyimpan health data terakhir
+        this.lastTrafficUpdateTime = null; // Timestamp update traffic terakhir
+        this.trafficUpdateStuckThreshold = 15000; // 15 detik tanpa update = stuck
+        this.trafficUpdateCheckInterval = null; // Interval untuk check stuck
+        this.isUpdatingTraffic = false; // Flag untuk prevent concurrent updates
         
         this.init();
     }
@@ -27,9 +34,23 @@ class MonitoringController {
         }
         
         this.initCharts();
-        this.startUpdateLoop();
         this.bindEvents();
         this.initClickableStatCards();
+        
+        // PENTING: Start update loop setelah DOM ready dan chart terinisialisasi
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            // Delay sedikit untuk memastikan chart sudah terinisialisasi
+            setTimeout(() => {
+                this.startUpdateLoop();
+            }, 500);
+        } else {
+            window.addEventListener('load', () => {
+                // Delay sedikit untuk memastikan chart sudah terinisialisasi
+                setTimeout(() => {
+                    this.startUpdateLoopImmediate();
+                }, 500);
+            });
+        }
     }
     
     connectSocket() {
@@ -85,50 +106,186 @@ class MonitoringController {
     }
     
     initCharts() {
-        const ctx = document.getElementById('traffic-chart');
-        if (!ctx) return;
+        const canvas = document.getElementById('traffic-chart');
+        if (!canvas) {
+            console.warn('[Monitoring] Traffic chart canvas not found, will retry later');
+            // Retry setelah 500ms jika canvas belum ada
+            setTimeout(() => this.initCharts(), 500);
+            return;
+        }
         
-        this.trafficChart = new Chart(ctx, {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.warn('[Monitoring] Cannot get 2d context from canvas');
+            return;
+        }
+        
+        // PENTING: Pastikan Chart.js sudah loaded
+        if (typeof Chart === 'undefined') {
+            console.warn('[Monitoring] Chart.js not loaded yet, will retry later');
+            setTimeout(() => this.initCharts(), 500);
+            return;
+        }
+        
+        // Smooth color gradients untuk visual yang lebih menarik
+        // Gradient akan di-update setelah chart dibuat untuk mendapatkan height yang benar
+        const downloadGradient = ctx.createLinearGradient(0, 0, 0, 400);
+        downloadGradient.addColorStop(0, 'rgba(34, 197, 94, 0.3)'); // Green
+        downloadGradient.addColorStop(1, 'rgba(34, 197, 94, 0.05)');
+        
+        const uploadGradient = ctx.createLinearGradient(0, 0, 0, 400);
+        uploadGradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)'); // Blue
+        uploadGradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+        
+        try {
+            this.trafficChart = new Chart(canvas, {
             type: 'line',
             data: {
                 labels: [],
                 datasets: [{
                     label: 'Download',
                     data: [],
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    tension: 0.1
+                    borderColor: '#22c55e', // Green - lebih modern
+                    backgroundColor: downloadGradient,
+                    tension: 0.4, // Lebih smooth curve (dari 0.1 ke 0.4)
+                    borderWidth: 2.5, // Lebih tebal untuk visibility
+                    fill: true,
+                    pointRadius: 0, // Hide points untuk smooth line
+                    pointHoverRadius: 4, // Show on hover
+                    pointHoverBorderWidth: 2,
+                    pointHoverBackgroundColor: '#22c55e',
+                    pointHoverBorderColor: '#ffffff',
+                    cubicInterpolationMode: 'monotone', // Smooth interpolation
+                    spanGaps: false
                 }, {
                     label: 'Upload',
                     data: [],
-                    borderColor: 'rgb(255, 99, 132)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                    tension: 0.1
+                    borderColor: '#3b82f6', // Blue - lebih modern
+                    backgroundColor: uploadGradient,
+                    tension: 0.4, // Lebih smooth curve
+                    borderWidth: 2.5,
+                    fill: true,
+                    pointRadius: 0, // Hide points untuk smooth line
+                    pointHoverRadius: 4, // Show on hover
+                    pointHoverBorderWidth: 2,
+                    pointHoverBackgroundColor: '#3b82f6',
+                    pointHoverBorderColor: '#ffffff',
+                    cubicInterpolationMode: 'monotone', // Smooth interpolation
+                    spanGaps: false
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                animation: {
+                    duration: 800, // Smooth animation duration
+                    easing: 'easeInOutQuart' // Smooth easing
+                },
+                transitions: {
+                    show: {
+                        animation: {
+                            duration: 800,
+                            easing: 'easeInOutQuart'
+                        }
+                    },
+                    hide: {
+                        animation: {
+                            duration: 800,
+                            easing: 'easeInOutQuart'
+                        }
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'Mbps'
+                            text: 'Mbps',
+                            font: {
+                                size: 12,
+                                weight: '600'
+                            },
+                            color: '#6b7280'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)', // Subtle grid
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                            font: {
+                                size: 11
+                            },
+                            padding: 8
                         }
                     },
                     x: {
-                        display: true
+                        grid: {
+                            display: false, // Hide x-axis grid untuk cleaner look
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                            font: {
+                                size: 11
+                            },
+                            maxRotation: 0,
+                            autoSkip: true,
+                            maxTicksLimit: 8
+                        }
                     }
                 },
                 plugins: {
                     legend: {
                         display: true,
-                        position: 'top'
+                        position: 'top',
+                        align: 'end',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: {
+                                size: 12,
+                                weight: '500'
+                            },
+                            color: '#374151',
+                            boxWidth: 12,
+                            boxHeight: 12
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: {
+                            size: 13,
+                            weight: '600'
+                        },
+                        bodyFont: {
+                            size: 12
+                        },
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: true,
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + ' Mbps';
+                            }
+                        }
                     }
                 }
             }
         });
+        
+        console.log('[Monitoring] Traffic chart initialized successfully');
+        } catch (error) {
+            console.error('[Monitoring] Error initializing traffic chart:', error);
+            // Retry setelah 1 detik jika error
+            setTimeout(() => this.initCharts(), 1000);
+        }
     }
     
     async fetchTrafficHistory() {
@@ -149,22 +306,30 @@ class MonitoringController {
                 const history = result.data;
                 
                 if (this.trafficChart && history) {
-                    this.trafficChart.options.plugins.title = {
-                        display: false
-                    };
+                    // Remove title jika masih ada
+                    if (this.trafficChart.options.plugins.title) {
+                        this.trafficChart.options.plugins.title.display = false;
+                    }
                     
-                    this.trafficChart.options.animation = {
-                        duration: 750
-                    };
+                    // Format labels dengan format yang lebih compact
+                    const labels = history.map(h => {
+                        const date = new Date(h.time);
+                        return date.toLocaleTimeString('id-ID', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+                    });
+                    const downloadData = history.map(h => h.download || 0);
+                    const uploadData = history.map(h => h.upload || 0);
                     
-                    const labels = history.map(h => new Date(h.time).toLocaleTimeString());
-                    const downloadData = history.map(h => h.download);
-                    const uploadData = history.map(h => h.upload);
-                    
+                    // Update data dengan smooth animation
                     this.trafficChart.data.labels = labels;
                     this.trafficChart.data.datasets[0].data = downloadData;
                     this.trafficChart.data.datasets[1].data = uploadData;
-                    this.trafficChart.update();
+                    
+                    // Update dengan animation untuk smooth transition
+                    this.trafficChart.update('default');
                 }
             }
         } catch (error) {
@@ -186,21 +351,66 @@ class MonitoringController {
     
     startUpdateLoopImmediate() {
         setTimeout(() => {
+            // Initial load
             this.fetchUserStatsFromStats();
             this.fetchMonitoringData();
             
-            if (this.trafficChart) {
-                this.fetchTrafficHistory();
-            }
-            
+            // PENTING: Update monitoring data setiap 10 detik (kurang sering untuk mengurangi beban)
             this.updateInterval = setInterval(() => {
                 this.fetchUserStatsFromStats();
                 this.fetchMonitoringData();
-                
-                if (this.trafficChart && this.mikrotikConnected) {
+            }, 10000); // 10 detik untuk monitoring data umum
+            
+            // PENTING: Pastikan chart sudah terinisialisasi sebelum membuat interval
+            // Retry mechanism jika chart belum siap
+            const initTrafficInterval = () => {
+                if (this.trafficChart) {
+                    // PENTING: Clear interval sebelumnya jika ada (prevent multiple intervals)
+                    if (this.trafficUpdateInterval) {
+                        clearInterval(this.trafficUpdateInterval);
+                        this.trafficUpdateInterval = null;
+                    }
+                    
+                    // PENTING: Initialize timestamp untuk stuck detection
+                    this.lastTrafficUpdateTime = Date.now();
+                    
+                    // Initial traffic history load
                     this.fetchTrafficHistory();
+                    
+                    // PENTING: Trigger initial traffic data fetch setelah chart siap
+                    // Jangan tunggu interval pertama (5 detik)
+                    // PENTING: Jangan check mikrotikConnected di sini - biarkan fetchTrafficDataOnly() yang check
+                    setTimeout(() => {
+                        if (this.trafficChart && !this.isUpdatingTraffic) {
+                            console.log('[Monitoring] Initial traffic data fetch triggered');
+                            this.fetchTrafficDataOnly();
+                        }
+                    }, 1000); // Fetch setelah 1 detik
+                    
+                    // Set interval terpisah untuk traffic data
+                    // PENTING: Jangan check mikrotikConnected di sini - biarkan fetchTrafficDataOnly() yang check
+                    // Ini memastikan interval tetap dibuat meskipun mikrotikConnected belum true
+                    this.trafficUpdateInterval = setInterval(() => {
+                        if (this.trafficChart && !this.isUpdatingTraffic) {
+                            this.fetchTrafficDataOnly();
+                        }
+                    }, 5000); // 5 detik untuk traffic data
+                    
+                    console.log('[Monitoring] Traffic update interval created');
+                    
+                    // PENTING: Start stuck detection mechanism (setelah interval dibuat)
+                    // Delay sedikit untuk prevent false stuck detection saat initializing
+                    setTimeout(() => {
+                        this.startTrafficStuckDetection();
+                    }, 2000); // Start stuck detection setelah 2 detik
+                } else {
+                    // Retry setelah 500ms jika chart belum siap
+                    setTimeout(initTrafficInterval, 500);
                 }
-            }, 5000);
+            };
+            
+            // Start initialization
+            initTrafficInterval();
         }, 1000);
     }
     
@@ -227,42 +437,83 @@ class MonitoringController {
                 }
             });
             
+            // PENTING: Handle rate limit (429) dan unauthorized (401) dengan graceful
+            if (response.status === 429) {
+                console.warn('[Monitoring] Rate limit exceeded, akan retry setelah beberapa saat');
+                // Jangan throw error - biarkan retry pada interval berikutnya
+                // Rate limit akan reset setelah beberapa saat
+                return;
+            }
+            
+            if (response.status === 401) {
+                console.warn('[Monitoring] Unauthorized - mungkin token expired');
+                // Jangan langsung redirect - biarkan user tetap di halaman
+                // Token mungkin akan refresh atau user bisa login ulang nanti
+                return;
+            }
+            
             if (!response.ok) {
                 console.error('[Monitoring] HTTP Error:', response.status, response.statusText);
-                throw new Error(`Failed to fetch monitoring data: ${response.status}`);
+                // Jangan throw error untuk non-critical errors
+                // Biarkan retry pada interval berikutnya
+                return;
             }
             
             const result = await response.json();
             
+            // PENTING: Jangan langsung disconnect pada error pertama
+            // Error 503 atau error lainnya bisa terjadi karena timeout, bukan disconnect permanen
             if (result.status === 503 || result.error || !result.data) {
-                console.error('[Monitoring] MikroTik Error:', result.message || result.error || 'No data received');
-                this.mikrotikConnected = false;
-                this.handleDisconnection();
-                return;
+                console.warn('[Monitoring] MikroTik API Error:', result.message || result.error || 'No data received');
+                // Jangan langsung set disconnect - biarkan data yang ada tetap digunakan
+                // Error bisa transient (timeout, network hiccup, dll)
+                // Hanya set disconnect jika benar-benar tidak ada data sama sekali
+                if (!result.data) {
+                    // Tidak ada data sama sekali - mungkin benar-benar disconnect
+                    this.mikrotikConnected = false;
+                    this.handleDisconnection();
+                    return;
+                }
+                // Jika ada data meskipun ada error, tetap proses data yang ada
             }
             
             const data = result.data;
             
             if (data) {
-                if (data.mikrotik && (data.mikrotik.connected === true || data.mikrotik.cpu !== undefined)) {
-                    this.mikrotikConnected = true;
+                // PENTING: Check connection status dari data mikrotik
+                // Jika mikrotik.connected === true atau ada data CPU, berarti masih connected
+                if (data.mikrotik) {
+                    if (data.mikrotik.connected === true || data.mikrotik.cpu !== undefined) {
+                        this.mikrotikConnected = true;
+                    } else {
+                        // Hanya set false jika benar-benar tidak ada data dan connected === false
+                        if (data.mikrotik.connected === false) {
+                            this.mikrotikConnected = false;
+                        }
+                        // Jika connected tidak ada tapi ada data lain, tetap anggap connected
+                    }
                 } else {
-                    this.mikrotikConnected = false;
+                    // Tidak ada data mikrotik - mungkin error, tapi jangan langsung disconnect
+                    // Biarkan status sebelumnya tetap digunakan
                 }
                 
                 if (data.systemHealth) {
+                    // PENTING: Simpan health data untuk digunakan nanti saat update WhatsApp status
+                    this.lastHealthData = data.systemHealth;
                     this.updateSystemHealth(data.systemHealth);
                 }
                 
+                // PENTING: Fetch WhatsApp status setelah system health di-update
+                // Ini akan mengupdate health.checks.whatsapp dengan status yang benar
                 this.fetchWhatsAppStatus();
                 
                 if (data.mikrotik) {
                     this.updateMikroTikStatus(data.mikrotik);
                 }
                 
-                if (data.traffic) {
-                    this.updateTrafficData(data.traffic);
-                }
+                // PENTING: Update traffic data juga di sini sebagai fallback
+                // Ini memastikan traffic data tetap ter-update meskipun fetchTrafficDataOnly() tidak dipanggil
+                // fetchTrafficDataOnly() tetap berjalan setiap 5 detik untuk update lebih sering
                 
                 if (data.resources) {
                     this.updateResourceBars(data.resources);
@@ -280,17 +531,267 @@ class MonitoringController {
                 if (data.interfaces) {
                     this.populateInterfaceSelector(data.interfaces);
                 }
+                
+                // PENTING: Update traffic data juga di sini sebagai fallback
+                // Ini memastikan traffic data tetap ter-update meskipun fetchTrafficDataOnly() tidak dipanggil
+                if (data.traffic) {
+                    console.log('[Monitoring] Updating traffic data from fetchMonitoringData:', data.traffic);
+                    this.updateTrafficData(data.traffic);
+                }
             } else {
-                console.error('[Monitoring] No data received from API');
-                this.mikrotikConnected = false;
-                this.handleDisconnection();
+                // No data - jangan langsung disconnect, mungkin hanya timeout
+                console.warn('[Monitoring] No data received from API - mungkin timeout atau transient error');
+                // Jangan langsung set disconnect - biarkan status sebelumnya
+                // Error akan teratasi pada request berikutnya jika hanya transient
                 return;
             }
             
         } catch (error) {
-            console.error('[Monitoring] Error fetching monitoring data:', error);
-            this.mikrotikConnected = false;
-            this.handleDisconnection();
+            // Network error atau error lainnya - jangan langsung disconnect
+            console.warn('[Monitoring] Error fetching monitoring data:', error.message);
+            // Jangan langsung set disconnect - error bisa transient
+            // Biarkan status sebelumnya tetap digunakan
+        }
+    }
+    
+    /**
+     * Fetch traffic data saja (tanpa data monitoring lainnya)
+     * Dipanggil setiap 5 detik untuk mengurangi beban
+     */
+    async fetchTrafficDataOnly() {
+        // PENTING: Prevent concurrent updates
+        if (this.isUpdatingTraffic) {
+            console.warn('[Monitoring] Traffic update already in progress, skipping...');
+            return;
+        }
+        
+        // PENTING: Pastikan chart sudah terinisialisasi
+        if (!this.trafficChart) {
+            console.warn('[Monitoring] Traffic chart not initialized, attempting to init...');
+            this.initCharts();
+            return;
+        }
+        
+        // PENTING: Check mikrotikConnected di sini, tapi jangan langsung return
+        // Biarkan fetch tetap berjalan untuk update timestamp dan stuck detection
+        if (!this.mikrotikConnected) {
+            console.log('[Monitoring] MikroTik not connected, skipping traffic fetch');
+            // Update timestamp untuk stuck detection
+            this.lastTrafficUpdateTime = Date.now();
+            return;
+        }
+        
+        this.isUpdatingTraffic = true;
+        console.log('[Monitoring] fetchTrafficDataOnly started');
+        
+        try {
+            const interfaceSelector = document.getElementById('interface-selector');
+            let selectedInterface = '';
+            
+            if (interfaceSelector && interfaceSelector.value) {
+                selectedInterface = interfaceSelector.value;
+                this.currentInterface = selectedInterface;
+            } else {
+                selectedInterface = this.currentInterface || 'ether1';
+            }
+            
+            const url = `/api/monitoring/live?interface=${encodeURIComponent(selectedInterface)}`;
+            
+            // PENTING: Add timeout untuk prevent stuck requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 detik timeout
+            
+            const response = await fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                cache: 'no-cache',
+                signal: controller.signal,
+                headers: {
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            
+            clearTimeout(timeoutId);
+            
+            // PENTING: Handle rate limit (429) dan unauthorized (401) dengan graceful
+            if (response.status === 429) {
+                console.warn('[Monitoring] Rate limit exceeded untuk traffic data, akan retry setelah beberapa saat');
+                // Update timestamp untuk stuck detection
+                this.lastTrafficUpdateTime = Date.now();
+                return; // Silent fail - akan retry pada interval berikutnya
+            }
+            
+            if (response.status === 401) {
+                console.warn('[Monitoring] Unauthorized untuk traffic data - mungkin token expired');
+                // Update timestamp untuk stuck detection
+                this.lastTrafficUpdateTime = Date.now();
+                return; // Silent fail - jangan trigger logout
+            }
+            
+            if (!response.ok) {
+                // PENTING: Update timestamp meskipun error untuk stuck detection
+                this.lastTrafficUpdateTime = Date.now();
+                return; // Silent fail untuk traffic update
+            }
+            
+            const result = await response.json();
+            
+            if (result.status === 503 || result.error || !result.data) {
+                // PENTING: Update timestamp meskipun error untuk stuck detection
+                this.lastTrafficUpdateTime = Date.now();
+                return; // Silent fail
+            }
+            
+            const data = result.data;
+            
+            if (data && data.traffic) {
+                // Hanya update traffic data, tidak update yang lain
+                console.log('[Monitoring] Updating traffic data:', data.traffic);
+                this.updateTrafficData(data.traffic);
+                // PENTING: Update timestamp setelah berhasil update
+                this.lastTrafficUpdateTime = Date.now();
+            } else {
+                console.warn('[Monitoring] No traffic data in response, data:', data);
+                // PENTING: Update timestamp meskipun tidak ada data untuk stuck detection
+                this.lastTrafficUpdateTime = Date.now();
+            }
+            
+        } catch (error) {
+            // PENTING: Update timestamp meskipun error untuk stuck detection
+            this.lastTrafficUpdateTime = Date.now();
+            
+            if (error.name === 'AbortError') {
+                console.warn('[Monitoring] Traffic fetch timeout');
+            } else {
+                // Silent fail untuk traffic update - tidak perlu log error setiap 5 detik
+                // Error akan terdeteksi di fetchMonitoringData()
+                console.warn('[Monitoring] Error fetching traffic data:', error.message);
+            }
+        } finally {
+            // PENTING: Always clear flag
+            this.isUpdatingTraffic = false;
+        }
+    }
+    
+    /**
+     * Start stuck detection mechanism untuk traffic chart
+     * Check setiap 10 detik apakah chart stuck
+     */
+    startTrafficStuckDetection() {
+        // PENTING: Clear interval sebelumnya jika ada
+        if (this.trafficUpdateCheckInterval) {
+            clearInterval(this.trafficUpdateCheckInterval);
+            this.trafficUpdateCheckInterval = null;
+        }
+        
+        // PENTING: Initialize timestamp hanya jika belum ada atau null
+        // Jangan overwrite jika sudah ada (untuk prevent false stuck detection saat start)
+        if (!this.lastTrafficUpdateTime) {
+            this.lastTrafficUpdateTime = Date.now();
+        }
+        
+        // Check setiap 10 detik
+        this.trafficUpdateCheckInterval = setInterval(() => {
+            if (!this.trafficChart || !this.mikrotikConnected) {
+                return;
+            }
+            
+            // PENTING: Skip check jika timestamp belum di-set (masih initializing)
+            if (!this.lastTrafficUpdateTime) {
+                return;
+            }
+            
+            const now = Date.now();
+            const timeSinceLastUpdate = now - this.lastTrafficUpdateTime;
+            
+            // Jika tidak ada update selama threshold, anggap stuck
+            if (timeSinceLastUpdate > this.trafficUpdateStuckThreshold) {
+                console.warn(`[Monitoring] Traffic chart stuck detected (${Math.round(timeSinceLastUpdate / 1000)}s since last update), attempting recovery...`);
+                
+                // Recovery mechanism: force update dengan data dummy atau re-init
+                this.recoverStuckTrafficChart();
+            }
+        }, 10000); // Check setiap 10 detik
+    }
+    
+    /**
+     * Recovery mechanism untuk stuck traffic chart
+     */
+    recoverStuckTrafficChart() {
+        try {
+            // Method 1: Coba force update dengan data dummy
+            if (this.trafficChart && this.trafficChart.data) {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('id-ID', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                // Add dummy data point untuk test
+                this.trafficChart.data.labels.push(timeString);
+                this.trafficChart.data.datasets[0].data.push(0);
+                this.trafficChart.data.datasets[1].data.push(0);
+                
+                // Try update
+                this.trafficChart.update('none');
+                
+                // Update timestamp
+                this.lastTrafficUpdateTime = Date.now();
+                
+                console.log('[Monitoring] Traffic chart recovery: force update successful');
+                return;
+            }
+        } catch (error) {
+            console.error('[Monitoring] Traffic chart recovery: force update failed:', error);
+        }
+        
+        // Method 2: Re-init chart jika force update gagal
+        try {
+            console.warn('[Monitoring] Traffic chart recovery: attempting re-init...');
+            
+            // Destroy chart lama
+            if (this.trafficChart) {
+                this.trafficChart.destroy();
+                this.trafficChart = null;
+            }
+            
+            // Re-init chart
+            this.initCharts();
+            
+            // Re-start traffic interval
+            if (this.trafficUpdateInterval) {
+                clearInterval(this.trafficUpdateInterval);
+                this.trafficUpdateInterval = null;
+            }
+            
+            // Re-start interval
+            setTimeout(() => {
+                if (this.trafficChart) {
+                    // PENTING: Clear interval sebelumnya jika ada
+                    if (this.trafficUpdateInterval) {
+                        clearInterval(this.trafficUpdateInterval);
+                        this.trafficUpdateInterval = null;
+                    }
+                    
+                    // PENTING: Jangan check mikrotikConnected di sini - biarkan fetchTrafficDataOnly() yang check
+                    this.trafficUpdateInterval = setInterval(() => {
+                        if (this.trafficChart && !this.isUpdatingTraffic) {
+                            this.fetchTrafficDataOnly();
+                        }
+                    }, 5000);
+                    
+                    // PENTING: Re-start stuck detection setelah re-init
+                    this.startTrafficStuckDetection();
+                }
+            }, 1000);
+            
+            // Update timestamp
+            this.lastTrafficUpdateTime = Date.now();
+            
+            console.log('[Monitoring] Traffic chart recovery: re-init successful');
+        } catch (error) {
+            console.error('[Monitoring] Traffic chart recovery: re-init failed:', error);
         }
     }
     
@@ -298,6 +799,12 @@ class MonitoringController {
         const scoreEl = document.getElementById('health-score');
         const statusEl = document.getElementById('health-status');
         const boxEl = document.getElementById('health-status-box');
+        
+        // PENTING: Update whatsapp check berdasarkan status yang sebenarnya
+        // Jika health.checks.whatsapp belum di-update, coba ambil dari status WhatsApp yang sudah di-fetch
+        if (health.checks && health.checks.whatsapp === false && this.lastWhatsAppStatus !== undefined) {
+            health.checks.whatsapp = this.lastWhatsAppStatus;
+        }
         
         let actualScore = 95;
         if (health.checks) {
@@ -325,10 +832,41 @@ class MonitoringController {
             const response = await fetch('/api/stats', {
                 credentials: 'same-origin'
             });
+            
+            // PENTING: Handle rate limit (429) dan unauthorized (401) dengan graceful
+            if (response.status === 429) {
+                console.warn('[Monitoring] Rate limit exceeded untuk WhatsApp status, akan retry setelah beberapa saat');
+                return; // Silent fail - akan retry pada interval berikutnya
+            }
+            
+            if (response.status === 401) {
+                console.warn('[Monitoring] Unauthorized untuk WhatsApp status - mungkin token expired');
+                return; // Silent fail - jangan trigger logout
+            }
+            
             if (response.ok) {
                 const data = await response.json();
                 const isConnected = data.botStatus || false;
+                
+                // PENTING: Simpan status WhatsApp untuk digunakan di updateSystemHealth
+                this.lastWhatsAppStatus = isConnected === true || isConnected === 1 || isConnected === 'true';
+                
                 this.updateWhatsAppStatus({ connected: isConnected });
+                
+                // PENTING: Update system health dengan status WhatsApp yang benar
+                // Cari health data yang sudah ada dan update checks.whatsapp
+                const healthScoreEl = document.getElementById('health-score');
+                if (healthScoreEl) {
+                    // Re-fetch monitoring data untuk mendapatkan health object yang lengkap
+                    // Tapi lebih baik update langsung jika sudah ada
+                    const currentHealth = this.lastHealthData || { checks: {} };
+                    if (!currentHealth.checks) {
+                        currentHealth.checks = {};
+                    }
+                    currentHealth.checks.whatsapp = this.lastWhatsAppStatus;
+                    this.lastHealthData = currentHealth;
+                    this.updateSystemHealth(currentHealth);
+                }
                 
                 const healthChecks = document.querySelector('.health-checks');
                 if (healthChecks) {
@@ -341,7 +879,17 @@ class MonitoringController {
             }
         } catch (error) {
             console.error('[Monitoring] Failed to fetch WhatsApp status:', error);
+            this.lastWhatsAppStatus = false;
             this.updateWhatsAppStatus({ connected: false });
+            
+            // Update health dengan status false
+            const currentHealth = this.lastHealthData || { checks: {} };
+            if (!currentHealth.checks) {
+                currentHealth.checks = {};
+            }
+            currentHealth.checks.whatsapp = false;
+            this.lastHealthData = currentHealth;
+            this.updateSystemHealth(currentHealth);
         }
     }
     
@@ -359,6 +907,7 @@ class MonitoringController {
         if (!mikrotik) {
             if (cpuEl) cpuEl.textContent = '0%';
             if (tempEl) tempEl.textContent = '0°C';
+            // Jangan langsung set disconnect jika mikrotik null - mungkin hanya error sementara
             return;
         }
         
@@ -368,18 +917,37 @@ class MonitoringController {
         if (cpuEl) cpuEl.textContent = `${cpuValue}%`;
         if (tempEl) tempEl.textContent = `${tempValue}°C`;
         
-        if (mikrotik.connected !== undefined) {
-            this.mikrotikConnected = mikrotik.connected;
+        // PENTING: Hanya update connection status jika explicitly set
+        // Jangan set false jika connected tidak ada - biarkan status sebelumnya
+        if (mikrotik.connected === true) {
+            this.mikrotikConnected = true;
+        } else if (mikrotik.connected === false) {
+            // Hanya set false jika explicitly false
+            this.mikrotikConnected = false;
         }
+        // Jika connected tidak ada, biarkan status sebelumnya tetap digunakan
     }
     
     updateTrafficData(traffic) {
+        console.log('[Monitoring] updateTrafficData called with:', traffic);
+        
         const dlCurrent = document.getElementById('current-download');
         const ulCurrent = document.getElementById('current-upload');
         const dlTotal = document.getElementById('total-download');
         const ulTotal = document.getElementById('total-upload');
         
+        // PENTING: Debug - log element existence
+        console.log('[Monitoring] Traffic elements found:', {
+            dlCurrent: !!dlCurrent,
+            ulCurrent: !!ulCurrent,
+            dlTotal: !!dlTotal,
+            ulTotal: !!ulTotal,
+            trafficChart: !!this.trafficChart,
+            mikrotikConnected: this.mikrotikConnected
+        });
+        
         if (!traffic) {
+            console.warn('[Monitoring] No traffic data provided to updateTrafficData');
             if (dlCurrent) dlCurrent.textContent = `N/A`;
             if (ulCurrent) ulCurrent.textContent = `N/A`;
             if (dlTotal) dlTotal.textContent = `Total: N/A`;
@@ -400,33 +968,112 @@ class MonitoringController {
         const downloadTotal = traffic.download?.total !== undefined && traffic.download?.total !== null ? traffic.download.total : 0;
         const uploadTotal = traffic.upload?.total !== undefined && traffic.upload?.total !== null ? traffic.upload.total : 0;
         
-        if (dlCurrent) dlCurrent.textContent = `${downloadCurrent} Mbps`;
-        if (ulCurrent) ulCurrent.textContent = `${uploadCurrent} Mbps`;
+        // Format dengan 2 decimal untuk smooth display
+        const formatMbps = (value) => {
+            if (value === 0) return '0';
+            if (value < 0.01) return '<0.01';
+            return value.toFixed(2);
+        };
         
-        if (dlTotal) dlTotal.textContent = `Total: ${downloadTotal} GB`;
-        if (ulTotal) ulTotal.textContent = `Total: ${uploadTotal} GB`;
+        const formatGB = (value) => {
+            if (value === 0) return '0';
+            if (value < 0.01) return '<0.01';
+            return value.toFixed(2);
+        };
         
-        if (this.trafficChart && this.mikrotikConnected) {
+        // Update dengan smooth number formatting
+        if (dlCurrent) {
+            dlCurrent.textContent = `${formatMbps(downloadCurrent)} Mbps`;
+            // Add color transition based on speed
+            if (downloadCurrent > 10) {
+                dlCurrent.style.color = '#22c55e'; // Green for high speed
+            } else if (downloadCurrent > 1) {
+                dlCurrent.style.color = '#f59e0b'; // Orange for medium speed
+            } else {
+                dlCurrent.style.color = '#6b7280'; // Gray for low speed
+            }
+        }
+        
+        if (ulCurrent) {
+            ulCurrent.textContent = `${formatMbps(uploadCurrent)} Mbps`;
+            // Add color transition based on speed
+            if (uploadCurrent > 10) {
+                ulCurrent.style.color = '#3b82f6'; // Blue for high speed
+            } else if (uploadCurrent > 1) {
+                ulCurrent.style.color = '#f59e0b'; // Orange for medium speed
+            } else {
+                ulCurrent.style.color = '#6b7280'; // Gray for low speed
+            }
+        }
+        
+        if (dlTotal) dlTotal.textContent = `Total: ${formatGB(downloadTotal)} GB`;
+        if (ulTotal) ulTotal.textContent = `Total: ${formatGB(uploadTotal)} GB`;
+        
+        // PENTING: Pastikan chart sudah terinisialisasi sebelum update
+        if (!this.trafficChart) {
+            // Chart belum terinisialisasi, coba init lagi
+            console.warn('[Monitoring] Traffic chart not initialized in updateTrafficData, attempting init...');
+            this.initCharts();
+            // Jangan return - biarkan data tetap di-update setelah init
+            // Tapi tunggu sebentar untuk chart siap
+            setTimeout(() => {
+                if (this.trafficChart && traffic) {
+                    this.updateTrafficData(traffic);
+                }
+            }, 500);
+            return;
+        }
+        
+        if (this.mikrotikConnected) {
+            // Remove title jika masih ada
             if (this.trafficChart.options.plugins.title && this.trafficChart.options.plugins.title.display) {
                 this.trafficChart.options.plugins.title.display = false;
-                this.trafficChart.options.animation = {
-                    duration: 750
-                };
             }
             
-            const now = new Date().toLocaleTimeString();
+            // Format waktu dengan format yang lebih compact
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('id-ID', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit'
+            });
             
-            if (this.trafficChart.data.labels.length >= 20) {
+            // Maintain max 30 data points untuk smooth scrolling
+            const maxDataPoints = 30;
+            if (this.trafficChart.data.labels.length >= maxDataPoints) {
                 this.trafficChart.data.labels.shift();
                 this.trafficChart.data.datasets[0].data.shift();
                 this.trafficChart.data.datasets[1].data.shift();
             }
             
-            this.trafficChart.data.labels.push(now);
+            // Add new data point
+            this.trafficChart.data.labels.push(timeString);
             this.trafficChart.data.datasets[0].data.push(downloadCurrent);
             this.trafficChart.data.datasets[1].data.push(uploadCurrent);
             
-            this.trafficChart.update('none');
+            // PENTING: Update dengan animation untuk smooth transition
+            // Gunakan 'default' mode untuk smooth animation, bukan 'none'
+            try {
+                // PENTING: Validate chart object sebelum update
+                if (this.trafficChart && this.trafficChart.data && this.trafficChart.data.labels) {
+                    this.trafficChart.update('default');
+                } else {
+                    console.warn('[Monitoring] Traffic chart object invalid, attempting re-init...');
+                    this.initCharts();
+                }
+            } catch (error) {
+                console.error('[Monitoring] Error updating traffic chart:', error);
+                // Coba re-init chart jika error
+                try {
+                    if (this.trafficChart) {
+                        this.trafficChart.destroy();
+                    }
+                    this.trafficChart = null;
+                    this.initCharts();
+                } catch (reinitError) {
+                    console.error('[Monitoring] Error re-initializing traffic chart:', reinitError);
+                }
+            }
         }
     }
     
@@ -482,6 +1129,17 @@ class MonitoringController {
                 credentials: 'same-origin'
             });
             
+            // PENTING: Handle rate limit (429) dan unauthorized (401) dengan graceful
+            if (response.status === 429) {
+                console.warn('[Monitoring] Rate limit exceeded untuk user stats, akan retry setelah beberapa saat');
+                return; // Silent fail - akan retry pada interval berikutnya
+            }
+            
+            if (response.status === 401) {
+                console.warn('[Monitoring] Unauthorized untuk user stats - mungkin token expired');
+                return; // Silent fail - jangan trigger logout
+            }
+            
             if (response.ok) {
                 const data = await response.json();
                 
@@ -534,10 +1192,11 @@ class MonitoringController {
                 selector.setAttribute('data-selected', newInterface);
                 
                 if (this.trafficChart) {
+                    // Clear chart data dengan smooth animation
                     this.trafficChart.data.labels = [];
                     this.trafficChart.data.datasets[0].data = [];
                     this.trafficChart.data.datasets[1].data = [];
-                    this.trafficChart.update('none');
+                    this.trafficChart.update('default');
                 }
                 
                 this.lastData = null;
@@ -680,14 +1339,20 @@ class MonitoringController {
                     // Desktop table
                     content += '<div class="d-none d-md-block">';
                     content += '<table class="table table-sm table-striped"><thead><tr>';
-                    content += '<th>User</th><th>IP</th><th>MAC</th><th>Uptime</th><th>Download</th><th>Upload</th>';
+                    content += '<th>User</th><th>IP</th><th>Hostname</th><th>MAC</th><th>Uptime</th><th>Download</th><th>Upload</th>';
                     content += '</tr></thead><tbody>';
                     
                     sessions.forEach(session => {
+                        const hostname = session.hostname || '-';
+                        const hostnameDisplay = hostname !== '-' 
+                            ? `<span class="badge badge-secondary" title="Hostname dari DHCP Server">${hostname}</span>` 
+                            : '<span class="text-muted">-</span>';
+                        
                         content += `<tr>
-                            <td>${session.user || '-'}</td>
+                            <td><strong>${session.user || '-'}</strong></td>
                             <td>${session.address || '-'}</td>
-                            <td class="text-muted small">${session.mac || '-'}</td>
+                            <td>${hostnameDisplay}</td>
+                            <td class="text-muted small font-monospace">${session.mac || '-'}</td>
                             <td>${session.uptime || '0s'}</td>
                             <td class="text-success">${this.formatBytes(session.rx_bytes || 0)}</td>
                             <td class="text-info">${this.formatBytes(session.tx_bytes || 0)}</td>
@@ -698,12 +1363,19 @@ class MonitoringController {
                     // Mobile cards
                     content += '<div class="d-md-none">';
                     sessions.forEach(session => {
+                        const hostname = session.hostname || '-';
+                        const hostnameDisplay = hostname !== '-' 
+                            ? `<div class="mt-1"><span class="badge badge-secondary badge-sm">${hostname}</span></div>` 
+                            : '';
+                        
                         content += `<div class="user-card mb-2">
                             <div class="d-flex justify-content-between align-items-center">
                                 <strong>${session.user || '-'}</strong>
                                 <span class="badge badge-info">${session.uptime || '0s'}</span>
                             </div>
-                            <small class="text-muted d-block">${session.address || '-'}</small>
+                            <small class="text-muted d-block">IP: ${session.address || '-'}</small>
+                            ${hostnameDisplay}
+                            <small class="text-muted d-block font-monospace" style="font-size: 0.75rem;">MAC: ${session.mac || '-'}</small>
                             <div class="d-flex justify-content-between mt-1">
                                 <span class="text-success small">↓ ${this.formatBytes(session.rx_bytes || 0)}</span>
                                 <span class="text-info small">↑ ${this.formatBytes(session.tx_bytes || 0)}</span>
@@ -1086,25 +1758,27 @@ class MonitoringController {
         
         // Stop chart updates and show disconnected state
         if (this.trafficChart) {
-            // Clear the chart data to stop animation
+            // Clear the chart data dengan smooth transition
             const emptyData = new Array(this.trafficChart.data.labels.length).fill(0);
             this.trafficChart.data.datasets[0].data = emptyData;
             this.trafficChart.data.datasets[1].data = emptyData;
             
             // Add disconnected indicator
-            this.trafficChart.options.plugins.title = {
-                display: true,
-                text: 'Network Traffic Monitor (Connecting to MikroTik...)',
-                color: '#fbbf24',
-                font: {
-                    size: 14,
-                    weight: 'normal'
-                }
+            if (!this.trafficChart.options.plugins.title) {
+                this.trafficChart.options.plugins.title = {};
+            }
+            this.trafficChart.options.plugins.title.display = true;
+            this.trafficChart.options.plugins.title.text = 'Network Traffic Monitor (Connecting to MikroTik...)';
+            this.trafficChart.options.plugins.title.color = '#f59e0b';
+            this.trafficChart.options.plugins.title.font = {
+                size: 14,
+                weight: '500'
             };
+            this.trafficChart.options.plugins.title.position = 'top';
+            this.trafficChart.options.plugins.title.align = 'center';
             
-            // Disable animations when disconnected
-            this.trafficChart.options.animation = false;
-            this.trafficChart.update();
+            // Update dengan animation untuk smooth transition
+            this.trafficChart.update('default');
         }
     }
     
@@ -1255,6 +1929,27 @@ class MonitoringController {
         // Clean up when destroying the controller
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
+        
+        if (this.trafficUpdateInterval) {
+            clearInterval(this.trafficUpdateInterval);
+            this.trafficUpdateInterval = null;
+        }
+        
+        if (this.trafficUpdateCheckInterval) {
+            clearInterval(this.trafficUpdateCheckInterval);
+            this.trafficUpdateCheckInterval = null;
+        }
+        
+        // Destroy chart
+        if (this.trafficChart) {
+            try {
+                this.trafficChart.destroy();
+            } catch (error) {
+                console.error('[Monitoring] Error destroying traffic chart:', error);
+            }
+            this.trafficChart = null;
         }
         
         if (this.socket) {

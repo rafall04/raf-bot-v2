@@ -1664,6 +1664,16 @@ atau ketik:
             }
             break;
             
+            case 'AGENT_DETAIL': {
+                const agentId = q && q.trim() ? q.trim().toUpperCase() : '';
+                if (!agentId) {
+                    await reply('❌ Masukkan ID agent.\n\nFormat: *detail agent [ID]*\nContoh: *detail agent AGT001*\n\nKetik *agent* untuk melihat daftar agent.');
+                } else {
+                    await handleViewAgentDetail(msg, sender, reply, agentId);
+                }
+            }
+            break;
+            
             case 'AGENT_TRANSACTIONS': {
                 await handleAgentTodayTransactions(msg, sender, reply, raf);
             }
@@ -1948,6 +1958,16 @@ atau ketik:
                     msg,  // Pass for LID support
                     raf   // Pass for LID support
                 });
+                break;
+            }
+            
+            case 'CEK_STATUS_SPEED': {
+                const { checkSpeedBoostStatus } = require('./handlers/speed-status-handler');
+                const user = findUserWithLidSupport(global.users, msg, plainSenderNumber);
+                if (!user) {
+                    return reply(mess.userNotRegister);
+                }
+                await checkSpeedBoostStatus(msg, user, sender, false);
                 break;
             }
             

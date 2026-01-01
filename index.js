@@ -168,7 +168,9 @@ app.use(helmet({
 // Authenticated users perlu lebih banyak request untuk dashboard dan halaman admin
 const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs (untuk unauthenticated users)
+    max: 300, // PENTING: Tingkatkan limit menjadi 300 untuk mengakomodasi dashboard monitoring
+    // Dashboard monitoring melakukan banyak request (monitoring setiap 5-10 detik)
+    // 300 requests per 15 menit = ~20 requests per menit (cukup untuk dashboard yang aktif)
     message: {
         status: 429,
         message: 'Terlalu banyak permintaan dari IP ini, silakan coba lagi nanti.'
@@ -178,6 +180,22 @@ const globalLimiter = rateLimit({
     skip: (req) => {
         // Skip rate limiting for static files
         if (req.path.match(/\.(jpg|jpeg|png|gif|svg|css|js|ico|woff|woff2|ttf|eot)$/i)) {
+            return true;
+        }
+        // PENTING: Skip rate limiting untuk monitoring endpoints
+        // Monitoring endpoints melakukan banyak request untuk real-time updates
+        // dan tidak perlu rate limiting karena sudah public atau authenticated
+        const monitoringPaths = [
+            '/api/monitoring/live',
+            '/api/monitoring/live-data',
+            '/api/monitoring/traffic-history',
+            '/api/monitoring/health',
+            '/api/monitoring/traffic',
+            '/api/monitoring/users',
+            '/api/monitoring/history',
+            '/api/stats'
+        ];
+        if (monitoringPaths.some(path => req.path.startsWith(path))) {
             return true;
         }
         // Skip rate limiting untuk authenticated users (admin/staff/customer)

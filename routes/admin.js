@@ -273,6 +273,7 @@ router.post('/api/users/reload', ensureAuthenticatedStaff, async (req, res) => {
         
         const sqlite3 = require('sqlite3').verbose();
         const { getDatabasePath } = require('../lib/env-config');
+        const { transformUsersFromDb } = require('../lib/migration-helper');
         const dbPath = getDatabasePath('users.sqlite');
         
         const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY);
@@ -301,71 +302,21 @@ router.post('/api/users/reload', ensureAuthenticatedStaff, async (req, res) => {
         
         console.log(`[RELOAD_USERS] Loaded ${rows.length} rows from database (DB count: ${dbCount})`);
         
-        // Transform the data (same logic as initializeDatabase)
-        const transformedUsers = [];
-        let transformErrorCount = 0;
-        
-        if (rows && rows.length > 0) {
-            rows.forEach((user, index) => {
-                try {
-                    const transformed = {
-                        ...user,
-                        paid: user.paid === 1 || user.paid === '1',
-                        send_invoice: user.send_invoice === 1 || user.send_invoice === '1',
-                        is_corporate: user.is_corporate === 1 || user.is_corporate === '1',
-                        bulk: (() => {
-                            try {
-                                if (!user.bulk) return [];
-                                if (typeof user.bulk === 'string') {
-                                    const trimmed = user.bulk.trim();
-                                    if (trimmed === '' || trimmed === '[]' || trimmed === 'null') return [];
-                                    // Handle corrupted data: "[object Object]"
-                                    if (trimmed === '[object Object]' || trimmed.startsWith('[object')) {
-                                        console.warn(`[RELOAD_USERS] Corrupted bulk data for user ${user.id}: "${trimmed}", resetting to default`);
-                                        return [];
-                                    }
-                                    return JSON.parse(user.bulk);
-                                }
-                                // Jika sudah array, return langsung
-                                if (Array.isArray(user.bulk)) return user.bulk;
-                                return [];
-                            } catch (e) {
-                                console.warn(`[RELOAD_USERS] Failed to parse bulk for user ${user.id}:`, e.message);
-                                return [];
-                            }
-                        })(),
-                        connected_odp_id: user.connected_odp_id || null,
-                        phone: user.phone_number || user.phone || null,
-                        package: user.subscription || user.package || null
-                    };
-                    transformedUsers.push(transformed);
-                } catch (transformErr) {
-                    transformErrorCount++;
-                    console.error(`[RELOAD_USERS] Failed to transform user ${user.id}:`, transformErr.message);
-                    // Still try to add with minimal transformation
-                    try {
-                        transformedUsers.push({
-                            ...user,
-                            paid: user.paid === 1 || user.paid === '1',
-                            send_invoice: user.send_invoice === 1 || user.send_invoice === '1',
-                            is_corporate: user.is_corporate === 1 || user.is_corporate === '1',
-                            bulk: [],
-                            connected_odp_id: user.connected_odp_id || null,
-                            phone: user.phone_number || user.phone || null,
-                            package: user.subscription || user.package || null
-                        });
-                    } catch (minimalErr) {
-                        console.error(`[RELOAD_USERS] CRITICAL: Cannot add user ${user.id}:`, minimalErr.message);
-                    }
-                }
-            });
-        }
+        // Transform the data using migration-helper for consistent transformation
+        // Handles boolean fields (paid, send_invoice, is_corporate, auto_isolir)
+        // Parses bulk JSON correctly
+        // Handles all new fields (Requirement 5.4)
+        const { transformedUsers, errorCount: transformErrorCount } = transformUsersFromDb(rows);
         
         // Update global.users
         global.users = transformedUsers;
         const memoryCountAfter = global.users.length;
         
         console.log(`[RELOAD_USERS] Reload complete: ${memoryCountBefore} → ${memoryCountAfter} users (DB: ${dbCount})`);
+        
+        if (transformErrorCount > 0) {
+            console.warn(`[RELOAD_USERS] ${transformErrorCount} users failed to transform`);
+        }
         
         if (memoryCountAfter < rows.length) {
             const missingCount = rows.length - memoryCountAfter;
@@ -2432,6 +2383,38 @@ router.get('/api/mikrotik/ppp-active-users', ensureAuthenticatedStaff, async (re
     });
 });
 
+// GET /api/mikrotik/ppp-profiles - Get all PPP profiles from MikroTik
+router.get('/api/mikrotik/ppp-profiles', ensureAuthenticatedStaff, async (req, res) => {
+    try {
+        const { getPPPProfiles } = require('../lib/mikrotik');
+        const result = await getPPPProfiles();
+        
+        // Parse result - getPPPProfiles returns newline-separated profile names from PHP
+        let profiles = [];
+        
+        if (typeof result === 'string') {
+            // Split by newline and filter empty lines
+            const lines = result.split('\n').map(line => line.trim()).filter(line => line && line !== 'No PPPoE profiles found.');
+            profiles = lines.map(name => ({ name }));
+        } else if (Array.isArray(result)) {
+            profiles = result;
+        }
+        
+        res.status(200).json({
+            status: 200,
+            message: "Profil PPP berhasil diambil",
+            data: profiles
+        });
+    } catch (error) {
+        console.error('[API_PPP_PROFILES_ERROR]', error);
+        res.status(500).json({
+            status: 500,
+            message: "Gagal mengambil profil PPP dari MikroTik",
+            error: error.message
+        });
+    }
+});
+
 // WiFi Change Logs API endpoints
 router.get('/api/wifi-logs', ensureAuthenticatedStaff, async (req, res) => {
     try {
@@ -2490,6 +2473,15 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
     }
 
     console.log('[MIGRATE_USERS] Starting migration process...');
+
+    // Import migration helper functions
+    const { 
+        prepareUserData, 
+        getFieldNames, 
+        getPlaceholders, 
+        getValuesArray,
+        transformUsersFromDb
+    } = require('../lib/migration-helper');
 
     try {
         // Setup multer for file upload
@@ -2563,128 +2555,172 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
         const db = global.db;
         
         // Wrap the entire migration in a promise for proper async handling
-        // IMPORTANT: Use INSERT OR IGNORE to prevent overwriting existing users
-        // This ensures migration doesn't overwrite existing data
-        const migrationPromise = new Promise((resolve, reject) => {
-            // First, check existing users to avoid duplicates
-            db.all("SELECT id, phone_number FROM users", [], (err, existingUsers) => {
-                if (err) {
-                    console.error('[MIGRATE_USERS] Error checking existing users:', err.message);
-                    return reject(new Error(`Gagal cek users existing: ${err.message}`));
-                }
-
-                const existingIds = new Set(existingUsers.map(u => String(u.id)));
-                const existingPhones = new Set(existingUsers.map(u => u.phone_number).filter(p => p));
-
-                // Filter out duplicates
-                const usersToInsert = usersData.filter(user => {
-                    const idExists = existingIds.has(String(user.id));
-                    const phoneExists = user.phone_number && existingPhones.has(user.phone_number);
-                    
-                    if (idExists || phoneExists) {
-                        console.log(`[MIGRATE_USERS] Skipping duplicate: ${user.name} (ID: ${user.id}, Phone: ${user.phone_number})`);
-                        return false;
-                    }
-                    return true;
+        const migrationPromise = new Promise(async (resolve, reject) => {
+            try {
+                // First, check existing users to avoid duplicates - CHECK ONLY BY ID (Requirement 8.1, 8.4, 8.5)
+                // Allow multiple records with same phone_number (Requirement 8.2)
+                const existingUsers = await new Promise((res, rej) => {
+                    db.all("SELECT id FROM users", [], (err, rows) => {
+                        if (err) {
+                            console.error('[MIGRATE_USERS] Error checking existing users:', err.message);
+                            return rej(new Error(`Gagal cek users existing: ${err.message}`));
+                        }
+                        res(rows || []);
+                    });
                 });
 
+                // Only check by ID, NOT by phone_number (Requirement 8.4, 8.5)
+                const existingIds = new Set(existingUsers.map(u => String(u.id)));
+
+                // Filter out duplicates - only by ID
+                const usersToInsert = [];
+                const skippedUsers = [];
+                
+                for (const user of usersData) {
+                    const idExists = existingIds.has(String(user.id));
+                    
+                    if (idExists) {
+                        console.log(`[MIGRATE_USERS] Skipping duplicate ID: ${user.name} (ID: ${user.id})`);
+                        skippedUsers.push({ id: user.id, name: user.name, reason: 'Duplicate ID' });
+                    } else {
+                        usersToInsert.push(user);
+                    }
+                }
+
                 console.log(`[MIGRATE_USERS] Total users in file: ${usersData.length}`);
-                console.log(`[MIGRATE_USERS] Duplicates found: ${usersData.length - usersToInsert.length}`);
+                console.log(`[MIGRATE_USERS] Duplicates found (by ID only): ${skippedUsers.length}`);
                 console.log(`[MIGRATE_USERS] Users to insert: ${usersToInsert.length}`);
 
                 if (usersToInsert.length === 0) {
-                    return resolve({ insertCount: 0, errorCount: 0, errors: [], totalUsers: usersData.length, skipped: usersData.length });
+                    return resolve({ 
+                        insertCount: 0, 
+                        errorCount: 0, 
+                        errors: [], 
+                        totalUsers: usersData.length, 
+                        skipped: skippedUsers.length,
+                        skippedDetails: skippedUsers
+                    });
                 }
 
-                // Use INSERT OR IGNORE to prevent overwriting (extra safety)
-                const insertStmt = db.prepare(`INSERT OR IGNORE INTO users
-                    (id, name, phone_number, address, subscription, pppoe_username, device_id, paid, bulk, pppoe_password)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                // Build INSERT statement with all 40+ fields from USER_SCHEMA
+                const fieldNames = getFieldNames();
+                const placeholders = getPlaceholders();
+                
+                const insertSQL = `INSERT OR IGNORE INTO users (${fieldNames.join(', ')}) VALUES (${placeholders})`;
+                console.log(`[MIGRATE_USERS] INSERT statement prepared with ${fieldNames.length} fields`);
 
                 let insertCount = 0;
                 let errorCount = 0;
                 const errors = [];
 
-                // 3. Begin transaction with proper error handling
-                db.serialize(() => {
                 // Start transaction
-                db.run("BEGIN TRANSACTION", (err) => {
-                    if (err) {
-                        console.error('[MIGRATE_USERS] Error starting transaction:', err.message);
-                        return reject(new Error(`Gagal memulai transaksi: ${err.message}`));
-                    }
-                    console.log('[MIGRATE_USERS] Transaction started');
-                });
-
-                // 4. Iterate and Insert with error handling (only non-duplicates)
-                usersToInsert.forEach((user, index) => {
-                    const params = [
-                        user.id,
-                        user.name || null,
-                        user.phone_number || null,
-                        user.address || null,
-                        user.subscription || null,
-                        user.pppoe_username || null,
-                        user.device_id || null,
-                        user.paid ? 1 : 0,
-                        user.bulk ? JSON.stringify(user.bulk) : null,
-                        user.pppoe_password || null
-                    ];
-                    
-                    insertStmt.run(params, function(err) {
+                await new Promise((res, rej) => {
+                    db.run("BEGIN TRANSACTION", (err) => {
                         if (err) {
-                            errorCount++;
-                            errors.push({ userId: user.id, userName: user.name, error: err.message });
-                            console.error(`[MIGRATE_USERS] Error inserting user ${user.id} (${user.name}):`, err.message);
-                        } else {
-                            insertCount++;
+                            console.error('[MIGRATE_USERS] Error starting transaction:', err.message);
+                            return rej(new Error(`Gagal memulai transaksi: ${err.message}`));
                         }
+                        console.log('[MIGRATE_USERS] Transaction started');
+                        res();
                     });
                 });
 
-                // 5. Finalize statement
-                insertStmt.finalize((err) => {
-                    if (err) {
-                        console.error('[MIGRATE_USERS] Error finalizing statement:', err.message);
-                        return reject(new Error(`Gagal finalize statement: ${err.message}`));
-                    }
-                    console.log(`[MIGRATE_USERS] Statement finalized. Insert count: ${insertCount}, Error count: ${errorCount}`);
-                });
+                // Prepare statement
+                const insertStmt = db.prepare(insertSQL);
 
-                // 6. Commit transaction - CRITICAL: This must complete before SELECT
-                db.run("COMMIT", (err) => {
-                    if (err) {
-                        console.error('[MIGRATE_USERS] Error committing transaction:', err.message);
-                        // Attempt rollback
-                        db.run("ROLLBACK", (rollbackErr) => {
-                            if (rollbackErr) {
-                                console.error('[MIGRATE_USERS] Error rolling back:', rollbackErr.message);
-                            }
+                // Process each user with prepareUserData() (Requirement 5.1)
+                // Wrap each record in try-catch to continue on failures (Requirement 7.5)
+                for (const user of usersToInsert) {
+                    try {
+                        // Use prepareUserData() for field mapping, generation, and conversion
+                        const preparedData = await prepareUserData(user);
+                        const values = getValuesArray(preparedData);
+                        
+                        // Insert with error handling per record (Requirement 7.5)
+                        await new Promise((res, rej) => {
+                            insertStmt.run(values, function(err) {
+                                if (err) {
+                                    // Log error but continue processing (Requirement 7.5)
+                                    errorCount++;
+                                    const errorDetail = { 
+                                        userId: user.id, 
+                                        userName: user.name, 
+                                        error: err.message 
+                                    };
+                                    errors.push(errorDetail);
+                                    console.error(`[MIGRATE_USERS] Error inserting user ${user.id} (${user.name}):`, err.message);
+                                    res(); // Continue, don't reject
+                                } else {
+                                    insertCount++;
+                                    res();
+                                }
+                            });
                         });
-                        return reject(new Error(`Gagal commit transaksi: ${err.message}`));
+                    } catch (prepareError) {
+                        // Handle prepareUserData errors (Requirement 7.4, 7.5)
+                        errorCount++;
+                        const errorDetail = { 
+                            userId: user.id, 
+                            userName: user.name, 
+                            error: `Prepare error: ${prepareError.message}` 
+                        };
+                        errors.push(errorDetail);
+                        console.error(`[MIGRATE_USERS] Error preparing user ${user.id} (${user.name}):`, prepareError.message);
+                        // Continue processing remaining records (Requirement 7.5)
                     }
-                    
-                    console.log('[MIGRATE_USERS] Transaction committed successfully');
-                    
-                    // Report any errors that occurred during inserts
-                    if (errorCount > 0) {
-                        console.warn(`[MIGRATE_USERS] Migration completed with ${errorCount} errors:`, errors);
-                    }
+                }
 
-                    const skipped = usersData.length - usersToInsert.length;
-                    console.log(`[MIGRATE_USERS] Migration summary: ${insertCount} inserted, ${skipped} skipped (duplicates), ${errorCount} errors`);
-                    
-                    resolve({ 
-                        insertCount, 
-                        errorCount, 
-                        errors, 
-                        totalUsers: usersData.length,
-                        skipped: skipped,
-                        inserted: insertCount
+                // Finalize statement
+                await new Promise((res, rej) => {
+                    insertStmt.finalize((err) => {
+                        if (err) {
+                            console.error('[MIGRATE_USERS] Error finalizing statement:', err.message);
+                            return rej(new Error(`Gagal finalize statement: ${err.message}`));
+                        }
+                        console.log(`[MIGRATE_USERS] Statement finalized. Insert count: ${insertCount}, Error count: ${errorCount}`);
+                        res();
                     });
                 });
-            });
-            });
+
+                // Commit transaction
+                await new Promise((res, rej) => {
+                    db.run("COMMIT", (err) => {
+                        if (err) {
+                            console.error('[MIGRATE_USERS] Error committing transaction:', err.message);
+                            // Attempt rollback
+                            db.run("ROLLBACK", (rollbackErr) => {
+                                if (rollbackErr) {
+                                    console.error('[MIGRATE_USERS] Error rolling back:', rollbackErr.message);
+                                }
+                            });
+                            return rej(new Error(`Gagal commit transaksi: ${err.message}`));
+                        }
+                        
+                        console.log('[MIGRATE_USERS] Transaction committed successfully');
+                        res();
+                    });
+                });
+                
+                // Report any errors that occurred during inserts (Requirement 7.4)
+                if (errorCount > 0) {
+                    console.warn(`[MIGRATE_USERS] Migration completed with ${errorCount} errors:`, errors);
+                }
+
+                // Migration result reporting (Requirement 7.1, 7.2, 7.3)
+                console.log(`[MIGRATE_USERS] Migration summary: ${insertCount} inserted, ${skippedUsers.length} skipped (duplicates), ${errorCount} errors`);
+                
+                resolve({ 
+                    insertCount,          // Requirement 7.2 - success count
+                    errorCount,           // Requirement 7.3 - failed count
+                    errors,               // Requirement 7.4 - detailed errors
+                    totalUsers: usersData.length,  // Requirement 7.1 - total processed
+                    skipped: skippedUsers.length,
+                    skippedDetails: skippedUsers,
+                    inserted: insertCount
+                });
+            } catch (error) {
+                reject(error);
+            }
         });
 
         // 7. Wait for migration to complete, then reload users
@@ -2693,31 +2729,34 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
 
             // 8. Reload users into memory - NOW SAFE because COMMIT is complete
             const reloadPromise = new Promise((resolve, reject) => {
-            db.all('SELECT * FROM users', [], (err, rows) => {
-                if (err) {
-                    console.error('[MIGRATE_USERS] Error reloading users from database:', err.message);
-                    return reject(err);
-                }
-                
-                console.log(`[MIGRATE_USERS] Retrieved ${rows.length} rows from database`);
-                
-                // Transform the data to the format expected by the application
-                global.users = rows.map(user => ({
-                    ...user,
-                    paid: user.paid === 1,
-                    bulk: user.bulk ? JSON.parse(user.bulk) : []
-                }));
-                
-                console.log(`[MIGRATE_USERS] Successfully reloaded and transformed ${global.users.length} users into memory`);
-                resolve(rows.length);
+                db.all('SELECT * FROM users', [], (err, rows) => {
+                    if (err) {
+                        console.error('[MIGRATE_USERS] Error reloading users from database:', err.message);
+                        return reject(err);
+                    }
+                    
+                    console.log(`[MIGRATE_USERS] Retrieved ${rows.length} rows from database`);
+                    
+                    // Transform the data to the format expected by the application
+                    // Using transformUsersFromDb for consistent transformation (Requirement 5.4)
+                    const { transformedUsers, errorCount: transformErrorCount } = transformUsersFromDb(rows);
+                    
+                    if (transformErrorCount > 0) {
+                        console.warn(`[MIGRATE_USERS] ${transformErrorCount} users failed to transform`);
+                    }
+                    
+                    global.users = transformedUsers;
+                    
+                    console.log(`[MIGRATE_USERS] Successfully reloaded and transformed ${global.users.length} users into memory`);
+                    resolve(rows.length);
+                });
             });
-        });
 
             reloadPromise.then((reloadedCount) => {
-                // 9. Send success response with detailed information
+                // 9. Send success response with detailed information (Requirement 7.1, 7.2, 7.3, 7.4)
                 const responseMessage = migrationResult.errorCount > 0
-                    ? `Migrasi selesai dengan peringatan! ${migrationResult.insertCount} dari ${migrationResult.totalUsers} pengguna berhasil dimigrasikan. ${migrationResult.errorCount} pengguna gagal. Silakan periksa log untuk detail.`
-                    : `Migrasi berhasil! ${reloadedCount} pengguna telah dipindahkan ke database SQLite dan dimuat ke memori.`;
+                    ? `Migrasi selesai dengan peringatan! ${migrationResult.insertCount} dari ${migrationResult.totalUsers} pengguna berhasil dimigrasikan. ${migrationResult.errorCount} pengguna gagal. ${migrationResult.skipped} duplikat dilewati.`
+                    : `Migrasi berhasil! ${migrationResult.insertCount} pengguna telah dipindahkan ke database SQLite dan dimuat ke memori. ${migrationResult.skipped} duplikat dilewati.`;
                 
                 console.log(`[MIGRATE_USERS] ${responseMessage}`);
                 
@@ -2725,10 +2764,12 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
                     status: 200,
                     message: responseMessage,
                     details: {
-                        totalUsers: migrationResult.totalUsers,
-                        inserted: migrationResult.insertCount,
-                        errors: migrationResult.errorCount,
-                        reloaded: reloadedCount
+                        total: migrationResult.totalUsers,      // Requirement 7.1
+                        success: migrationResult.insertCount,   // Requirement 7.2
+                        failed: migrationResult.errorCount,     // Requirement 7.3
+                        skipped: migrationResult.skipped,       // Requirement 8.3
+                        reloaded: reloadedCount,
+                        errors: migrationResult.errors          // Requirement 7.4
                     }
                 });
             }).catch((reloadError) => {
@@ -2738,9 +2779,10 @@ router.post('/api/migrate-users', ensureAuthenticatedStaff, async (req, res) => 
                     message: 'Migrasi berhasil tapi gagal reload users. Silakan restart aplikasi.',
                     error: reloadError.message,
                     details: {
-                        totalUsers: migrationResult.totalUsers,
-                        inserted: migrationResult.insertCount,
-                        errors: migrationResult.errorCount
+                        total: migrationResult.totalUsers,
+                        success: migrationResult.insertCount,
+                        failed: migrationResult.errorCount,
+                        skipped: migrationResult.skipped
                     }
                 });
             });
@@ -3303,15 +3345,57 @@ router.get('/api/mikrotik-devices', ensureAuthenticatedStaff, (req, res) => {
 
 router.get('/api/mikrotik-devices/:id', ensureAuthenticatedStaff, (req, res) => {
     try {
+        const deviceId = req.params.id;
+        
+        // PENTING: Validasi deviceId
+        if (!deviceId) {
+            return res.status(400).json({ 
+                status: 400,
+                message: 'Device ID harus diisi',
+                error: 'Missing device ID'
+            });
+        }
+        
         const devices = readMikrotikDevices();
-        const device = devices.find(d => d.id === req.params.id);
+        
+        // PENTING: Pastikan devices adalah array
+        if (!Array.isArray(devices)) {
+            console.error('[MIKROTIK_DEVICES] Devices data is not an array:', typeof devices);
+            return res.status(500).json({ 
+                status: 500,
+                message: 'Data perangkat tidak valid',
+                error: 'Invalid devices data format'
+            });
+        }
+        
+        const device = devices.find(d => d && d.id === deviceId);
+        
         if (device) {
-            res.json(device);
+            // PENTING: Pastikan semua field ada sebelum return
+            const responseDevice = {
+                id: device.id || '',
+                ip: device.ip || '',
+                name: device.name || '',
+                password: device.password || '',
+                port: device.port || '8728',
+                active: device.active || false
+            };
+            
+            res.json(responseDevice);
         } else {
-            res.status(404).json({ message: 'Device not found' });
+            res.status(404).json({ 
+                status: 404,
+                message: 'Perangkat tidak ditemukan',
+                error: 'Device not found'
+            });
         }
     } catch (error) {
-        res.status(500).json({ message: "Failed to read device data." });
+        console.error('[MIKROTIK_DEVICES] Error reading device:', error);
+        res.status(500).json({ 
+            status: 500,
+            message: 'Gagal membaca data perangkat',
+            error: error.message
+        });
     }
 });
 
@@ -3336,16 +3420,52 @@ router.post('/api/mikrotik-devices', ensureAuthenticatedStaff, (req, res) => {
 
 router.put('/api/mikrotik-devices/:id', ensureAuthenticatedStaff, (req, res) => {
     try {
+        const deviceId = req.params.id;
+        
+        // PENTING: Validasi deviceId
+        if (!deviceId) {
+            return res.status(400).json({ 
+                status: 400,
+                message: 'Device ID harus diisi',
+                error: 'Missing device ID'
+            });
+        }
+        
+        // PENTING: Validasi request body
+        if (!req.body) {
+            return res.status(400).json({ 
+                status: 400,
+                message: 'Data perangkat harus diisi',
+                error: 'Missing request body'
+            });
+        }
+        
         const devices = readMikrotikDevices();
-        const index = devices.findIndex(d => d.id === req.params.id);
+        
+        // PENTING: Pastikan devices adalah array
+        if (!Array.isArray(devices)) {
+            console.error('[MIKROTIK_DEVICES] Devices data is not an array:', typeof devices);
+            return res.status(500).json({ 
+                status: 500,
+                message: 'Data perangkat tidak valid',
+                error: 'Invalid devices data format'
+            });
+        }
+        
+        const index = devices.findIndex(d => d && d.id === deviceId);
+        
         if (index !== -1) {
+            // PENTING: Pastikan semua field ada dengan fallback
             const updatedDevice = {
                 ...devices[index],
-                ip: req.body.ip,
-                name: req.body.name,
-                password: req.body.password,
-                port: req.body.port || '8728'
+                id: deviceId, // Pastikan ID tidak berubah
+                ip: req.body.ip || devices[index].ip || '',
+                name: req.body.name || devices[index].name || '',
+                password: req.body.password || devices[index].password || '',
+                port: req.body.port || devices[index].port || '8728',
+                active: devices[index].active || false // Preserve active status
             };
+            
             devices[index] = updatedDevice;
 
             // If the device being updated is the active one, update the .env file too.
@@ -3366,12 +3486,25 @@ router.put('/api/mikrotik-devices/:id', ensureAuthenticatedStaff, (req, res) => 
             }
 
             writeMikrotikDevices(devices);
-            res.json({ message: 'Device updated successfully', data: updatedDevice });
+            res.json({ 
+                status: 200,
+                message: 'Perangkat berhasil diperbarui', 
+                data: updatedDevice 
+            });
         } else {
-            res.status(404).json({ message: 'Device not found' });
+            res.status(404).json({ 
+                status: 404,
+                message: 'Perangkat tidak ditemukan',
+                error: 'Device not found'
+            });
         }
     } catch (error) {
-        res.status(500).json({ message: "Failed to update device." });
+        console.error('[MIKROTIK_DEVICES] Error updating device:', error);
+        res.status(500).json({ 
+            status: 500,
+            message: 'Gagal memperbarui perangkat',
+            error: error.message
+        });
     }
 });
 
@@ -5732,6 +5865,227 @@ router.get('/api/admin/agent-voucher/top-agents', ensureAuthenticatedStaff, (req
             status: 500,
             message: 'Error retrieving top agents: ' + error.message,
             data: null
+        });
+    }
+});
+
+// =====================================================
+// TELEGRAM BACKUP API ENDPOINTS
+// =====================================================
+
+const { testTelegramConnection, performDatabaseBackup, getTelegramConfig } = require('../lib/telegram-backup');
+
+/**
+ * GET /api/telegram-backup/config
+ * Get Telegram backup configuration
+ */
+router.get('/api/telegram-backup/config', ensureAuthenticatedStaff, (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+
+    try {
+        const mainConfigPath = path.join(__dirname, '..', 'config.json');
+        const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
+        
+        const mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
+        const cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+        
+        res.json({
+            status: 200,
+            message: 'Telegram backup config retrieved',
+            data: {
+                botToken: mainConfig.telegramBackup?.botToken || '',
+                chatId: mainConfig.telegramBackup?.chatId || '',
+                enabled: mainConfig.telegramBackup?.enabled === true,
+                schedule: cronConfig.schedule_telegram_backup || '0 4 * * *',
+                status_telegram_backup: cronConfig.status_telegram_backup === true
+            }
+        });
+    } catch (error) {
+        console.error('[TELEGRAM_BACKUP_CONFIG_GET] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil konfigurasi Telegram backup',
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/telegram-backup/config
+ * Save Telegram backup configuration
+ */
+router.post('/api/telegram-backup/config', ensureAuthenticatedStaff, async (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+
+    try {
+        const { botToken, chatId, enabled, schedule, status_telegram_backup } = req.body;
+        
+        const mainConfigPath = path.join(__dirname, '..', 'config.json');
+        const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
+        
+        // Load current configs
+        const mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
+        const cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+        
+        // Update Telegram backup config in main config
+        mainConfig.telegramBackup = {
+            botToken: botToken || '',
+            chatId: chatId || '',
+            enabled: enabled === true || enabled === 'true'
+        };
+        
+        // Update cron config
+        if (schedule) {
+            // Validate cron expression
+            if (!schedule.startsWith('#') && !isValidCron(schedule)) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Format jadwal cron tidak valid. Gunakan format seperti "0 4 * * *" untuk jam 4 pagi.'
+                });
+            }
+            cronConfig.schedule_telegram_backup = schedule;
+        }
+        cronConfig.status_telegram_backup = status_telegram_backup === true || status_telegram_backup === 'true';
+        
+        // Save configs
+        fs.writeFileSync(mainConfigPath, JSON.stringify(mainConfig, null, 4), 'utf8');
+        fs.writeFileSync(cronConfigPath, JSON.stringify(cronConfig, null, 2), 'utf8');
+        
+        // Update global config
+        global.config = mainConfig;
+        global.cronConfig = cronConfig;
+        
+        // Re-initialize cron tasks
+        initializeAllCronTasks();
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'config',
+                resourceId: 'telegram-backup',
+                resourceName: 'Telegram Backup Configuration',
+                description: `Updated Telegram backup configuration (enabled: ${mainConfig.telegramBackup.enabled}, schedule: ${cronConfig.schedule_telegram_backup})`,
+                ipAddress: req.ip || req.connection.remoteAddress,
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[ACTIVITY_LOG_ERROR] Failed to log telegram config change:', logErr);
+        }
+        
+        res.json({
+            status: 200,
+            message: 'Konfigurasi Telegram backup berhasil disimpan'
+        });
+        
+    } catch (error) {
+        console.error('[TELEGRAM_BACKUP_CONFIG_SAVE] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Gagal menyimpan konfigurasi Telegram backup',
+            error: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/telegram-backup/test
+ * Test Telegram connection
+ */
+router.post('/api/telegram-backup/test', ensureAuthenticatedStaff, async (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+
+    try {
+        const { botToken, chatId } = req.body;
+        
+        if (!botToken || !chatId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Bot Token dan Chat ID harus diisi'
+            });
+        }
+        
+        const result = await testTelegramConnection(botToken, chatId);
+        
+        res.json({
+            status: 200,
+            message: result.message
+        });
+        
+    } catch (error) {
+        console.error('[TELEGRAM_BACKUP_TEST] Error:', error);
+        res.status(400).json({
+            status: 400,
+            message: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/telegram-backup/run
+ * Manually trigger database backup to Telegram
+ */
+router.post('/api/telegram-backup/run', ensureAuthenticatedStaff, async (req, res) => {
+    if (!req.user || !['admin', 'owner', 'superadmin'].includes(req.user.role)) {
+        return res.status(403).json({ status: 403, message: "Akses ditolak." });
+    }
+
+    try {
+        const config = getTelegramConfig();
+        
+        if (!config.botToken || !config.chatId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Konfigurasi Telegram belum lengkap. Silakan isi Bot Token dan Chat ID terlebih dahulu.'
+            });
+        }
+        
+        console.log(`[TELEGRAM_BACKUP] Manual backup triggered by ${req.user.username}`);
+        
+        // Run backup (don't wait for completion to avoid timeout)
+        performDatabaseBackup().then(result => {
+            console.log('[TELEGRAM_BACKUP] Manual backup completed:', result);
+        }).catch(err => {
+            console.error('[TELEGRAM_BACKUP] Manual backup error:', err);
+        });
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'CREATE',
+                resourceType: 'backup',
+                resourceId: 'telegram-backup',
+                resourceName: 'Manual Telegram Backup',
+                description: 'Triggered manual database backup to Telegram',
+                ipAddress: req.ip || req.connection.remoteAddress,
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[ACTIVITY_LOG_ERROR] Failed to log manual backup:', logErr);
+        }
+        
+        res.json({
+            status: 200,
+            message: 'Backup sedang diproses. File akan dikirim ke Telegram dalam beberapa saat.'
+        });
+        
+    } catch (error) {
+        console.error('[TELEGRAM_BACKUP_RUN] Error:', error);
+        res.status(500).json({
+            status: 500,
+            message: 'Gagal menjalankan backup: ' + error.message
         });
     }
 });

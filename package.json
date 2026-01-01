@@ -7,11 +7,11 @@
     "lib": "lib"
   },
   "scripts": {
-    "test": "jest",
     "start": "nodemon index.js",
     "start:prod": "node index.js",
     "auto-commit": "node auto-commit.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "test": "jest --runInBand"
   },
   "author": "rafalid88",
   "license": "MIT",
@@ -54,22 +54,9 @@
     "util": "^0.12.4"
   },
   "devDependencies": {
-    "@babel/core": "^7.28.3",
-    "@babel/preset-env": "^7.28.3",
-    "babel-jest": "^30.1.2",
     "chokidar": "^4.0.3",
-    "jest": "^30.1.3",
-    "node-fetch": "^2.7.0",
-    "nodemon": "^3.0.2",
-    "supertest": "^7.1.4"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "transform": {
-      "^.+\\.js$": "babel-jest"
-    },
-    "transformIgnorePatterns": [
-      "node_modules/(?!@whiskeysockets/baileys|file-type)"
-    ]
+    "fast-check": "^4.5.3",
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.2"
   }
 }

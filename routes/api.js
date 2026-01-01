@@ -19,9 +19,9 @@ const {
     saveNetworkAssets
 } = require('../lib/database');
 const { parseGoogleMapsLink, generateRandomPassword, validateCoordinates } = require('../lib/psb-helper');
-const { sendPSBPhase1Notification, sendPSBPhase2Notification, sendPSBTeknisiMeluncurNotification } = require('../lib/psb-notification');
+const { sendPSBPhase1Notification, sendPSBPhase2Notification, sendPSBTeknisiMeluncurNotification, sendPSBInstallationCompleteNotification } = require('../lib/psb-notification');
 const { logActivity } = require('../lib/activity-logger');
-const { insertPSBRecord, updatePSBRecord, getPSBRecord, getPSBRecordsByStatus, movePSBToUsers, getNextAvailablePSBId } = require('../lib/psb-database');
+const { insertPSBRecord, updatePSBRecord, getPSBRecord, getPSBRecordsByStatus, movePSBToUsers, getNextAvailablePSBId, getNextAvailableUserId } = require('../lib/psb-database');
 const { logWifiChange } = require('../lib/wifi-logger');
 const crypto = require('crypto');
 const { rateLimit } = require('../lib/security');
@@ -294,49 +294,6 @@ router.post('/users/update', ensureAdmin, async (req, res) => {
         });
     }
 });
-
-// Helper function to find the next available ID (fills gaps or gets next sequential)
-async function getNextAvailableUserId() {
-    return new Promise((resolve, reject) => {
-        // Get all existing IDs from database
-        global.db.all('SELECT id FROM users ORDER BY id ASC', [], (err, dbRows) => {
-            if (err) {
-                console.error('[GET_NEXT_ID_ERROR] Database query failed:', err);
-                reject(err);
-                return;
-            }
-            
-            // Get all IDs from both database AND memory
-            const dbIds = (dbRows || []).map(row => parseInt(row.id));
-            const memoryIds = (global.users || []).map(user => parseInt(user.id));
-            
-            // Combine and deduplicate all IDs
-            const allIds = [...new Set([...dbIds, ...memoryIds])].sort((a, b) => a - b);
-            
-            // Simplified logging
-            // If no users at all, start with ID 1
-            if (allIds.length === 0) {
-                resolve(1);
-                return;
-            }
-            
-            // Find the first gap in the sequence
-            let expectedId = 1;
-            for (const id of allIds) {
-                if (id > expectedId) {
-                    // Found a gap, use this ID
-                    resolve(expectedId);
-                    return;
-                }
-                expectedId = id + 1;
-            }
-            
-            // No gaps found, use the next ID after the last one
-            const nextId = Math.max(...allIds) + 1;
-            resolve(nextId);
-        });
-    });
-}
 
 // POST /api/users - Create or update user
 router.post('/users', ensureAdmin, async (req, res) => {
@@ -713,6 +670,130 @@ router.post('/users', ensureAdmin, async (req, res) => {
         return res.status(500).json({
             status: 500,
             message: 'Terjadi kesalahan saat menyimpan data user',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/users/bulk-change-profile - Bulk change MikroTik profile for users with specific package
+// IMPORTANT: This route MUST be defined BEFORE /users/:id to avoid route conflict
+// Also updates the package configuration to sync the new profile
+router.post('/users/bulk-change-profile', ensureAdmin, async (req, res) => {
+    try {
+        const { packageName, targetProfile } = req.body;
+        
+        // Validate input
+        if (!packageName || !targetProfile) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Nama paket dan profil tujuan harus diisi'
+            });
+        }
+        
+        // Find all users with matching subscription AND pppoe_username
+        const affectedUsers = global.users.filter(u => 
+            u.subscription === packageName && u.pppoe_username
+        );
+        
+        if (affectedUsers.length === 0) {
+            return res.json({
+                status: 200,
+                message: `Tidak ada pelanggan dengan paket "${packageName}" yang memiliki PPPoE username`,
+                successCount: 0,
+                failedCount: 0
+            });
+        }
+        
+        // Get old profile from package config for logging
+        const packageConfig = global.packages.find(p => p.name === packageName);
+        const oldProfile = packageConfig ? packageConfig.profile : null;
+        
+        console.log(`[BULK_CHANGE_PROFILE] Starting bulk profile change for package "${packageName}"`);
+        console.log(`[BULK_CHANGE_PROFILE] Old profile: ${oldProfile} → New profile: ${targetProfile}`);
+        console.log(`[BULK_CHANGE_PROFILE] Affected users: ${affectedUsers.length}`);
+        
+        let successCount = 0;
+        let failedCount = 0;
+        const errors = [];
+        
+        // Process each user - update MikroTik profile
+        for (const user of affectedUsers) {
+            try {
+                // Update PPPoE profile in MikroTik
+                await updatePPPoEProfile(user.pppoe_username, targetProfile);
+                
+                successCount++;
+                console.log(`[BULK_CHANGE_PROFILE] Success: ${user.pppoe_username} (${user.name})`);
+                
+            } catch (error) {
+                failedCount++;
+                errors.push({
+                    userId: user.id,
+                    username: user.pppoe_username,
+                    name: user.name,
+                    error: error.message
+                });
+                console.error(`[BULK_CHANGE_PROFILE] Failed: ${user.pppoe_username} - ${error.message}`);
+            }
+        }
+        
+        // Update package configuration to sync the new profile
+        let packageUpdated = false;
+        if (packageConfig && successCount > 0) {
+            try {
+                // Update in memory
+                const packageIndex = global.packages.findIndex(p => p.name === packageName);
+                if (packageIndex !== -1) {
+                    global.packages[packageIndex].profile = targetProfile;
+                }
+                
+                // Save to packages.json
+                await savePackage(global.packages);
+                packageUpdated = true;
+                console.log(`[BULK_CHANGE_PROFILE] Package "${packageName}" profile updated to "${targetProfile}" in packages.json`);
+            } catch (saveError) {
+                console.error(`[BULK_CHANGE_PROFILE] Failed to update packages.json:`, saveError);
+            }
+        }
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'user',
+                resourceId: 'bulk',
+                resourceName: `Bulk Profile Change: ${packageName}`,
+                description: `Bulk changed MikroTik profile for package "${packageName}" from "${oldProfile}" to "${targetProfile}" for ${successCount} users (${failedCount} failed). Package config ${packageUpdated ? 'updated' : 'not updated'}.`,
+                oldValue: { package: packageName, profile: oldProfile, affectedCount: affectedUsers.length },
+                newValue: { targetProfile, successCount, failedCount, packageUpdated },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[BULK_CHANGE_PROFILE] Activity log error:', logErr);
+        }
+        
+        console.log(`[BULK_CHANGE_PROFILE] Completed: ${successCount} success, ${failedCount} failed, package updated: ${packageUpdated}`);
+        
+        return res.json({
+            status: 200,
+            message: `Berhasil mengubah profil ${successCount} pelanggan${failedCount > 0 ? `, ${failedCount} gagal` : ''}${packageUpdated ? '. Konfigurasi paket juga diperbarui.' : ''}`,
+            successCount,
+            failedCount,
+            packageUpdated,
+            oldProfile,
+            newProfile: targetProfile,
+            errors: errors.length > 0 ? errors : undefined
+        });
+        
+    } catch (error) {
+        console.error('[BULK_CHANGE_PROFILE_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal melakukan perubahan profil massal',
             error: error.message
         });
     }
@@ -2550,19 +2631,32 @@ router.get('/psb/test-connections', ensureAuthenticatedStaff, async (req, res) =
         // Test device online (if deviceId provided)
         if (req.query.deviceId && global.config?.genieacsBaseUrl) {
             try {
+                // GenieACS requires query filter format, not direct ID access
+                // Use query parameter to find device by _id
+                const query = JSON.stringify({ "_id": req.query.deviceId });
                 const deviceResponse = await axios.get(
-                    `${global.config.genieacsBaseUrl}/devices/${encodeURIComponent(req.query.deviceId)}`,
-                    { timeout: 5000 }
+                    `${global.config.genieacsBaseUrl}/devices`,
+                    { 
+                        params: { query: query },
+                        timeout: 5000 
+                    }
                 );
-                results.device.online = deviceResponse.status === 200;
-                results.device.message = results.device.online 
-                    ? 'Device masih online'
-                    : `Device tidak ditemukan (status ${deviceResponse.status})`;
+                
+                // Check if device was found in the response array
+                const devices = deviceResponse.data;
+                const deviceFound = Array.isArray(devices) && devices.length > 0;
+                
+                results.device.online = deviceFound;
+                results.device.message = deviceFound 
+                    ? 'Device ditemukan di GenieACS'
+                    : 'Device tidak ditemukan di GenieACS';
             } catch (error) {
                 results.device.message = `Device tidak dapat dijangkau: ${error.message}`;
             }
         } else if (req.query.deviceId) {
-            results.device.message = 'Device ID tidak valid atau GenieACS URL tidak dikonfigurasi';
+            results.device.message = 'GenieACS URL tidak dikonfigurasi';
+        } else {
+            results.device.message = 'Device ID tidak disediakan';
         }
         
         const allOk = results.genieacs.connected && results.mikrotik.connected && 
@@ -2684,6 +2778,15 @@ router.post('/psb/submit-phase2', ensureAuthenticatedStaff, async (req, res) => 
             });
         } catch (logErr) {
             console.error('[PSB_PHASE2] Activity log error:', logErr);
+        }
+        
+        // Send WhatsApp notification to customer
+        try {
+            await sendPSBInstallationCompleteNotification(psbRecord);
+            console.log(`[PSB_PHASE2] Installation complete notification sent to ${psbRecord.phone_number}`);
+        } catch (notifErr) {
+            console.error('[PSB_PHASE2] Notification error:', notifErr);
+            // Don't fail the request if notification fails
         }
         
         return res.json({
@@ -2820,6 +2923,29 @@ router.post('/psb/submit-phase3', ensureAuthenticatedStaff, async (req, res) => 
         
         // If we reach here, MikroTik registration was successful
         // Continue with GenieACS update and database save
+        
+        // PENTING: Load SSID lama dari GenieACS SEBELUM melakukan update untuk log yang lebih detail
+        let oldSsidName = null;
+        try {
+            const { getSSIDInfo } = require('../lib/wifi');
+            const ssidInfo = await getSSIDInfo(device_id, true); // skipRefresh = true untuk speed
+            if (ssidInfo && ssidInfo.ssid && Array.isArray(ssidInfo.ssid) && ssidInfo.ssid.length > 0) {
+                // Cari SSID berdasarkan ssid_index yang akan diubah
+                const targetSsidIndex = ssidIndicesToUpdate[0] || ssid_index || '1';
+                const oldSsid = ssidInfo.ssid.find(s => String(s.id) === String(targetSsidIndex));
+                if (oldSsid && oldSsid.name) {
+                    oldSsidName = oldSsid.name;
+                    console.log(`[PSB_PHASE3] Found old SSID name: "${oldSsidName}" for SSID index ${targetSsidIndex}`);
+                } else {
+                    console.log(`[PSB_PHASE3] SSID index ${targetSsidIndex} not found in device, using null for old SSID`);
+                }
+            } else {
+                console.log(`[PSB_PHASE3] No SSID info found in device, using null for old SSID`);
+            }
+        } catch (ssidInfoError) {
+            console.warn(`[PSB_PHASE3] Could not fetch old SSID info from GenieACS: ${ssidInfoError.message}`);
+            // Continue dengan oldSsidName = null jika gagal load
+        }
         
         // Update Device di GenieACS
         try {
@@ -2961,18 +3087,20 @@ router.post('/psb/submit-phase3', ensureAuthenticatedStaff, async (req, res) => 
         }
         
         // Log WiFi configuration to WiFi logs for monitoring
+        // PENTING: oldSsidName sudah di-load SEBELUM update device (di atas)
         try {
             await logWifiChange({
                 userId: newUserId.toString(), // Use final user ID
                 deviceId: device_id,
                 changeType: 'both', // Both SSID name and password
                 changes: {
-                    oldSsidName: null, // First time setup, no old value
+                    oldSsidName: oldSsidName, // PENTING: Gunakan SSID lama yang sudah di-load dari GenieACS sebelum update
                     newSsidName: wifi_ssid,
-                    oldPassword: null, // First time setup, no old value
+                    oldPassword: null, // Password tidak terdeteksi di GenieACS
                     newPassword: wifi_password,
                     passwordChanged: true,
-                    ssidNameChanged: true
+                    ssidNameChanged: true,
+                    ssidId: ssidIndicesToUpdate[0] || ssid_index || '1' // Tambahkan SSID index untuk referensi
                 },
                 changedBy: req.user.username || req.user.name || 'System',
                 changeSource: 'web_technician',
@@ -2983,7 +3111,7 @@ router.post('/psb/submit-phase3', ensureAuthenticatedStaff, async (req, res) => 
                 ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
                 userAgent: req.headers['user-agent']
             });
-            console.log(`[PSB_PHASE3] WiFi configuration logged for user ${newUserId}, device ${device_id}`);
+            console.log(`[PSB_PHASE3] WiFi configuration logged for user ${newUserId}, device ${device_id}, old SSID: "${oldSsidName || 'null'}" → new SSID: "${wifi_ssid}"`);
         } catch (wifiLogErr) {
             console.error('[PSB_PHASE3] WiFi log error:', wifiLogErr);
             // Continue even if WiFi logging fails
@@ -2998,6 +3126,7 @@ router.post('/psb/submit-phase3', ensureAuthenticatedStaff, async (req, res) => 
             };
             await sendPSBPhase2Notification(userForNotification, {
                 pppoe_username: pppoe_username,
+                pppoe_password: finalPPPoEPassword,
                 wifi_ssid: wifi_ssid,
                 wifi_password: wifi_password
             });
@@ -3036,6 +3165,113 @@ router.post('/psb/submit-phase3', ensureAuthenticatedStaff, async (req, res) => 
         return res.status(500).json({
             status: 500,
             message: 'Gagal menyelesaikan PSB Phase 3',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/psb/delete-all - Delete all PSB records with password verification
+router.post('/psb/delete-all', ensureAdmin, async (req, res) => {
+    try {
+        const { password } = req.body;
+        
+        // Validate password is provided
+        if (!password) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Password diperlukan untuk konfirmasi'
+            });
+        }
+        
+        // Verify password against current user
+        const currentUser = global.accounts.find(acc => acc.username === req.user.username);
+        if (!currentUser) {
+            return res.status(401).json({
+                status: 401,
+                message: 'User tidak ditemukan'
+            });
+        }
+        
+        // Compare password
+        const isPasswordValid = await comparePassword(password, currentUser.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                status: 401,
+                message: 'Password salah'
+            });
+        }
+        
+        // Get count before delete
+        const recordCount = (global.psbRecords || []).length;
+        
+        if (recordCount === 0) {
+            return res.json({
+                status: 200,
+                message: 'Tidak ada data PSB untuk dihapus',
+                deletedCount: 0
+            });
+        }
+        
+        // Delete all PSB records from database
+        const { deletePSBRecord } = require('../lib/psb-database');
+        
+        // Get PSB database connection
+        if (!global.psbDb) {
+            return res.status(500).json({
+                status: 500,
+                message: 'Database PSB tidak tersedia'
+            });
+        }
+        
+        // Delete all records from database
+        await new Promise((resolve, reject) => {
+            global.psbDb.run('DELETE FROM psb_records', function(err) {
+                if (err) {
+                    console.error('[PSB_DELETE_ALL] Database error:', err);
+                    reject(err);
+                } else {
+                    console.log(`[PSB_DELETE_ALL] Deleted ${this.changes} records from database`);
+                    resolve(this.changes);
+                }
+            });
+        });
+        
+        // Clear memory
+        global.psbRecords = [];
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'DELETE',
+                resourceType: 'psb',
+                resourceId: 'all',
+                resourceName: 'All PSB Records',
+                description: `Deleted all ${recordCount} PSB records`,
+                oldValue: { count: recordCount },
+                newValue: { count: 0 },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[PSB_DELETE_ALL] Activity log error:', logErr);
+        }
+        
+        console.log(`[PSB_DELETE_ALL] User ${req.user.username} deleted all ${recordCount} PSB records`);
+        
+        return res.json({
+            status: 200,
+            message: `Berhasil menghapus ${recordCount} data PSB`,
+            deletedCount: recordCount
+        });
+        
+    } catch (error) {
+        console.error('[PSB_DELETE_ALL_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal menghapus data PSB',
             error: error.message
         });
     }

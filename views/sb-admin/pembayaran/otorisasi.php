@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <title>RAF BOT - Otorisasi Pengajuan Pembaruan Status</title>
 
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" type="text/css">
+  <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="/css/sb-admin-2.min.css" rel="stylesheet">
   <link href="/css/dashboard-modern.css" rel="stylesheet">
@@ -429,7 +429,7 @@
     </div>
   </div>
 
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="/vendor/jquery/jquery.min.js"></script>
   <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
   <script src="/js/sb-admin-2.js"></script>
@@ -441,6 +441,31 @@
   <script>
   $(document).ready(function() {
     console.log("[FIXED] Document ready");
+    
+    // Global config variable for tanggal_isolir
+    let tanggalIsolir = 10; // Default value
+    
+    // Fetch config to get tanggal_isolir
+    $.ajax({
+      url: '/api/config',
+      type: 'GET',
+      async: false, // Synchronous to ensure config is loaded before use
+      success: function(response) {
+        if (response && response.tanggal_isolir) {
+          tanggalIsolir = parseInt(response.tanggal_isolir, 10);
+          console.log('[CONFIG] tanggal_isolir loaded:', tanggalIsolir);
+        }
+      },
+      error: function(err) {
+        console.warn('[CONFIG] Failed to load config, using default tanggal_isolir:', tanggalIsolir);
+      }
+    });
+    
+    // Function to check if current date is on or after isolation date
+    function isAfterIsolationDate() {
+      const currentDate = new Date().getDate();
+      return currentDate >= tanggalIsolir;
+    }
     
     // Configure SweetAlert2 defaults
     const Toast = Swal.mixin({
@@ -805,6 +830,7 @@
         html: `
           <div class="text-left">
             <p class="mb-3">Anda akan menyetujui <strong>${pendingRequests.length} request</strong> untuk bulan ini.</p>
+            ${isAfterIsolationDate() ? `
             <div class="alert alert-warning" style="border-radius: 10px;">
               <h6 class="font-weight-bold"><i class="fas fa-exclamation-triangle"></i> PERHATIAN:</h6>
               <ul class="mb-0" style="padding-left: 20px;">
@@ -814,6 +840,11 @@
                 <li>Invoice akan dikirim ke pelanggan (jika diaktifkan)</li>
               </ul>
             </div>
+            ` : `
+            <div class="alert alert-info" style="border-radius: 10px;">
+              <i class="fas fa-info-circle"></i> Tanggal saat ini belum melewati tanggal isolir (${tanggalIsolir}). Pelanggan belum diisolir, hanya status pembayaran yang akan diupdate.
+            </div>
+            `}
           </div>
         `,
         icon: 'question',
@@ -939,17 +970,76 @@
       const confirmButtonColor = approved ? '#28a745' : '#dc3545';
       const confirmButtonText = approved ? '<i class="fas fa-check"></i> Setujui' : '<i class="fas fa-times"></i> Tolak';
       
+      // Find the request data to check if it's from teknisi
+      const requestData = allData.find(d => d.id === requestId);
+      const isFromTeknisi = requestData && requestData.requested_by_teknisi_id;
+      const originalPaymentMethod = requestData ? requestData.payment_method : null;
+      
+      // Determine if this is a CASH payment from teknisi
+      // Teknisi requests for "Sudah Bayar" (newStatus=true) are always CASH
+      // because teknisi receives cash directly from customer in the field
+      const isCashFromTeknisi = isFromTeknisi && requestData.newStatus === true;
+      
+      // Build HTML content - show payment method selector only for approve action
+      let htmlContent = `<p>Apakah Anda yakin ingin <strong>${action}</strong> permintaan ini?</p>`;
+      
+      if (approved) {
+        if (isCashFromTeknisi) {
+          // Request from teknisi for "Sudah Bayar" - payment method is CASH (fixed)
+          // This applies even for old requests without payment_method field
+          htmlContent += `
+            <div class="alert alert-info mt-3" style="border-radius: 8px;">
+              <i class="fas fa-money-bill-wave"></i> Request dari teknisi - Metode pembayaran: <strong>Tunai (Cash)</strong>
+            </div>
+          `;
+        } else {
+          // Request from admin or "Belum Bayar" request - allow selection
+          htmlContent += `
+            <div class="form-group mt-3 text-left">
+              <label for="paymentMethodSelect"><strong>Metode Pembayaran:</strong></label>
+              <select id="paymentMethodSelect" class="form-control">
+                <option value="CASH">Tunai (Cash)</option>
+                <option value="TRANSFER_BANK">Transfer Bank</option>
+              </select>
+            </div>
+          `;
+        }
+        
+        // Show isolation warning only if current date >= tanggal_isolir
+        if (isAfterIsolationDate()) {
+          htmlContent += `
+            <div class="alert alert-warning mt-3" style="border-radius: 8px; font-size: 0.85rem;">
+              <i class="fas fa-exclamation-triangle"></i> <strong>Perhatian:</strong> Pelanggan yang terisolir akan dipulihkan dan router akan di-reboot.
+            </div>
+          `;
+        }
+        
+        htmlContent += '<small class="text-muted">Pelanggan akan diupdate statusnya dan notifikasi akan dikirim</small>';
+      } else {
+        htmlContent += '<small class="text-muted">Request akan ditandai sebagai ditolak</small>';
+      }
+      
       Swal.fire({
         title: `Konfirmasi ${approved ? 'Persetujuan' : 'Penolakan'}`,
-        html: `
-          <p>Apakah Anda yakin ingin <strong>${action}</strong> permintaan ini?</p>
-          ${approved ? '<small class="text-muted">Pelanggan akan diupdate statusnya dan notifikasi akan dikirim</small>' : '<small class="text-muted">Request akan ditandai sebagai ditolak</small>'}
-        `,
+        html: htmlContent,
         icon: icon,
         showCancelButton: true,
         confirmButtonText: confirmButtonText,
         cancelButtonText: '<i class="fas fa-arrow-left"></i> Batal',
-        reverseButtons: true
+        reverseButtons: true,
+        preConfirm: () => {
+          // Get selected payment method if approve
+          if (approved) {
+            const selectEl = document.getElementById('paymentMethodSelect');
+            if (selectEl) {
+              return { payment_method: selectEl.value };
+            } else if (isCashFromTeknisi) {
+              // Teknisi request for "Sudah Bayar" is always CASH
+              return { payment_method: 'CASH' };
+            }
+          }
+          return {};
+        }
       }).then((result) => {
         if (!result.isConfirmed) {
           return;
@@ -966,11 +1056,22 @@
           }
         });
         
+        // Build request data
+        const requestPayload = { 
+          requestId: requestId, 
+          approved: approved 
+        };
+        
+        // Add payment method if available
+        if (result.value && result.value.payment_method) {
+          requestPayload.payment_method = result.value.payment_method;
+        }
+        
         $.ajax({
           url: '/api/requests/approve-paid-change',
           type: 'POST',
           contentType: 'application/json',
-          data: JSON.stringify({ requestId: requestId, approved: approved }),
+          data: JSON.stringify(requestPayload),
           success: function(response) {
             Swal.fire({
               icon: 'success',

@@ -205,11 +205,12 @@ async function handleViewAgentDetail(msg, sender, reply, agentId) {
         const agent = agentManager.getAgentById(agentId);
         
         if (!agent) {
-            return await reply('❌ Agent tidak ditemukan.');
+            return await reply('❌ Agent tidak ditemukan.\n\nKetik *agent* untuk melihat daftar agent beserta ID-nya.');
         }
         
         let message = `📋 *INFORMASI AGENT*\n\n`;
-        message += agentManager.formatAgentInfo(agent, true);
+        message += `🆔 ID: ${agent.id}\n`;
+        message += agentManager.formatAgentInfo(agent, true, false);
         
         // Add Google Maps link if location available
         if (agent.location) {

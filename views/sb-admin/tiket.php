@@ -723,15 +723,19 @@
                 });
             }
             
-            // 2. Collect photos from teknisiPhotos field (WhatsApp uploads)
+            // 2. Collect photos from teknisiPhotos field (WhatsApp uploads + Web create ticket uploads)
             // IMPORTANT: Skip photos that are already in photos field to avoid duplicates
             if (ticket.teknisiPhotos && ticket.teknisiPhotos.length > 0) {
                 // Get list of filenames already in photos field (to avoid duplicates)
                 const photosFilenames = new Set();
                 if (ticket.photos && Array.isArray(ticket.photos)) {
                     ticket.photos.forEach(p => {
-                        if (typeof p === 'object' && p.filename) {
+                        if (typeof p === 'object' && p.fileName) {
+                            photosFilenames.add(p.fileName);
+                        } else if (typeof p === 'object' && p.filename) {
                             photosFilenames.add(p.filename);
+                        } else if (typeof p === 'string') {
+                            photosFilenames.add(p);
                         }
                     });
                 }
@@ -742,22 +746,50 @@
                 const month = String(ticketDate.getMonth() + 1).padStart(2, '0');
                 
                 ticket.teknisiPhotos.forEach(photo => {
-                    // Skip if this photo is already in photos field (to avoid duplicates)
-                    if (photosFilenames.has(photo)) {
-                        return; // Skip duplicate
+                    // Handle both object format (from create ticket) and string format (from WhatsApp)
+                    let photoFileName = null;
+                    let photoPath = null;
+                    let photoCategory = null;
+                    let photoCategoryLabel = null;
+                    
+                    if (typeof photo === 'object' && photo.fileName) {
+                        // Object format from create ticket upload
+                        photoFileName = photo.fileName;
+                        photoPath = photo.path;
+                        photoCategory = photo.category;
+                        photoCategoryLabel = photo.categoryLabel;
+                        
+                        // Skip if this photo is already in photos field (to avoid duplicates)
+                        if (photosFilenames.has(photoFileName)) {
+                            return; // Skip duplicate
+                        }
+                    } else if (typeof photo === 'string') {
+                        // String format from WhatsApp upload
+                        photoFileName = photo;
+                        
+                        // Skip if this photo is already in photos field (to avoid duplicates)
+                        if (photosFilenames.has(photoFileName)) {
+                            return; // Skip duplicate
+                        }
+                        
+                        // Construct path for string format
+                        photoPath = `/uploads/reports/${year}/${month}/${ticket.ticketId}/${photoFileName}`;
+                    } else {
+                        // Unknown format, skip
+                        return;
                     }
                     
-                    // Try new structured path first: uploads/teknisi/YEAR/MONTH/TICKET_ID/
-                    // Backward compatibility: if old path exists, use it
-                    const structuredPath = `/uploads/teknisi/${year}/${month}/${ticket.ticketId}/${photo}`;
-                    const oldPath = `/uploads/teknisi/${photo}`;
+                    // If path not provided, construct it
+                    if (!photoPath) {
+                        photoPath = `/uploads/reports/${year}/${month}/${ticket.ticketId}/${photoFileName}`;
+                    }
                     
                     allPhotos.push({
                         type: 'teknisi',
-                        path: structuredPath, // Use new structure (browser will try this first)
-                        oldPath: oldPath, // Keep old path for backward compatibility check
-                        filename: photo,
-                        label: 'Foto Teknisi'
+                        path: photoPath,
+                        filename: photoFileName,
+                        label: photoCategoryLabel || 'Foto Teknisi',
+                        category: photoCategory
                     });
                 });
             }
