@@ -1485,7 +1485,7 @@ Silakan upload foto dokumentasi perbaikan:
             case 'TOPUP_SALDO': // Sesuaikan dengan intent yang mungkin dari Gemini
             case 'buynow': {
                 await handleTopupSaldoPayment({
-                    sender,
+                    sender: normalizedSenderForSaldo, // Gunakan normalized JID untuk operasi saldo
                     pushname,
                     command,
                     q,
@@ -1512,7 +1512,7 @@ Silakan upload foto dokumentasi perbaikan:
                     getvoucher
                 };
                 await handleBeliVoucher({
-                    sender,
+                    sender: normalizedSenderForSaldo, // Gunakan normalized JID untuk operasi saldo
                     pushname,
                     entities,
                     q,
@@ -1617,11 +1617,11 @@ atau ketik:
                     return await reply(format('error_format_transfer'));
                 }
                 
-                await handleTransferSaldo(msg, sender, reply, transferArgs);
+                await handleTransferSaldo(msg, normalizedSenderForSaldo, reply, transferArgs);
                 break;
             }
             case 'BATAL_TOPUP': {
-                await handleCancelTopup(msg, sender, reply);
+                await handleCancelTopup(msg, normalizedSenderForSaldo, reply);
                 break;
             }
             case 'TANYA_HARGA_VOUCHER': {
@@ -1691,7 +1691,7 @@ atau ketik:
             break;
             
             case 'CHECK_TOPUP_STATUS': {
-                await handleCheckTopupStatus(msg, sender, reply);
+                await handleCheckTopupStatus(msg, normalizedSenderForSaldo, reply);
             }
             break;
             
@@ -1900,7 +1900,7 @@ atau ketik:
                 break;
             }
             case '<topup': {
-                await handleTopup({ q, isOwner, sender, reply, msg, mess, raf, checkATMuser, addATM, addKoinUser });
+                await handleTopup({ q, isOwner, sender: normalizedSenderForSaldo, reply, msg, mess, raf, checkATMuser, addATM, addKoinUser });
                 break;
             }
             case '<delsaldo': {
@@ -1908,7 +1908,7 @@ atau ketik:
                 break;
             }
             case 'transfer': {
-                await handleTransfer({ q, sender, reply, msg, mess, raf, checkATMuser, addATM, addKoinUser, confirmATM, format });
+                await handleTransfer({ q, sender: normalizedSenderForSaldo, reply, msg, mess, raf, checkATMuser, addATM, addKoinUser, confirmATM, format });
                 break;
             }
             case 'CEK_TAGIHAN': {
