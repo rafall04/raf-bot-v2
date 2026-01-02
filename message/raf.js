@@ -153,9 +153,10 @@ let temp = {};
  * Helper function untuk normalisasi JID untuk operasi saldo
  * @param {string} sender - JID pengirim
  * @param {Object} raf - WhatsApp client instance
+ * @param {Object} msg - Message object (optional, untuk akses remoteJidAlt)
  * @returns {Promise<string>} Normalized JID
  */
-async function normalizeJidForSaldoOperation(sender, raf) {
+async function normalizeJidForSaldoOperation(sender, raf, msg = null) {
     if (!sender || !sender.endsWith('@lid')) {
         // Jika bukan @lid, normalisasi format standar
         let normalized = sender.split(':')[0];
@@ -163,6 +164,15 @@ async function normalizeJidForSaldoOperation(sender, raf) {
             normalized = normalized + '@s.whatsapp.net';
         }
         return normalized;
+    }
+    
+    // Method 0 (BEST): Cek remoteJidAlt dari msg object - Baileys v7
+    if (msg && msg.key && msg.key.remoteJidAlt && msg.key.remoteJidAlt.includes('@s.whatsapp.net')) {
+        let result = msg.key.remoteJidAlt.split(':')[0];
+        if (!result.endsWith('@s.whatsapp.net')) {
+            result = result + '@s.whatsapp.net';
+        }
+        return result;
     }
     
     try {
@@ -215,7 +225,7 @@ module.exports = async(raf, msg, m) => {
     const pushname = msg.pushName
     const q = chats.slice(command.length + 1, chats.length)
     
-        const normalizedSenderForSaldo = await normalizeJidForSaldoOperation(sender, raf);
+        const normalizedSenderForSaldo = await normalizeJidForSaldoOperation(sender, raf, msg);
     
     const isSaldo = checkATMuser(normalizedSenderForSaldo)
 
@@ -304,7 +314,7 @@ module.exports = async(raf, msg, m) => {
 
     if (!isSaldo) {
         try {
-            const normalizedSender = await normalizeJidForSaldoOperation(sender, raf);
+            const normalizedSender = await normalizeJidForSaldoOperation(sender, raf, msg);
             if (normalizedSender && !sender.endsWith('@lid')) {
                 saldoManager.createUserSaldo(normalizedSender);
             }
@@ -1585,7 +1595,8 @@ atau ketik:
                 break;
             }
             case 'CEK_SALDO': {
-                handleCekSaldo(sender, pushname, global.config, format, reply);
+                // Gunakan normalizedSenderForSaldo yang sudah dinormalisasi dari @lid ke format standar
+                handleCekSaldo(normalizedSenderForSaldo, pushname, global.config, format, reply);
                 break;
             }
             case 'TRANSFER_SALDO': {

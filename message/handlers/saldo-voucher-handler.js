@@ -10,19 +10,11 @@ const { checkATMuser } = require('../../lib/saldo');
  * Handle cek saldo
  */
 async function handleCekSaldo(sender, pushname, config, format, reply) {
-    // PENTING: Normalisasi JID dari @lid ke format standar sebelum operasi saldo
-    const { normalizeJidForSaldo } = require('../../lib/lid-handler');
+    // sender sudah dinormalisasi dari @lid ke format standar di raf.js
+    // Jadi langsung gunakan sender tanpa normalisasi ulang
     let userId = sender;
     
-    if (sender && sender.endsWith('@lid')) {
-        const normalizedJid = await normalizeJidForSaldo(sender, { allowLid: false, raf: global.raf });
-        if (!normalizedJid) {
-            return reply('❌ Maaf, tidak dapat memverifikasi nomor WhatsApp Anda. Silakan hubungi admin.');
-        }
-        userId = normalizedJid;
-    }
-    
-    // PENTING: Pastikan userId tidak mengandung :0 atau format aneh lainnya
+    // Pastikan userId tidak mengandung :0 atau format aneh lainnya
     if (userId && userId.includes(':')) {
         userId = userId.split(':')[0];
         if (!userId.endsWith('@s.whatsapp.net')) {
