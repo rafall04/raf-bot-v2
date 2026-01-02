@@ -96,8 +96,8 @@ async function processVoucherPurchase(sender, pushname, price, replyFunc, helper
         const voucherData = await getvoucher(profvc123, sender);
         const voucherCode = `${voucherData.username}`;
 
-        // Konfirmasi pengurangan saldo
-        confirmATM(sender, hargavc123);
+        // Konfirmasi pengurangan saldo (async)
+        await confirmATM(sender, hargavc123);
         const currentSaldoAfterPurchase = await checkATMuser(sender);
         const formattedSaldoAfterPurchase = convertRupiah.convert(currentSaldoAfterPurchase);
 
