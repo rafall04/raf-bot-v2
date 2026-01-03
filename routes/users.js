@@ -615,4 +615,223 @@ router.post('/buka-isolir', ensureAdmin, async (req, res) => {
     }
 });
 
+// GET /api/users/profile-diff - Scan profile differences between system and MikroTik
+router.get('/profile-diff', ensureAdmin, async (req, res) => {
+    try {
+        console.log('[PROFILE_DIFF] Starting scan...');
+        
+        // Get all PPPoE secrets from MikroTik
+        let mikrotikSecrets = [];
+        try {
+            mikrotikSecrets = await getAllPPPoESecrets();
+            console.log(`[PROFILE_DIFF] Fetched ${mikrotikSecrets.length} PPPoE secrets from MikroTik`);
+        } catch (err) {
+            console.error('[PROFILE_DIFF] Failed to fetch PPPoE secrets:', err.message);
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal mengambil data dari MikroTik: ' + err.message
+            });
+        }
+        
+        // Create map of pppoe_username -> profile
+        const mikrotikProfileMap = new Map();
+        for (const secret of mikrotikSecrets) {
+            if (secret.name) {
+                mikrotikProfileMap.set(secret.name.toLowerCase(), secret.profile);
+            }
+        }
+        
+        const different = [];
+        const notFound = [];
+        let sameCount = 0;
+        
+        for (const user of global.users) {
+            if (!user.pppoe_username) continue;
+            
+            // Get expected profile from system (based on subscription/package)
+            const systemProfile = getProfileBySubscription(user.subscription);
+            if (!systemProfile) {
+                // Skip users without valid subscription
+                continue;
+            }
+            
+            // Get current profile from MikroTik
+            const mikrotikProfile = mikrotikProfileMap.get(user.pppoe_username.toLowerCase());
+            
+            if (!mikrotikProfile) {
+                // User not found in MikroTik
+                notFound.push({
+                    id: user.id,
+                    name: user.name,
+                    pppoe_username: user.pppoe_username,
+                    subscription: user.subscription,
+                    systemProfile: systemProfile,
+                    mikrotikProfile: null
+                });
+                continue;
+            }
+            
+            // Compare profiles (case-insensitive)
+            if (systemProfile.toLowerCase() !== mikrotikProfile.toLowerCase()) {
+                different.push({
+                    id: user.id,
+                    name: user.name,
+                    pppoe_username: user.pppoe_username,
+                    subscription: user.subscription,
+                    systemProfile: systemProfile,
+                    mikrotikProfile: mikrotikProfile
+                });
+            } else {
+                sameCount++;
+            }
+        }
+        
+        console.log(`[PROFILE_DIFF] Scan complete: ${different.length} different, ${sameCount} same, ${notFound.length} not found`);
+        
+        return res.json({
+            status: 200,
+            data: {
+                different,
+                notFound: notFound.length,
+                same: sameCount
+            }
+        });
+        
+    } catch (error) {
+        console.error('[PROFILE_DIFF_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal scan perbedaan profil',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/users/sync-profiles - Sync profiles from system to MikroTik
+router.post('/sync-profiles', ensureAdmin, async (req, res) => {
+    try {
+        const { users: usersToSync } = req.body;
+        
+        if (!usersToSync || !Array.isArray(usersToSync) || usersToSync.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tidak ada pelanggan yang dipilih untuk disinkronkan'
+            });
+        }
+        
+        const results = {
+            success: [],
+            failed: []
+        };
+        
+        for (const userData of usersToSync) {
+            const user = global.users.find(u => u.id === userData.id);
+            
+            if (!user) {
+                results.failed.push({
+                    id: userData.id,
+                    name: userData.name,
+                    reason: 'Pelanggan tidak ditemukan di sistem'
+                });
+                continue;
+            }
+            
+            if (!user.pppoe_username) {
+                results.failed.push({
+                    id: userData.id,
+                    name: userData.name,
+                    reason: 'PPPoE username tidak tersedia'
+                });
+                continue;
+            }
+            
+            // Get target profile from system
+            const targetProfile = getProfileBySubscription(user.subscription);
+            
+            if (!targetProfile) {
+                results.failed.push({
+                    id: userData.id,
+                    name: userData.name,
+                    reason: `Profil tidak ditemukan untuk paket: ${user.subscription}`
+                });
+                continue;
+            }
+            
+            try {
+                // Update PPPoE profile in MikroTik
+                console.log(`[SYNC_PROFILE] Updating ${user.pppoe_username} to profile: ${targetProfile}`);
+                await updatePPPoEProfile(user.pppoe_username, targetProfile);
+                
+                // Disconnect active session to apply new profile
+                try {
+                    await deleteActivePPPoEUser(user.pppoe_username);
+                } catch (disconnectErr) {
+                    // Session might not be active, continue anyway
+                    console.log(`[SYNC_PROFILE] Session disconnect note for ${user.pppoe_username}: ${disconnectErr.message}`);
+                }
+                
+                results.success.push({
+                    id: user.id,
+                    name: user.name,
+                    pppoe_username: user.pppoe_username,
+                    oldProfile: userData.mikrotikProfile,
+                    newProfile: targetProfile
+                });
+                
+                console.log(`[SYNC_PROFILE_SUCCESS] ${user.name} (${user.pppoe_username}): ${userData.mikrotikProfile} -> ${targetProfile}`);
+                
+            } catch (error) {
+                console.error(`[SYNC_PROFILE_ERROR] Failed for ${user.name}:`, error);
+                results.failed.push({
+                    id: userData.id,
+                    name: userData.name,
+                    reason: error.message
+                });
+            }
+        }
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'user',
+                resourceId: 'sync-profiles',
+                resourceName: 'Sync Profiles to MikroTik',
+                description: `Sinkronisasi profil ${results.success.length} pelanggan ke MikroTik (${results.failed.length} gagal)`,
+                oldValue: null,
+                newValue: {
+                    successCount: results.success.length,
+                    failedCount: results.failed.length,
+                    users: results.success.map(u => `${u.name}: ${u.oldProfile} -> ${u.newProfile}`)
+                },
+                ipAddress: req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[SYNC_PROFILE] Activity log error:', logErr);
+        }
+        
+        const message = results.success.length > 0
+            ? `Berhasil sinkronisasi ${results.success.length} pelanggan${results.failed.length > 0 ? `, ${results.failed.length} gagal` : ''}`
+            : 'Gagal sinkronisasi semua pelanggan';
+        
+        return res.json({
+            status: results.success.length > 0 ? 200 : 500,
+            message,
+            results
+        });
+        
+    } catch (error) {
+        console.error('[SYNC_PROFILE_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal melakukan sinkronisasi profil',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;

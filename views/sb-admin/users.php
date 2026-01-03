@@ -546,6 +546,9 @@
                                 <button data-toggle="modal" data-target="#bulkChangePackageModal" class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px;" title="Rubah profil MikroTik untuk semua pelanggan dengan paket tertentu">
                                     <i class="fas fa-exchange-alt"></i> <span>Rubah Profil Massal</span>
                                 </button>
+                                <button data-toggle="modal" data-target="#syncProfileModal" class="btn btn-sm" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border: none; border-radius: 8px;" title="Sinkronisasi profil dari sistem ke MikroTik">
+                                    <i class="fas fa-sync"></i> <span>Sync Profil ke MikroTik</span>
+                                </button>
                                 <button data-toggle="modal" data-target="#createModal" class="btn btn-success-custom btn-sm">
                                     <i class="fas fa-user-plus"></i> <span>Tambah Pelanggan</span>
                                 </button>
@@ -713,6 +716,80 @@
                     </button>
                     <button class="btn" type="button" id="bulk-execute-btn" disabled style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
                         <i class="fas fa-check"></i> Terapkan Perubahan
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Profile to MikroTik Modal -->
+    <div class="modal fade" id="syncProfileModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+                    <h5 class="modal-title"><i class="fas fa-sync"></i> Sinkronisasi Profil ke MikroTik</h5>
+                    <button class="close text-white" type="button" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Fitur ini akan menyinkronkan <strong>profil PPPoE di MikroTik</strong> agar sesuai dengan data paket di sistem.
+                        <br><small class="text-muted">Gunakan jika profil di sistem sudah diupdate tapi MikroTik belum.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-primary" type="button" id="scanProfileDiff" onclick="scanProfileDifferences()">
+                            <i class="fas fa-search"></i> Scan Perbedaan Profil
+                        </button>
+                        <span id="syncScanStatus" class="ml-2 text-muted"></span>
+                    </div>
+                    
+                    <div id="syncProfileResult" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="fas fa-list"></i> Pelanggan dengan Profil Berbeda:</h6>
+                            <div>
+                                <button class="btn btn-sm btn-outline-primary" onclick="selectAllSyncRows()">Pilih Semua</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllSyncRows()">Batal Pilih</button>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered table-hover" id="syncProfileTable">
+                                <thead class="thead-light" style="position: sticky; top: 0;">
+                                    <tr>
+                                        <th width="40"><input type="checkbox" id="syncCheckAll" onchange="toggleSyncCheckAll()"></th>
+                                        <th>Nama</th>
+                                        <th>PPPoE Username</th>
+                                        <th>Paket Sistem</th>
+                                        <th>Profil Sistem</th>
+                                        <th>Profil MikroTik</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="syncProfileTableBody">
+                                    <tr><td colspan="7" class="text-center text-muted py-4">Klik "Scan Perbedaan Profil" untuk memulai</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <strong>Total Berbeda:</strong> <span id="syncTotalDiff" class="badge badge-warning">0</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Dipilih:</strong> <span id="syncSelectedCount" class="badge badge-primary">0</span>
+                                </div>
+                                <div class="col-md-4">
+                                    <strong>Sudah Sama:</strong> <span id="syncTotalSame" class="badge badge-success">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Tutup</button>
+                    <button class="btn" type="button" id="executeSyncBtn" onclick="executeSyncProfiles()" disabled style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border: none;">
+                        <i class="fas fa-sync"></i> Sinkronkan (<span id="syncBtnCount">0</span> Pelanggan)
                     </button>
                 </div>
             </div>
@@ -3704,6 +3781,222 @@
         });
         
         // ========== END BULK CHANGE PROFILE FUNCTIONS ==========
+
+        // ========== SYNC PROFILE TO MIKROTIK FUNCTIONS ==========
+        let syncProfileData = [];
+        
+        // Scan for profile differences between system and MikroTik
+        async function scanProfileDifferences() {
+            const scanBtn = $('#scanProfileDiff');
+            const statusSpan = $('#syncScanStatus');
+            
+            scanBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Scanning...');
+            statusSpan.text('Mengambil data dari MikroTik...');
+            
+            try {
+                const response = await fetch('/api/users/profile-diff');
+                const result = await response.json();
+                
+                if (result.status !== 200) {
+                    throw new Error(result.message || 'Gagal scan perbedaan profil');
+                }
+                
+                syncProfileData = result.data.different || [];
+                const sameCount = result.data.same || 0;
+                const notFoundCount = result.data.notFound || 0;
+                
+                // Update stats
+                $('#syncTotalDiff').text(syncProfileData.length);
+                $('#syncTotalSame').text(sameCount);
+                $('#syncSelectedCount').text('0');
+                $('#syncBtnCount').text('0');
+                
+                // Render table
+                renderSyncProfileTable();
+                
+                // Show result section
+                $('#syncProfileResult').show();
+                
+                statusSpan.html(`<span class="text-success"><i class="fas fa-check"></i> Scan selesai</span>`);
+                
+                if (syncProfileData.length === 0) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Semua Profil Sudah Sinkron!',
+                        text: `${sameCount} pelanggan sudah memiliki profil yang sama di sistem dan MikroTik.`,
+                        timer: 3000
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Scan error:', error);
+                statusSpan.html(`<span class="text-danger"><i class="fas fa-times"></i> ${error.message}</span>`);
+                Swal.fire('Error', error.message, 'error');
+            } finally {
+                scanBtn.prop('disabled', false).html('<i class="fas fa-search"></i> Scan Perbedaan Profil');
+            }
+        }
+        
+        // Render sync profile table
+        function renderSyncProfileTable() {
+            const tbody = $('#syncProfileTableBody');
+            
+            if (syncProfileData.length === 0) {
+                tbody.html('<tr><td colspan="7" class="text-center text-success py-4"><i class="fas fa-check-circle fa-2x mb-2"></i><br>Semua profil sudah sinkron!</td></tr>');
+                return;
+            }
+            
+            let html = '';
+            syncProfileData.forEach((item, index) => {
+                const statusBadge = item.mikrotikProfile 
+                    ? '<span class="badge badge-warning"><i class="fas fa-exclamation-triangle"></i> Berbeda</span>'
+                    : '<span class="badge badge-secondary"><i class="fas fa-question"></i> Tidak ada di MikroTik</span>';
+                
+                html += `
+                    <tr data-index="${index}">
+                        <td><input type="checkbox" class="sync-row-check" data-index="${index}" onchange="updateSyncSelection()"></td>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td><code>${escapeHtml(item.pppoe_username)}</code></td>
+                        <td>${escapeHtml(item.subscription || '-')}</td>
+                        <td><span class="badge badge-success">${escapeHtml(item.systemProfile || '-')}</span></td>
+                        <td><span class="badge badge-danger">${escapeHtml(item.mikrotikProfile || 'N/A')}</span></td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.html(html);
+        }
+        
+        // Helper function for escaping HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Toggle check all sync rows
+        function toggleSyncCheckAll() {
+            const isChecked = $('#syncCheckAll').prop('checked');
+            $('.sync-row-check').prop('checked', isChecked);
+            updateSyncSelection();
+        }
+        
+        // Select all sync rows
+        function selectAllSyncRows() {
+            $('.sync-row-check').prop('checked', true);
+            $('#syncCheckAll').prop('checked', true);
+            updateSyncSelection();
+        }
+        
+        // Deselect all sync rows
+        function deselectAllSyncRows() {
+            $('.sync-row-check').prop('checked', false);
+            $('#syncCheckAll').prop('checked', false);
+            updateSyncSelection();
+        }
+        
+        // Update sync selection count
+        function updateSyncSelection() {
+            const selectedCount = $('.sync-row-check:checked').length;
+            $('#syncSelectedCount').text(selectedCount);
+            $('#syncBtnCount').text(selectedCount);
+            $('#executeSyncBtn').prop('disabled', selectedCount === 0);
+        }
+        
+        // Execute sync profiles to MikroTik
+        async function executeSyncProfiles() {
+            const selectedIndexes = [];
+            $('.sync-row-check:checked').each(function() {
+                selectedIndexes.push(parseInt($(this).data('index')));
+            });
+            
+            if (selectedIndexes.length === 0) {
+                Swal.fire('Peringatan', 'Pilih minimal satu pelanggan untuk disinkronkan', 'warning');
+                return;
+            }
+            
+            // Get selected users data
+            const usersToSync = selectedIndexes.map(idx => syncProfileData[idx]);
+            
+            // Confirm
+            const confirm = await Swal.fire({
+                title: 'Konfirmasi Sinkronisasi',
+                html: `Anda akan menyinkronkan profil <strong>${usersToSync.length}</strong> pelanggan ke MikroTik.<br><br>
+                       <small class="text-muted">Profil di MikroTik akan diubah sesuai dengan paket di sistem.</small>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Sinkronkan',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#f59e0b'
+            });
+            
+            if (!confirm.isConfirmed) return;
+            
+            // Show loading
+            Swal.fire({
+                title: 'Menyinkronkan...',
+                html: 'Memproses <b>0</b> dari <b>' + usersToSync.length + '</b> pelanggan',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            
+            try {
+                const response = await fetch('/api/users/sync-profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ users: usersToSync })
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 200) {
+                    const successCount = result.results?.success?.length || 0;
+                    const failedCount = result.results?.failed?.length || 0;
+                    
+                    let message = `<strong>${successCount}</strong> pelanggan berhasil disinkronkan.`;
+                    if (failedCount > 0) {
+                        message += `<br><strong>${failedCount}</strong> gagal.`;
+                        const failedList = result.results.failed.map(f => 
+                            `<li>${f.name}: ${f.reason}</li>`
+                        ).join('');
+                        message += `<br><br><small>Detail gagal:<ul class="text-left">${failedList}</ul></small>`;
+                    }
+                    
+                    await Swal.fire({
+                        title: 'Sinkronisasi Selesai',
+                        html: message,
+                        icon: successCount > 0 ? 'success' : 'warning'
+                    });
+                    
+                    // Refresh scan
+                    scanProfileDifferences();
+                    
+                } else {
+                    Swal.fire('Error', result.message || 'Gagal menyinkronkan profil', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Sync error:', error);
+                Swal.fire('Error', 'Gagal menghubungi server: ' + error.message, 'error');
+            }
+        }
+        
+        // Reset sync modal on show
+        $('#syncProfileModal').on('show.bs.modal', function() {
+            syncProfileData = [];
+            $('#syncProfileResult').hide();
+            $('#syncProfileTableBody').html('<tr><td colspan="7" class="text-center text-muted py-4">Klik "Scan Perbedaan Profil" untuk memulai</td></tr>');
+            $('#syncScanStatus').text('');
+            $('#syncTotalDiff').text('0');
+            $('#syncTotalSame').text('0');
+            $('#syncSelectedCount').text('0');
+            $('#syncBtnCount').text('0');
+            $('#executeSyncBtn').prop('disabled', true);
+        });
+        
+        // ========== END SYNC PROFILE FUNCTIONS ==========
     </script>
 </body>
 </html>
