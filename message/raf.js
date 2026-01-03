@@ -1801,6 +1801,36 @@ atau ketik:
                 handleAllUser(reply, users);
                 break;
             }
+            case 'CARI_PELANGGAN': {
+                if (!isOwner && !isTeknisi) {
+                    return reply(mess.teknisiOrOwnerOnly);
+                }
+                
+                const searchQuery = q && q.trim() ? q.trim() : '';
+                if (!searchQuery) {
+                    return reply(`🔍 *CARI PELANGGAN*\n\nFormat: *cari [nama/nomor/ID]*\n\nContoh:\n• cari Budi\n• cari 08123456789\n• cari 15`);
+                }
+                
+                const { handleSearchUser } = require('./handlers/admin-handler');
+                const result = handleSearchUser({ query: searchQuery });
+                return reply(result.message);
+            }
+            case 'DAFTAR_PELANGGAN': {
+                if (!isOwner && !isTeknisi) {
+                    return reply(mess.teknisiOrOwnerOnly);
+                }
+                
+                let filter = null;
+                if (q && q.toLowerCase().includes('lunas')) {
+                    filter = 'paid';
+                } else if (q && q.toLowerCase().includes('belum')) {
+                    filter = 'unpaid';
+                }
+                
+                const { handleListUsers } = require('./handlers/admin-handler');
+                const result = handleListUsers({ filter });
+                return reply(result.message);
+            }
             case 'GANTI_NAMA_WIFI': {
                 await handleGantiNamaWifi({
         sender,

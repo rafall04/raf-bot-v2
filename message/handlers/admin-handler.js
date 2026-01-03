@@ -104,33 +104,31 @@ function handleListUsers({ filter = null }) {
             };
         }
         
-        // Sort by name
-        users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        // Sort by ID
+        users.sort((a, b) => (a.id || 0) - (b.id || 0));
         
-        let message = `📋 *Daftar Pelanggan*\n`;
+        let message = `📋 *DAFTAR PELANGGAN*\n`;
         message += `Total: ${users.length} pelanggan\n\n`;
         
         // Limit display to prevent too long message
-        const maxDisplay = 20;
+        const maxDisplay = 25;
         const displayUsers = users.slice(0, maxDisplay);
         
-        displayUsers.forEach((user, index) => {
+        displayUsers.forEach((user) => {
             const statusEmoji = user.paid ? '✅' : '❌';
-            const phoneNumber = user.phone_number ? user.phone_number.split('|')[0] : 'N/A';
-            message += `${index + 1}. ${statusEmoji} *${user.name}*\n`;
-            message += `   📱 ${phoneNumber}\n`;
-            message += `   📦 ${user.subscription || user.package || 'N/A'}\n`;
-            if (user.device_id) {
-                message += `   🔧 ${user.device_id}\n`;
-            }
-            message += '\n';
+            message += `${statusEmoji} *ID ${user.id}* - ${user.name}\n`;
         });
         
         if (users.length > maxDisplay) {
-            message += `... dan ${users.length - maxDisplay} pelanggan lainnya.\n`;
+            message += `\n... dan ${users.length - maxDisplay} pelanggan lainnya.\n`;
         }
         
-        message += `\n✅ = Sudah Bayar | ❌ = Belum Bayar`;
+        message += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `✅ = Sudah Bayar | ❌ = Belum Bayar\n\n`;
+        message += `💡 *Tips:*\n`;
+        message += `• Ketik *cari [nama]* untuk detail\n`;
+        message += `• Ketik *ganti sandi wifi [ID] [password]*\n`;
+        message += `• Ketik *ganti nama wifi [ID] [nama]*`;
         
         return {
             success: true,
@@ -166,7 +164,8 @@ function handleSearchUser({ query }) {
             const nameMatch = user.name && user.name.toLowerCase().includes(searchQuery);
             const phoneMatch = user.phone_number && user.phone_number.includes(searchQuery);
             const deviceMatch = user.device_id && user.device_id.toLowerCase().includes(searchQuery);
-            return nameMatch || phoneMatch || deviceMatch;
+            const idMatch = user.id && String(user.id) === searchQuery;
+            return nameMatch || phoneMatch || deviceMatch || idMatch;
         });
         
         if (results.length === 0) {
@@ -176,20 +175,28 @@ function handleSearchUser({ query }) {
             };
         }
         
-        let message = `🔍 *Hasil Pencarian untuk "${query}"*\n`;
+        let message = `🔍 *HASIL PENCARIAN: "${query}"*\n`;
         message += `Ditemukan: ${results.length} pelanggan\n\n`;
         
-        results.forEach((user, index) => {
+        results.forEach((user) => {
             const statusEmoji = user.paid ? '✅' : '❌';
             const phoneNumber = user.phone_number ? user.phone_number.split('|')[0] : 'N/A';
-            message += `${index + 1}. ${statusEmoji} *${user.name}*\n`;
-            message += `   📱 ${phoneNumber}\n`;
-            message += `   📦 ${user.subscription || user.package || 'N/A'}\n`;
+            message += `━━━━━━━━━━━━━━━━━━━━\n`;
+            message += `${statusEmoji} *ID ${user.id}* - ${user.name}\n`;
+            message += `📱 HP: ${phoneNumber}\n`;
+            message += `📦 Paket: ${user.subscription || 'N/A'}\n`;
+            message += `💰 Status: ${user.paid ? 'Sudah Bayar' : 'Belum Bayar'}\n`;
             if (user.device_id) {
-                message += `   🔧 ${user.device_id}\n`;
+                message += `🔧 Device: ${user.device_id}\n`;
             }
             message += '\n';
         });
+        
+        message += `━━━━━━━━━━━━━━━━━━━━\n`;
+        message += `💡 *Gunakan ID untuk:*\n`;
+        message += `• *ganti sandi wifi ${results[0]?.id || '[ID]'} [password]*\n`;
+        message += `• *ganti nama wifi ${results[0]?.id || '[ID]'} [nama]*\n`;
+        message += `• *cek wifi ${results[0]?.id || '[ID]'}*`;
         
         return {
             success: true,
