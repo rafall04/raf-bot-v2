@@ -132,6 +132,11 @@ router.get('/buka-isolir', checkRole(['admin', 'owner', 'superadmin']), (req, re
     res.render('sb-admin/buka-isolir.php');
 });
 
+// Sync Device ID page - ADMIN ONLY
+router.get('/sync-device-id', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/sync-device-id.php');
+});
+
 // Working Hours page
 router.get('/teknisi-working-hours', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/teknisi-working-hours.php');

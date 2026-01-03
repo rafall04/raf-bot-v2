@@ -869,4 +869,240 @@ router.post('/sync-profiles', ensureAdmin, async (req, res) => {
     }
 });
 
+// GET /api/users/device-id-diff - Scan device ID differences between system and GenieACS
+router.get('/device-id-diff', ensureAdmin, async (req, res) => {
+    try {
+        console.log('[DEVICE_ID_DIFF] Starting scan...');
+        
+        if (!global.config?.genieacsBaseUrl) {
+            return res.status(400).json({
+                status: 400,
+                message: 'GenieACS tidak dikonfigurasi'
+            });
+        }
+        
+        const axios = require('axios');
+        
+        // Fetch all devices from GenieACS with PPP username info
+        const projectionFields = '_id,Device.DeviceInfo,InternetGatewayDevice.DeviceInfo,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username,Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username';
+        
+        let genieacsDevices = [];
+        try {
+            const response = await axios.get(`${global.config.genieacsBaseUrl}/devices/`, {
+                params: {
+                    projection: projectionFields,
+                    limit: 1000
+                },
+                timeout: 30000
+            });
+            genieacsDevices = response.data || [];
+        } catch (err) {
+            console.error('[DEVICE_ID_DIFF] Failed to fetch GenieACS devices:', err.message);
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal mengambil data dari GenieACS: ' + err.message
+            });
+        }
+        
+        console.log(`[DEVICE_ID_DIFF] Fetched ${genieacsDevices.length} devices from GenieACS`);
+        
+        // Create map of pppUsername -> device info
+        const pppToDeviceMap = new Map();
+        for (const device of genieacsDevices) {
+            const deviceId = device._id;
+            
+            // Get PPP username
+            const pppUsername = device.InternetGatewayDevice?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value ||
+                               device.Device?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value ||
+                               null;
+            
+            if (pppUsername) {
+                // Get model info
+                const model = device.InternetGatewayDevice?.DeviceInfo?.ModelName?._value ||
+                             device.Device?.DeviceInfo?.ModelName?._value ||
+                             device.InternetGatewayDevice?.DeviceInfo?.ProductClass?._value ||
+                             device.Device?.DeviceInfo?.ProductClass?._value ||
+                             '-';
+                
+                const serialNumber = device.InternetGatewayDevice?.DeviceInfo?.SerialNumber?._value ||
+                                    device.Device?.DeviceInfo?.SerialNumber?._value ||
+                                    deviceId;
+                
+                pppToDeviceMap.set(pppUsername.toLowerCase(), {
+                    deviceId: deviceId,
+                    model: model,
+                    serialNumber: serialNumber
+                });
+            }
+        }
+        
+        console.log(`[DEVICE_ID_DIFF] Found ${pppToDeviceMap.size} devices with PPP username`);
+        
+        // Find differences
+        const different = [];
+        let sameCount = 0;
+        let notFoundCount = 0;
+        
+        for (const user of global.users) {
+            if (!user.pppoe_username) continue;
+            
+            const genieDevice = pppToDeviceMap.get(user.pppoe_username.toLowerCase());
+            
+            if (!genieDevice) {
+                // User's PPPoE not found in any GenieACS device
+                notFoundCount++;
+                continue;
+            }
+            
+            // Compare device IDs
+            if (user.device_id !== genieDevice.deviceId) {
+                different.push({
+                    id: user.id,
+                    name: user.name,
+                    pppoe_username: user.pppoe_username,
+                    old_device_id: user.device_id || null,
+                    new_device_id: genieDevice.deviceId,
+                    model: genieDevice.model,
+                    serial_number: genieDevice.serialNumber
+                });
+            } else {
+                sameCount++;
+            }
+        }
+        
+        console.log(`[DEVICE_ID_DIFF] Results: ${different.length} different, ${sameCount} same, ${notFoundCount} not found`);
+        
+        return res.json({
+            status: 200,
+            message: `Ditemukan ${different.length} pelanggan dengan Device ID berbeda`,
+            data: different,
+            stats: {
+                total: global.users.filter(u => u.pppoe_username).length,
+                different: different.length,
+                same: sameCount,
+                notFound: notFoundCount
+            }
+        });
+        
+    } catch (error) {
+        console.error('[DEVICE_ID_DIFF_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal melakukan scan Device ID',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/users/sync-device-ids - Sync device IDs for selected users
+router.post('/sync-device-ids', ensureAdmin, async (req, res) => {
+    try {
+        const { items } = req.body;
+        
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tidak ada data untuk disinkronkan'
+            });
+        }
+        
+        const results = {
+            success: [],
+            failed: []
+        };
+        
+        for (const item of items) {
+            const { userId, newDeviceId } = item;
+            
+            const user = global.users.find(u => u.id === userId);
+            if (!user) {
+                results.failed.push({
+                    userId: userId,
+                    reason: 'Pelanggan tidak ditemukan'
+                });
+                continue;
+            }
+            
+            const oldDeviceId = user.device_id;
+            
+            try {
+                // Update in database
+                await new Promise((resolve, reject) => {
+                    global.db.run(
+                        'UPDATE users SET device_id = ?, updated_at = ? WHERE id = ?',
+                        [newDeviceId, new Date().toISOString(), userId],
+                        function(err) {
+                            if (err) reject(err);
+                            else resolve();
+                        }
+                    );
+                });
+                
+                // Update in memory
+                user.device_id = newDeviceId;
+                user.updated_at = new Date().toISOString();
+                
+                results.success.push({
+                    userId: userId,
+                    name: user.name,
+                    oldDeviceId: oldDeviceId,
+                    newDeviceId: newDeviceId
+                });
+                
+                console.log(`[SYNC_DEVICE_ID] Updated ${user.name}: ${oldDeviceId} -> ${newDeviceId}`);
+                
+            } catch (err) {
+                console.error(`[SYNC_DEVICE_ID] Failed for user ${userId}:`, err.message);
+                results.failed.push({
+                    userId: userId,
+                    name: user.name,
+                    reason: err.message
+                });
+            }
+        }
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'user',
+                resourceId: 'sync-device-ids',
+                resourceName: 'Sync Device IDs',
+                description: `Synced Device ID for ${results.success.length} users (${results.failed.length} failed)`,
+                oldValue: null,
+                newValue: {
+                    successCount: results.success.length,
+                    failedCount: results.failed.length,
+                    users: results.success.map(u => ({ name: u.name, old: u.oldDeviceId, new: u.newDeviceId }))
+                },
+                ipAddress: req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[SYNC_DEVICE_ID] Activity log error:', logErr);
+        }
+        
+        const message = results.success.length > 0
+            ? `Berhasil update ${results.success.length} Device ID${results.failed.length > 0 ? `, ${results.failed.length} gagal` : ''}`
+            : 'Gagal update semua Device ID';
+        
+        return res.json({
+            status: results.success.length > 0 ? 200 : 500,
+            message,
+            results
+        });
+        
+    } catch (error) {
+        console.error('[SYNC_DEVICE_ID_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal melakukan sinkronisasi Device ID',
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;

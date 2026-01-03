@@ -58,12 +58,12 @@ function isParentActive($pages, $current) {
 
     <hr class="sidebar-divider">
 
-    <li class="nav-item <?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir'], $current_page) ? 'active' : ''; ?>">
-        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePelanggan" aria-expanded="<?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapsePelanggan">
+    <li class="nav-item <?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir', '/sync-device-id'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePelanggan" aria-expanded="<?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir', '/sync-device-id'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapsePelanggan">
             <i class="fas fa-fw fa-users"></i>
             <span>Pelanggan</span>
         </a>
-        <div id="collapsePelanggan" class="collapse <?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingPelanggan" data-parent="#accordionSidebar">
+        <div id="collapsePelanggan" class="collapse <?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir', '/sync-device-id'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingPelanggan" data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/users', $current_page) ? 'active' : ''; ?>" href="/users">
                     <i class="fas fa-fw fa-user mr-2"></i>
@@ -76,6 +76,10 @@ function isParentActive($pages, $current) {
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/buka-isolir', $current_page) ? 'active' : ''; ?>" href="/buka-isolir">
                     <i class="fas fa-fw fa-unlock mr-2"></i>
                     <span>Buka Isolir</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/sync-device-id', $current_page) ? 'active' : ''; ?>" href="/sync-device-id">
+                    <i class="fas fa-fw fa-sync mr-2"></i>
+                    <span>Sync Device ID</span>
                 </a>
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/packages', $current_page) ? 'active' : ''; ?>" href="/packages">
                     <i class="fas fa-fw fa-box-open mr-2"></i>
