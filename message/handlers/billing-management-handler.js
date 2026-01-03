@@ -12,13 +12,20 @@ const { getUserState, setUserState, deleteUserState } = require('./conversation-
  */
 async function handleCekTagihan({ plainSenderNumber, pushname, reply, mess, global, renderTemplate, msg, raf, sender }) {
     try {
-        // 1. Find user with @lid support
-        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let phoneNumber = plainSenderNumber;
         
-        // Handle @lid users who need verification
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender && sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            phoneNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
+        
+        // 1. Find user with @lid support
+        const user = await findUserWithLidSupport(global.users, msg, phoneNumber, raf);
+        
+        // Handle @lid users - no manual verification needed
         if (!user && sender && sender.includes('@lid')) {
-            const verification = createLidVerification(plainSenderNumber, global.users);
-            return reply(verification.message);
+            return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
         }
 
         if (!user) {
@@ -62,13 +69,20 @@ async function handleCekTagihan({ plainSenderNumber, pushname, reply, mess, glob
  */
 async function handleUbahPaket({ plainSenderNumber, reply, mess, global, temp, msg, raf, sender }) {
     try {
-        // Find user with @lid support
-        const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let phoneNumber = plainSenderNumber;
         
-        // Handle @lid users who need verification
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender && sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            phoneNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
+        
+        // Find user with @lid support
+        const user = await findUserWithLidSupport(global.users, msg, phoneNumber, raf);
+        
+        // Handle @lid users - no manual verification needed
         if (!user && sender && sender.includes('@lid')) {
-            const verification = createLidVerification(plainSenderNumber, global.users);
-            return reply(verification.message);
+            return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
         }
         
         if (!user) {

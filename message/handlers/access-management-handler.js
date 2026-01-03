@@ -3,20 +3,26 @@
  * Menangani pengelolaan akses nomor telepon untuk bot
  */
 
-const { findUserWithLidSupport, createLidVerification } = require('../../lib/lid-handler');
+const { findUserWithLidSupport } = require('../../lib/lid-handler');
 
 /**
  * Handle access management
  */
 async function handleAccessManagement({ sender, args, users, reply, global, db, msg, raf }) {
+    // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+    let plainSenderNumber = sender.split('@')[0];
+    
+    // Check remoteJidAlt first for @lid format (auto-detection)
+    if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+        plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+    }
+    
     // Use LID-aware user finder
-    const plainSenderNumber = sender.split('@')[0];
     const user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
     
-    // Handle @lid users who need verification
+    // Handle @lid users - no manual verification needed
     if (!user && sender.includes('@lid')) {
-        const verification = createLidVerification(plainSenderNumber, users);
-        throw verification.message;
+        throw `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`;
     }
     
     if (!user) {

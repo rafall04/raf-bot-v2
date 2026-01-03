@@ -28,16 +28,21 @@ function generateTicketId(length = 7) {
  */
 async function handleDirectMatiReport({ sender, pushname, reply, msg, raf }) {
     try {
-        // Check user registration with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
+        
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
-        // Handle @lid users who need verification
+        // Handle @lid users - no manual verification needed
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
             return {
                 success: false,
-                message: verification.message
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`
             };
         }
         
@@ -129,16 +134,21 @@ async function handleDirectMatiReport({ sender, pushname, reply, msg, raf }) {
  */
 async function handleDirectLemotReport({ sender, pushname, reply, msg, raf }) {
     try {
-        // Check user registration with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
+        
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
-        // Handle @lid users who need verification
+        // Handle @lid users - no manual verification needed
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
             return {
                 success: false,
-                message: verification.message
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`
             };
         }
         

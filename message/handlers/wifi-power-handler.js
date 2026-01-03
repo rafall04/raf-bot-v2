@@ -18,19 +18,21 @@ async function handleGantiPowerWifi({ sender, args, q, isOwner, isTeknisi, users
         if ((isOwner || isTeknisi) && providedId && !isNaN(parseInt(providedId))) {
             user = users.find(v => v.id == providedId);
         } else {
-            // Gunakan lid-handler untuk mencari user (mendukung format @lid)
-            const plainSenderNumber = sender.split('@')[0];
+            // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+            let plainSenderNumber = sender.split('@')[0];
+            
+            // Check remoteJidAlt first for @lid format (auto-detection)
+            if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+                plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+                console.log('[GANTI_POWER_WIFI] Auto-detected phone from remoteJidAlt:', plainSenderNumber);
+            }
+            
             user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
             
-            // Debug logging untuk format @lid
+            // If still not found for @lid, show error (no manual verification needed)
             if (sender.includes('@lid') && !user) {
                 console.log('[GANTI_POWER_WIFI] @lid format detected, user not found');
-                console.log('[GANTI_POWER_WIFI] Sender:', sender);
-                // Berikan instruksi verifikasi
-                const { createLidVerification } = require('../../lib/lid-handler');
-                const lidId = sender.split('@')[0];
-                const verification = createLidVerification(lidId, users);
-                return reply(verification.message);
+                return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
             }
         }
         

@@ -6,19 +6,21 @@ const { findUserWithLidSupport } = require('../../lib/lid-handler');
  */
 async function handleHistoryWifi(sender, reply, global, msg, raf) {
     try {
-        // Gunakan lid-handler untuk mencari user (mendukung format @lid)
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+            console.log('[HISTORY_WIFI] Auto-detected phone from remoteJidAlt:', plainSenderNumber);
+        }
+        
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
-        // Debug logging untuk format @lid
+        // If still not found for @lid, show error (no manual verification needed)
         if (sender.includes('@lid') && !user) {
             console.log('[HISTORY_WIFI] @lid format detected, user not found');
-            console.log('[HISTORY_WIFI] Sender:', sender);
-            // Berikan instruksi verifikasi
-            const { createLidVerification } = require('../../lib/lid-handler');
-            const lidId = sender.split('@')[0];
-            const verification = createLidVerification(lidId, global.users);
-            return reply(verification.message);
+            return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
         }
         
         if (!user) {

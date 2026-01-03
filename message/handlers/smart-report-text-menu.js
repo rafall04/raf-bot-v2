@@ -27,14 +27,23 @@ function generateTicketId(length = 7) {
  */
 async function startReportFlow({ sender, pushname, reply, msg, raf }) {
     try {
-        // Check if user is registered with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+            console.log('[REPORT_FLOW] Auto-detected phone from remoteJidAlt:', plainSenderNumber);
+        }
+        
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
-        // Handle @lid users who need verification
+        // Handle @lid users - no manual verification needed
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
-            return { success: false, message: verification.message };
+            return { 
+                success: false, 
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.` 
+            };
         }
         
         if (!user) {
@@ -148,13 +157,21 @@ Silakan balas dengan:
  */
 async function handleInternetMati({ sender, pushname, reply, msg, raf }) {
     try {
-        // Get user data with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
+        
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
-            return { success: false, message: verification.message };
+            return { 
+                success: false, 
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.` 
+            };
         }
         
         if (!user) {
@@ -245,13 +262,21 @@ async function handleInternetMati({ sender, pushname, reply, msg, raf }) {
  */
 async function handleInternetLemot({ sender, pushname, reply, msg, raf }) {
     try {
-        // Get user data with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
+        
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
-            return { success: false, message: verification.message };
+            return { 
+                success: false, 
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.` 
+            };
         }
         
         if (!user) {

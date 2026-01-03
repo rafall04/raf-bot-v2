@@ -30,20 +30,24 @@ function generateTicketId(length = 7) {
  */
 async function handleGangguanMati({ sender, pushname, userPelanggan, reply, findUserByPhone, msg, raf }) {
     try {
-        // Find user with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
         
         // Use LID-aware user finder
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
         console.log(`[USER_SEARCH] Sender: ${sender}, Found: ${user ? user.name : 'NOT FOUND'}`);
         
-        // Handle @lid users who need verification
+        // Handle @lid users - no manual verification needed
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
             return {
                 success: false,
-                message: verification.message
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`
             };
         }
         
@@ -315,20 +319,24 @@ Balas dengan *angka* (1/2/3/0)`;
  */
 async function handleGangguanLemot({ sender, pushname, userPelanggan, reply, findUserByPhone, msg, raf }) {
     try {
-        // Find user with @lid support
-        const plainSenderNumber = sender.split('@')[0];
+        // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+        let plainSenderNumber = sender.split('@')[0];
+        
+        // Check remoteJidAlt first for @lid format (auto-detection)
+        if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+            plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        }
         
         // Use LID-aware user finder
         const user = await findUserWithLidSupport(global.users, msg, plainSenderNumber, raf);
         
         console.log(`[USER_SEARCH] Sender: ${sender}, Found: ${user ? user.name : 'NOT FOUND'}`);
         
-        // Handle @lid users who need verification
+        // Handle @lid users - no manual verification needed
         if (!user && sender.includes('@lid')) {
-            const verification = createLidVerification(sender.split('@')[0], global.users);
             return {
                 success: false,
-                message: verification.message
+                message: `❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`
             };
         }
         

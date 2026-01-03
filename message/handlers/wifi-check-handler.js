@@ -14,7 +14,15 @@ const { findUserWithLidSupport } = require('../../lib/lid-handler');
  * Handle cek WiFi status
  */
 async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users, reply, global, mess, msg, raf }) {
-    const plainSenderNumber = sender.split('@')[0];
+    // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+    let plainSenderNumber = sender.split('@')[0];
+    
+    // Check remoteJidAlt first for @lid format (auto-detection)
+    if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+        plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        console.log('[CEK_WIFI] Auto-detected phone from remoteJidAlt:', plainSenderNumber);
+    }
+    
     let user;
     let searchMode = 'direct'; // 'direct', 'by_id', 'by_name'
     let searchQuery = null;
@@ -53,21 +61,11 @@ async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users
             console.log('[CEK_WIFI_DEBUG] No user found for phone/LID:', plainSenderNumber);
             console.log('[CEK_WIFI_DEBUG] Sender format:', sender);
             
-            // Check if it's @lid format and provide verification instructions
+            // Check if it's @lid format - no manual verification needed
             if (sender.includes('@lid')) {
-                console.log('[CEK_WIFI_DEBUG] This is @lid format - WhatsApp privacy mode');
-                const { createLidVerification } = require('../../lib/lid-handler');
-                const lidId = sender.split('@')[0];
-                const verification = createLidVerification(lidId, users);
-                return reply(verification.message);
+                console.log('[CEK_WIFI_DEBUG] This is @lid format - user not registered');
+                return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
             }
-            
-            console.log('[CEK_WIFI_DEBUG] Sample phone formats in DB:');
-            users.slice(0, 3).forEach((u, i) => {
-                if (u.phone_number) {
-                    console.log(`  User ${i+1}:`, u.phone_number);
-                }
-            });
         }
     }
 
