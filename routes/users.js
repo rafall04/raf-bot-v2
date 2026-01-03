@@ -154,6 +154,9 @@ router.post('/bulk-import', ensureAdmin, async (req, res) => {
     try {
         const { users: usersToImport, defaultSettings } = req.body;
         
+        // DEBUG: Log defaultSettings yang diterima dari frontend
+        console.log(`[BULK_IMPORT_DEBUG] Received defaultSettings:`, JSON.stringify(defaultSettings));
+        
         if (!usersToImport || !Array.isArray(usersToImport) || usersToImport.length === 0) {
             return res.status(400).json({
                 status: 400,
@@ -303,6 +306,14 @@ router.post('/bulk-import', ensureAdmin, async (req, res) => {
                 
                 // Add to global.users
                 global.users.push(newUser);
+                
+                // DEBUG: Log semua kondisi untuk notifikasi
+                console.log(`[BULK_IMPORT_DEBUG] User: ${newUser.pppoe_username}`);
+                console.log(`[BULK_IMPORT_DEBUG] - settings.send_psb_welcome: ${settings.send_psb_welcome}`);
+                console.log(`[BULK_IMPORT_DEBUG] - newUser.phone_number: "${newUser.phone_number}"`);
+                console.log(`[BULK_IMPORT_DEBUG] - global.raf exists: ${!!global.raf}`);
+                console.log(`[BULK_IMPORT_DEBUG] - global.whatsappConnectionState: ${global.whatsappConnectionState}`);
+                console.log(`[BULK_IMPORT_DEBUG] - templatesCache.notificationTemplates?.import_welcome exists: ${!!templatesCache.notificationTemplates?.import_welcome}`);
                 
                 // Send Import Welcome message if enabled
                 if (settings.send_psb_welcome && newUser.phone_number && global.raf) {
