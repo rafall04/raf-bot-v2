@@ -13,7 +13,7 @@ const { findUserWithLidSupport } = require('../../lib/lid-handler');
 /**
  * Handle cek WiFi status
  */
-async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users, reply, global, mess, msg, raf }) {
+async function handleCekWifi({ sender, args, matchedKeywordLength, isOwner, isTeknisi, pushname, users, reply, global, mess, msg, raf }) {
     // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
     let plainSenderNumber = sender.split('@')[0];
     
@@ -28,24 +28,30 @@ async function handleCekWifi({ sender, args, isOwner, isTeknisi, pushname, users
     let searchQuery = null;
     let providedId = null;
     
+    // Use matchedKeywordLength to determine where the actual arguments start
+    // Example: "cek wifi 10" -> keyword is "cek wifi" (2 words), so ID is at args[2]
+    const keywordLength = matchedKeywordLength || 2; // Default to 2 for "cek wifi"
+    
     // Debug logging
     console.log('[CEK_WIFI_DEBUG] Sender:', sender);
     console.log('[CEK_WIFI_DEBUG] PlainSenderNumber:', plainSenderNumber);
     console.log('[CEK_WIFI_DEBUG] Users count:', users.length);
     console.log('[CEK_WIFI_DEBUG] isOwner:', isOwner, 'isTeknisi:', !!isTeknisi);
     console.log('[CEK_WIFI_DEBUG] Args:', args);
+    console.log('[CEK_WIFI_DEBUG] matchedKeywordLength:', matchedKeywordLength);
+    console.log('[CEK_WIFI_DEBUG] keywordLength:', keywordLength);
     
     // Priority 1: Admin/Teknisi providing an ID
-    if ((isOwner || isTeknisi) && args.length >= 2 && !isNaN(parseInt(args[1], 10))) {
+    if ((isOwner || isTeknisi) && args.length > keywordLength && !isNaN(parseInt(args[keywordLength], 10))) {
         searchMode = 'by_id';
-        providedId = args[1];
+        providedId = args[keywordLength];
         user = users.find(v => v.id == providedId);
         console.log('[CEK_WIFI_DEBUG] Search by ID:', providedId, 'Found:', !!user);
     } 
     // Priority 2: Admin/Teknisi providing a name to search
-    else if ((isOwner || isTeknisi) && args.length >= 2 && isNaN(parseInt(args[1], 10))) {
+    else if ((isOwner || isTeknisi) && args.length > keywordLength && isNaN(parseInt(args[keywordLength], 10))) {
         searchMode = 'by_name';
-        searchQuery = args.slice(1).join(' ').toLowerCase().trim();
+        searchQuery = args.slice(keywordLength).join(' ').toLowerCase().trim();
         user = users.find(v => v.name && v.name.toLowerCase().includes(searchQuery));
         console.log('[CEK_WIFI_DEBUG] Search by name:', searchQuery, 'Found:', !!user);
     }

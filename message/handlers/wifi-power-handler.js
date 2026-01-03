@@ -9,14 +9,29 @@ const { findUserWithLidSupport } = require('../../lib/lid-handler');
 /**
  * Handle WiFi power change
  */
-async function handleGantiPowerWifi({ sender, args, q, isOwner, isTeknisi, users, reply, global, mess, msg, raf }) {
+async function handleGantiPowerWifi({ sender, args, matchedKeywordLength, q, isOwner, isTeknisi, users, reply, global, mess, msg, raf }) {
     try {
         let user;
-        const providedId = args[1];
+        
+        // Use matchedKeywordLength to determine where the actual arguments start
+        // Example: "ganti power wifi 10 80" -> keyword is "ganti power wifi" (3 words), so ID is at args[3]
+        const keywordLength = matchedKeywordLength || 3; // Default to 3 for "ganti power wifi"
+        
+        // Check if admin/teknisi is providing an ID
+        const potentialId = args[keywordLength];
+        const providedId = (isOwner || isTeknisi) && potentialId && !isNaN(parseInt(potentialId, 10)) ? potentialId : null;
+        
+        console.log('[WIFI_POWER_DEBUG] Args:', args);
+        console.log('[WIFI_POWER_DEBUG] matchedKeywordLength:', matchedKeywordLength);
+        console.log('[WIFI_POWER_DEBUG] keywordLength:', keywordLength);
+        console.log('[WIFI_POWER_DEBUG] potentialId:', potentialId);
+        console.log('[WIFI_POWER_DEBUG] providedId:', providedId);
         
         // Admin/Teknisi dapat menyebutkan ID pelanggan
-        if ((isOwner || isTeknisi) && providedId && !isNaN(parseInt(providedId))) {
+        if (providedId) {
             user = users.find(v => v.id == providedId);
+            // Power value is after the ID
+            q = args.slice(keywordLength + 1).join(' ').trim();
         } else {
             // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
             let plainSenderNumber = sender.split('@')[0];
@@ -34,6 +49,9 @@ async function handleGantiPowerWifi({ sender, args, q, isOwner, isTeknisi, users
                 console.log('[GANTI_POWER_WIFI] @lid format detected, user not found');
                 return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
             }
+            
+            // Power value is after the keyword
+            q = args.slice(keywordLength).join(' ').trim();
         }
         
         if (!user) {

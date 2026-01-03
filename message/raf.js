@@ -1244,11 +1244,21 @@ Apakah perbaikan sudah selesai dan data di atas sudah benar?
             }
         }
         
+        // Calculate qAfterKeyword - arguments after the matched keyword
+        // Example: "cek wifi 10" with matchedKeywordLength=2 -> qAfterKeyword="10"
+        // Example: "cari budi" with matchedKeywordLength=1 -> qAfterKeyword="budi"
+        let qAfterKeyword = '';
+        if (matchedKeywordLength > 0) {
+            qAfterKeyword = args.slice(matchedKeywordLength).join(' ').trim();
+        } else {
+            qAfterKeyword = q; // Fallback to original q
+        }
+        
         if (intent === 'LAPOR_GANGGUAN_MATI' && command !== 'lapor') {
             intent = undefined;
         }
         
-        console.log(`[INTENT_DEBUG] Final intent: ${intent} for message: "${chats}"`);
+        console.log(`[INTENT_DEBUG] Final intent: ${intent} for message: "${chats}", matchedKeywordLength: ${matchedKeywordLength}, qAfterKeyword: "${qAfterKeyword}"`);
 
         switch (intent) {
             case 'MULAI_BERTANYA': {
@@ -1826,7 +1836,8 @@ atau ketik:
                     return reply(mess.teknisiOrOwnerOnly);
                 }
                 
-                const searchQuery = q && q.trim() ? q.trim() : '';
+                // Use qAfterKeyword instead of q for correct argument parsing
+                const searchQuery = qAfterKeyword && qAfterKeyword.trim() ? qAfterKeyword.trim() : '';
                 if (!searchQuery) {
                     return reply(`🔍 *CARI PELANGGAN*\n\nFormat: *cari [nama/nomor/ID]*\n\nContoh:\n• cari Budi\n• cari 08123456789\n• cari 15`);
                 }
@@ -1840,10 +1851,11 @@ atau ketik:
                     return reply(mess.teknisiOrOwnerOnly);
                 }
                 
+                // Use qAfterKeyword instead of q for correct argument parsing
                 let filter = null;
-                if (q && q.toLowerCase().includes('lunas')) {
+                if (qAfterKeyword && qAfterKeyword.toLowerCase().includes('lunas')) {
                     filter = 'paid';
-                } else if (q && q.toLowerCase().includes('belum')) {
+                } else if (qAfterKeyword && qAfterKeyword.toLowerCase().includes('belum')) {
                     filter = 'unpaid';
                 }
                 
@@ -1889,6 +1901,7 @@ atau ketik:
                 await handleGantiPowerWifi({
                     sender,
                     args,
+                    matchedKeywordLength,
                     q,
                     isOwner,
                     isTeknisi,
@@ -1920,6 +1933,7 @@ atau ketik:
                 await handleCekWifi({
         sender,
         args,
+        matchedKeywordLength,
         isOwner,
         isTeknisi,
         pushname,
