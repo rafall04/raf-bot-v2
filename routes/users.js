@@ -307,29 +307,46 @@ router.post('/bulk-import', ensureAdmin, async (req, res) => {
                 // Send Import Welcome message if enabled
                 if (settings.send_psb_welcome && newUser.phone_number && global.raf) {
                     try {
-                        // Get import welcome template (for existing customers being registered)
-                        if (templatesCache.notificationTemplates?.import_welcome) {
-                            const templateData = {
-                                nama_pelanggan: newUser.name,
-                                nama_paket: newUser.subscription || '-',
-                                nama_wifi: global.config?.nama || 'RAF NET',
-                                nama_bot: global.config?.namabot || 'RAF NET BOT'
-                            };
-                            
-                            const message = renderTemplate('import_welcome', templateData);
-                            
-                            if (message) {
-                                // Handle multiple phone numbers (separated by |)
-                                const phones = newUser.phone_number.split('|').filter(p => p.trim());
-                                for (const phone of phones) {
-                                    const normalizedPhone = normalizePhoneNumber(phone.trim());
-                                    if (normalizedPhone) {
-                                        await global.raf.sendMessage(`${normalizedPhone}@s.whatsapp.net`, { text: message });
-                                        console.log(`[BULK_IMPORT] Import Welcome sent to ${normalizedPhone} for user ${newUser.pppoe_username}`);
-                                        // Small delay between messages
-                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        // PENTING: Cek WhatsApp connection state sebelum mengirim
+                        if (global.whatsappConnectionState !== 'open') {
+                            console.warn(`[BULK_IMPORT] WhatsApp not connected (state: ${global.whatsappConnectionState}), skipping notification for ${newUser.pppoe_username}`);
+                        } else if (!global.raf.sendMessage) {
+                            console.warn(`[BULK_IMPORT] WhatsApp sendMessage not available, skipping notification for ${newUser.pppoe_username}`);
+                        } else {
+                            // Get import welcome template (for existing customers being registered)
+                            if (templatesCache.notificationTemplates?.import_welcome) {
+                                const templateData = {
+                                    nama_pelanggan: newUser.name,
+                                    nama_paket: newUser.subscription || '-',
+                                    nama_wifi: global.config?.nama || 'RAF NET',
+                                    nama_bot: global.config?.namabot || 'RAF NET BOT'
+                                };
+                                
+                                const message = renderTemplate('import_welcome', templateData);
+                                
+                                if (message) {
+                                    // Handle multiple phone numbers (separated by |)
+                                    const phones = newUser.phone_number.split('|').filter(p => p.trim());
+                                    for (const phone of phones) {
+                                        const normalizedPhone = normalizePhoneNumber(phone.trim());
+                                        if (normalizedPhone) {
+                                            try {
+                                                await global.raf.sendMessage(`${normalizedPhone}@s.whatsapp.net`, { text: message });
+                                                console.log(`[BULK_IMPORT] Import Welcome sent to ${normalizedPhone} for user ${newUser.pppoe_username}`);
+                                                // Small delay between messages
+                                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                            } catch (sendErr) {
+                                                console.error(`[BULK_IMPORT] Failed to send message to ${normalizedPhone}:`, sendErr.message);
+                                            }
+                                        } else {
+                                            console.warn(`[BULK_IMPORT] Invalid phone number format: ${phone}`);
+                                        }
                                     }
+                                } else {
+                                    console.warn(`[BULK_IMPORT] Template import_welcome rendered empty for ${newUser.pppoe_username}`);
                                 }
+                            } else {
+                                console.warn(`[BULK_IMPORT] Template import_welcome not found in templatesCache`);
                             }
                         }
                     } catch (msgErr) {
@@ -380,10 +397,18 @@ router.post('/bulk-import', ensureAdmin, async (req, res) => {
         
         console.log(`[BULK_IMPORT] User ${req.user.username} imported ${results.success.length} users (${results.failed.length} failed)`);
         
+        // Tambahkan info status WhatsApp untuk debugging
+        const whatsappStatus = {
+            connected: global.whatsappConnectionState === 'open',
+            state: global.whatsappConnectionState || 'unknown',
+            sendPsbWelcomeEnabled: settings.send_psb_welcome
+        };
+        
         return res.json({
             status: 200,
             message: `Berhasil import ${results.success.length} pelanggan${results.failed.length > 0 ? `, ${results.failed.length} gagal` : ''}`,
-            results
+            results,
+            whatsappStatus
         });
         
     } catch (error) {

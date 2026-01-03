@@ -846,7 +846,12 @@
                 
                 // Find matching package
                 const matchedPkg = packages.find(p => p.profile && p.profile.toLowerCase() === (item.profile || '').toLowerCase());
-                const subscription = matchedPkg ? matchedPkg.name : item.profile;
+                const subscription = matchedPkg ? matchedPkg.name : '';
+                
+                // Warning jika profile tidak cocok
+                const profileWarning = !matchedPkg && item.profile 
+                    ? `<br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> Profile "${escapeHtml(item.profile)}" tidak ada di paket</small>` 
+                    : '';
                 
                 // Generate SSID checkboxes for this row
                 const ssidCheckboxes = generateRowSSIDCheckboxes(index, defaultSSID);
@@ -864,7 +869,10 @@
                             <span class="password-text" id="pwd-${index}">••••••</span>
                             <i class="fas fa-eye password-toggle ml-2" onclick="togglePassword(${index}, '${escapeHtml(item.password)}')"></i>
                         </td>
-                        <td><span class="badge badge-profile bg-primary text-white">${escapeHtml(item.profile || '-')}</span></td>
+                        <td>
+                            <span class="badge badge-profile bg-primary text-white">${escapeHtml(item.profile || '-')}</span>
+                            ${profileWarning}
+                        </td>
                         <td>${statusBadge}</td>
                         <td>
                             <input type="text" class="form-control input-name" data-index="${index}" 
@@ -1332,14 +1340,24 @@
                     // Get SSID/bulk for this specific row
                     const rowBulk = getRowSSIDArray(index);
                     
-                    // Find matching package
+                    // Find matching package by profile (case-insensitive)
                     const matchedPkg = packages.find(p => p.profile && p.profile.toLowerCase() === (item.profile || '').toLowerCase());
+                    
+                    // PENTING: Jika tidak ada paket yang cocok, tampilkan warning dan gunakan paket pertama sebagai fallback
+                    let subscriptionName = '';
+                    if (matchedPkg) {
+                        subscriptionName = matchedPkg.name;
+                    } else {
+                        // Fallback: gunakan paket pertama jika ada, atau kosongkan
+                        console.warn(`[IMPORT] Profile "${item.profile}" tidak ditemukan di packages. PPPoE: ${item.name}`);
+                        subscriptionName = packages.length > 0 ? packages[0].name : '';
+                    }
                     
                     usersToImport.push({
                         pppoe_username: item.name,
                         pppoe_password: item.password,
                         profile: item.profile,
-                        subscription: matchedPkg ? matchedPkg.name : item.profile,
+                        subscription: subscriptionName, // Selalu gunakan nama paket, bukan profile MikroTik
                         name: nameInput.value.trim(),
                         phone_number: phoneNumber,
                         device_id: deviceId,
@@ -1354,11 +1372,18 @@
                 return;
             }
             
+            // Cek apakah ada user dengan subscription kosong (profile tidak cocok)
+            const usersWithoutPackage = usersToImport.filter(u => !u.subscription || u.subscription === '');
+            let warningHtml = '';
+            if (usersWithoutPackage.length > 0) {
+                warningHtml = `<br><br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> <strong>${usersWithoutPackage.length}</strong> pelanggan memiliki profile yang tidak cocok dengan paket di sistem. Paket akan dikosongkan.</small>`;
+            }
+            
             // Confirm
             const confirm = await Swal.fire({
                 title: 'Konfirmasi Import',
-                html: `Anda akan mengimport <strong>${usersToImport.length}</strong> pelanggan.<br>Lanjutkan?`,
-                icon: 'question',
+                html: `Anda akan mengimport <strong>${usersToImport.length}</strong> pelanggan.${warningHtml}<br><br>Lanjutkan?`,
+                icon: usersWithoutPackage.length > 0 ? 'warning' : 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, Import',
                 cancelButtonText: 'Batal'
@@ -1394,6 +1419,18 @@
                             `<li>${f.pppoe_username}: ${f.reason}</li>`
                         ).join('');
                         message += `<br><br><small>Detail gagal:<ul class="text-left">${failedList}</ul></small>`;
+                    }
+                    
+                    // Tampilkan info WhatsApp jika send_psb_welcome dicentang
+                    if (result.whatsappStatus) {
+                        const waStatus = result.whatsappStatus;
+                        if (waStatus.sendPsbWelcomeEnabled) {
+                            if (waStatus.connected) {
+                                message += `<br><br><small class="text-success"><i class="fas fa-check-circle"></i> Notifikasi WhatsApp terkirim</small>`;
+                            } else {
+                                message += `<br><br><small class="text-warning"><i class="fas fa-exclamation-triangle"></i> WhatsApp tidak terkoneksi (${waStatus.state}), notifikasi tidak terkirim</small>`;
+                            }
+                        }
                     }
                     
                     await Swal.fire({
