@@ -1119,6 +1119,32 @@ Apakah perbaikan sudah selesai dan data di atas sudah benar?
 
         if (!chats || chats.trim() === '') return;
 
+        // Check WiFi input states using getUserState (consistent with wifi-management-handler)
+        const wifiState = getUserState(sender);
+        if (wifiState && wifiState.step) {
+            const wifiInputStates = [
+                'ASK_NEW_NAME_FOR_SINGLE',
+                'ASK_NEW_NAME_FOR_SINGLE_BULK',
+                'ASK_NEW_NAME_FOR_BULK',
+                'ASK_NEW_NAME_FOR_BULK_AUTO',
+                'ASK_NEW_PASSWORD',
+                'ASK_NEW_PASSWORD_BULK',
+                'ASK_NEW_PASSWORD_BULK_AUTO'
+            ];
+            
+            if (wifiInputStates.includes(wifiState.step)) {
+                if (chats.toLowerCase().trim() === 'batal') {
+                    deleteUserState(sender);
+                    reply(format('success_process_cancelled'));
+                    clearProcessing(sender);
+                    return;
+                }
+                
+                // Continue processing WiFi input (handled elsewhere)
+            }
+        }
+        
+        // Also check legacy temp state for backward compatibility
         if (temp[sender] && temp[sender].step) {
             const wifiInputStates = [
                 'ASK_NEW_NAME_FOR_SINGLE',
@@ -1134,6 +1160,7 @@ Apakah perbaikan sudah selesai dan data di atas sudah benar?
                 if (chats.toLowerCase().trim() === 'batal') {
                     delete temp[sender];
                     reply(format('success_process_cancelled'));
+                    clearProcessing(sender);
                     return;
                 }
                 

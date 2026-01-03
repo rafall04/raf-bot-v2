@@ -29,19 +29,23 @@ async function handleGantiNamaWifi({ sender, args, matchedKeywordLength, isOwner
         if (providedId) {
             user = users.find(v => v.id == providedId);
         } else {
-            const plainSenderNumber = sender.split('@')[0];
+            // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+            let plainSenderNumber = sender.split('@')[0];
+            
+            // Check remoteJidAlt first for @lid format (auto-detection)
+            if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+                plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+                console.log('[GANTI_NAMA_WIFI] Auto-detected phone from remoteJidAlt:', plainSenderNumber);
+            }
+            
             // Use lid-handler to find user (supports @lid format)
             user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
             
-            // Debug logging for @lid format
+            // If still not found for @lid, show error (no manual verification needed)
             if (sender.includes('@lid') && !user) {
                 console.log('[GANTI_NAMA_WIFI] @lid format detected, user not found');
                 console.log('[GANTI_NAMA_WIFI] Sender:', sender);
-                // Provide verification instructions
-                const { createLidVerification } = require('../../lib/lid-handler');
-                const lidId = sender.split('@')[0];
-                const verification = createLidVerification(lidId, users);
-                return reply(verification.message);
+                return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
             }
         }
 
@@ -147,19 +151,23 @@ async function handleGantiSandiWifi({ sender, args, matchedKeywordLength, isOwne
         if (providedId) {
             user = users.find(v => v.id == providedId);
         } else {
-            const plainSenderNumber = sender.split('@')[0];
+            // Auto-detect phone number from @lid using remoteJidAlt (Baileys v7)
+            let plainSenderNumber = sender.split('@')[0];
+            
+            // Check remoteJidAlt first for @lid format (auto-detection)
+            if (sender.includes('@lid') && msg && msg.key && msg.key.remoteJidAlt) {
+                plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+                console.log('[GANTI_SANDI_WIFI] Auto-detected phone from remoteJidAlt:', plainSenderNumber);
+            }
+            
             // Use lid-handler to find user (supports @lid format)
             user = await findUserWithLidSupport(users, msg, plainSenderNumber, raf);
             
-            // Debug logging for @lid format
+            // If still not found for @lid, show error (no manual verification needed)
             if (sender.includes('@lid') && !user) {
                 console.log('[GANTI_SANDI_WIFI] @lid format detected, user not found');
                 console.log('[GANTI_SANDI_WIFI] Sender:', sender);
-                // Provide verification instructions
-                const { createLidVerification } = require('../../lib/lid-handler');
-                const lidId = sender.split('@')[0];
-                const verification = createLidVerification(lidId, users);
-                return reply(verification.message);
+                return reply(`❌ Maaf, nomor Anda tidak terdaftar dalam database.\n\nSilakan hubungi admin untuk bantuan.`);
             }
         }
 
