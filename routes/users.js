@@ -315,9 +315,19 @@ router.post('/bulk-import', ensureAdmin, async (req, res) => {
                         } else {
                             // Get import welcome template (for existing customers being registered)
                             if (templatesCache.notificationTemplates?.import_welcome) {
+                                // Cari display profile dari packages berdasarkan subscription
+                                let displayProfile = '-';
+                                if (newUser.subscription && global.packages) {
+                                    const matchedPkg = global.packages.find(p => p.name === newUser.subscription);
+                                    if (matchedPkg) {
+                                        displayProfile = matchedPkg.displayProfile || matchedPkg.profile || '-';
+                                    }
+                                }
+                                
                                 const templateData = {
                                     nama_pelanggan: newUser.name,
                                     nama_paket: newUser.subscription || '-',
+                                    display_profile: displayProfile,
                                     nama_wifi: global.config?.nama || 'RAF NET',
                                     nama_bot: global.config?.namabot || 'RAF NET BOT'
                                 };
