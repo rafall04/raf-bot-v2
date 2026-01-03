@@ -229,9 +229,29 @@ module.exports = async(raf, msg, m) => {
     
     const isSaldo = checkATMuser(normalizedSenderForSaldo)
 
-    const plainSenderNumber = sender.split('@')[0];
-    const isOwner = ownerNumber.includes(sender)
+    // Extract phone number with @lid support using remoteJidAlt (Baileys v7)
+    let plainSenderNumber = sender.split('@')[0].split(':')[0]; // Default: clean sender
+    
+    // PRIORITY: Use remoteJidAlt if available (best source for @lid)
+    if (msg.key && msg.key.remoteJidAlt && msg.key.remoteJidAlt.includes('@s.whatsapp.net')) {
+        plainSenderNumber = msg.key.remoteJidAlt.split('@')[0].split(':')[0];
+        console.log(`[AUTH_DEBUG] Using remoteJidAlt: ${msg.key.remoteJidAlt} -> ${plainSenderNumber}`);
+    }
+    
+    // Build normalized JID for owner check
+    const normalizedJidForOwner = `${plainSenderNumber}@s.whatsapp.net`;
+    
+    // Check isOwner - check both original sender and normalized JID
+    const isOwner = ownerNumber.includes(sender) || ownerNumber.includes(normalizedJidForOwner);
+    
+    // Check isTeknisi with cleaned phone number
     const isTeknisi = accounts.find(a => a.phone_number && a.phone_number == plainSenderNumber);
+    
+    // Debug logging for admin/teknisi detection
+    if (sender.endsWith('@lid') || msg.key?.remoteJidAlt) {
+        console.log(`[AUTH_DEBUG] sender: ${sender}, remoteJidAlt: ${msg.key?.remoteJidAlt}, plainSenderNumber: ${plainSenderNumber}, isOwner: ${isOwner}, isTeknisi: ${!!isTeknisi}`);
+    }
+    
     const isUrl = (uri) => {
         return uri.match(new RegExp(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%.+#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%+.#?&/=]*)/, 'gi'))
     }
