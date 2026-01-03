@@ -117,6 +117,21 @@ router.get('/psb-rekap', checkRole(['admin', 'owner', 'superadmin']), (req, res)
     res.render('sb-admin/psb-rekap.php');
 });
 
+// Import MikroTik page - ADMIN ONLY
+router.get('/import-mikrotik', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/import-mikrotik.php');
+});
+
+// Voucher Send page - ADMIN ONLY
+router.get('/voucher-send', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/voucher-send.php');
+});
+
+// Buka Isolir page - ADMIN ONLY
+router.get('/buka-isolir', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/buka-isolir.php');
+});
+
 // Working Hours page
 router.get('/teknisi-working-hours', checkRole(['admin', 'owner', 'superadmin']), (req, res) => {
     res.render('sb-admin/teknisi-working-hours.php');

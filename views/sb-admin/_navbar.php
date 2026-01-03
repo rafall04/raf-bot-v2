@@ -58,16 +58,24 @@ function isParentActive($pages, $current) {
 
     <hr class="sidebar-divider">
 
-    <li class="nav-item <?php echo isParentActive(['/users', '/packages', '/package-requests'], $current_page) ? 'active' : ''; ?>">
-        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePelanggan" aria-expanded="<?php echo isParentActive(['/users', '/packages', '/package-requests'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapsePelanggan">
+    <li class="nav-item <?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePelanggan" aria-expanded="<?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapsePelanggan">
             <i class="fas fa-fw fa-users"></i>
             <span>Pelanggan</span>
         </a>
-        <div id="collapsePelanggan" class="collapse <?php echo isParentActive(['/users', '/packages', '/package-requests'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingPelanggan" data-parent="#accordionSidebar">
+        <div id="collapsePelanggan" class="collapse <?php echo isParentActive(['/users', '/packages', '/package-requests', '/import-mikrotik', '/buka-isolir'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingPelanggan" data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/users', $current_page) ? 'active' : ''; ?>" href="/users">
                     <i class="fas fa-fw fa-user mr-2"></i>
                     <span>Data Pelanggan</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/import-mikrotik', $current_page) ? 'active' : ''; ?>" href="/import-mikrotik">
+                    <i class="fas fa-fw fa-file-import mr-2"></i>
+                    <span>Import MikroTik</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/buka-isolir', $current_page) ? 'active' : ''; ?>" href="/buka-isolir">
+                    <i class="fas fa-fw fa-unlock mr-2"></i>
+                    <span>Buka Isolir</span>
                 </a>
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/packages', $current_page) ? 'active' : ''; ?>" href="/packages">
                     <i class="fas fa-fw fa-box-open mr-2"></i>
@@ -116,24 +124,39 @@ function isParentActive($pages, $current) {
         </div>
     </li>
 
-    <li class="nav-item <?php echo isParentActive(['/agent-management', '/agent-voucher-management', '/voucher'], $current_page) ? 'active' : ''; ?>">
-        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseAgent" aria-expanded="<?php echo isParentActive(['/agent-management', '/agent-voucher-management', '/voucher'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseAgent">
+    <li class="nav-item <?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseAgent" aria-expanded="<?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseAgent">
             <i class="fas fa-fw fa-store"></i>
             <span>Agent & Reseller</span>
         </a>
-        <div id="collapseAgent" class="collapse <?php echo isParentActive(['/agent-management', '/agent-voucher-management', '/voucher'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingAgent" data-parent="#accordionSidebar">
+        <div id="collapseAgent" class="collapse <?php echo isParentActive(['/agent-management', '/agent-voucher-management'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingAgent" data-parent="#accordionSidebar">
             <div class="bg-white py-2 collapse-inner rounded">
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-management', $current_page) ? 'active' : ''; ?>" href="/agent-management">
                     <i class="fas fa-fw fa-store mr-2"></i>
                     <span>Agent & Outlet</span>
                 </a>
-                <a class="collapse-item d-flex align-items-center <?php echo isActive('/voucher', $current_page) ? 'active' : ''; ?>" href="/voucher">
-                    <i class="fas fa-fw fa-ticket-alt mr-2"></i>
-                    <span>Paket Voucher</span>
-                </a>
                 <a class="collapse-item d-flex align-items-center <?php echo isActive('/agent-voucher-management', $current_page) ? 'active' : ''; ?>" href="/agent-voucher-management">
                     <i class="fas fa-fw fa-boxes mr-2"></i>
                     <span>Stok Voucher Agent</span>
+                </a>
+            </div>
+        </div>
+    </li>
+
+    <li class="nav-item <?php echo isParentActive(['/voucher', '/voucher-send'], $current_page) ? 'active' : ''; ?>">
+        <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseVoucher" aria-expanded="<?php echo isParentActive(['/voucher', '/voucher-send'], $current_page) ? 'true' : 'false'; ?>" aria-controls="collapseVoucher">
+            <i class="fas fa-fw fa-ticket-alt"></i>
+            <span>Voucher Hotspot</span>
+        </a>
+        <div id="collapseVoucher" class="collapse <?php echo isParentActive(['/voucher', '/voucher-send'], $current_page) ? 'show' : ''; ?>" aria-labelledby="headingVoucher" data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded">
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/voucher', $current_page) ? 'active' : ''; ?>" href="/voucher">
+                    <i class="fas fa-fw fa-list mr-2"></i>
+                    <span>Paket Voucher</span>
+                </a>
+                <a class="collapse-item d-flex align-items-center <?php echo isActive('/voucher-send', $current_page) ? 'active' : ''; ?>" href="/voucher-send">
+                    <i class="fas fa-fw fa-paper-plane mr-2"></i>
+                    <span>Kirim Voucher</span>
                 </a>
             </div>
         </div>

@@ -3,6 +3,10 @@ const crypto = require('crypto');
 const { hashPassword } = require('../lib/password');
 const { renderTemplate, templatesCache } = require('../lib/templating');
 const { normalizePhoneNumber } = require('../lib/utils');
+const { logActivity } = require('../lib/activity-logger');
+const { updatePPPoEProfile, deleteActivePPPoEUser, getPPPoEUserProfile, getAllPPPoESecrets } = require('../lib/mikrotik');
+const { getProfileBySubscription } = require('../lib/myfunc');
+const { rebootRouter } = require('../lib/wifi');
 
 const router = express.Router();
 
@@ -142,6 +146,472 @@ router.post('/:id/credentials', ensureAdmin, async (req, res) => {
     } catch (error) {
         console.error(`[USER_CREDENTIALS_ERROR] Failed to process credentials for user ${id}:`, error);
         return res.status(500).json({ status: 500, message: `Operasi gagal: ${error.message}` });
+    }
+});
+
+// POST /api/users/bulk-import - Bulk import users from MikroTik data
+router.post('/bulk-import', ensureAdmin, async (req, res) => {
+    try {
+        const { users: usersToImport, defaultSettings } = req.body;
+        
+        if (!usersToImport || !Array.isArray(usersToImport) || usersToImport.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tidak ada data user untuk di-import'
+            });
+        }
+        
+        // Default settings (bulk is now per-user, fallback to default if not provided)
+        const settings = {
+            defaultBulk: defaultSettings?.bulk || ['1', '5'], // Default: SSID 1 + 5 (dual band)
+            paid: defaultSettings?.paid || false,
+            send_invoice: defaultSettings?.send_invoice !== false,
+            send_psb_welcome: defaultSettings?.send_psb_welcome || false
+        };
+        
+        const results = {
+            success: [],
+            failed: []
+        };
+        
+        // Get next available user ID
+        const { getNextAvailableUserId } = require('../lib/psb-database');
+        
+        for (const userData of usersToImport) {
+            try {
+                // Validate required fields
+                if (!userData.name || !userData.name.trim()) {
+                    results.failed.push({
+                        pppoe_username: userData.pppoe_username,
+                        reason: 'Nama pelanggan wajib diisi'
+                    });
+                    continue;
+                }
+                
+                if (!userData.device_id || !userData.device_id.trim()) {
+                    results.failed.push({
+                        pppoe_username: userData.pppoe_username,
+                        reason: 'Device ID wajib diisi'
+                    });
+                    continue;
+                }
+                
+                if (!userData.phone_number || !userData.phone_number.trim()) {
+                    // Phone number is optional, just log warning
+                    console.log(`[BULK_IMPORT] User ${userData.pppoe_username} has no phone number`);
+                }
+                
+                if (!userData.pppoe_username) {
+                    results.failed.push({
+                        pppoe_username: 'unknown',
+                        reason: 'PPPoE username tidak valid'
+                    });
+                    continue;
+                }
+                
+                // Check if PPPoE username already exists in system
+                const existingUser = global.users.find(u => 
+                    u.pppoe_username && 
+                    u.pppoe_username.toLowerCase() === userData.pppoe_username.toLowerCase()
+                );
+                
+                if (existingUser) {
+                    results.failed.push({
+                        pppoe_username: userData.pppoe_username,
+                        reason: 'PPPoE username sudah terdaftar di sistem'
+                    });
+                    continue;
+                }
+                
+                // Get next ID
+                const newUserId = await getNextAvailableUserId();
+                
+                // Generate username from name
+                const nameParts = userData.name.toLowerCase().split(' ').filter(Boolean);
+                let baseUsername = nameParts[0] || 'user';
+                if (nameParts.length > 1) {
+                    baseUsername += nameParts[1].charAt(0);
+                }
+                let counter = 1;
+                let finalUsername = baseUsername;
+                while (global.users.some(u => u.username === finalUsername)) {
+                    counter++;
+                    finalUsername = `${baseUsername}${counter}`;
+                }
+                
+                // Hash password for login (use PPPoE password)
+                const loginPassword = await hashPassword(userData.pppoe_password || 'default123');
+                
+                // Use per-user bulk (SSID) if provided, otherwise use default
+                const userBulk = userData.bulk && Array.isArray(userData.bulk) && userData.bulk.length > 0
+                    ? userData.bulk
+                    : settings.defaultBulk;
+                
+                // Create new user object
+                const newUser = {
+                    id: newUserId,
+                    name: userData.name.trim(),
+                    username: finalUsername,
+                    password: loginPassword,
+                    phone_number: (userData.phone_number || '').trim(),
+                    address: userData.address || '',
+                    device_id: userData.device_id || '',
+                    subscription: userData.subscription || userData.profile || '',
+                    pppoe_username: userData.pppoe_username,
+                    pppoe_password: userData.pppoe_password || '',
+                    bulk: userBulk,
+                    paid: settings.paid,
+                    send_invoice: settings.send_invoice,
+                    status: 'active',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    imported_from: 'mikrotik'
+                };
+                
+                // Insert into database
+                await new Promise((resolve, reject) => {
+                    const insertQuery = `
+                        INSERT INTO users (
+                            id, name, username, password, phone_number, address, device_id,
+                            subscription, pppoe_username, pppoe_password,
+                            bulk, paid, send_invoice, status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+                    
+                    global.db.run(insertQuery, [
+                        newUser.id,
+                        newUser.name,
+                        newUser.username,
+                        newUser.password,
+                        newUser.phone_number,
+                        newUser.address,
+                        newUser.device_id,
+                        newUser.subscription,
+                        newUser.pppoe_username,
+                        newUser.pppoe_password,
+                        JSON.stringify(newUser.bulk),
+                        newUser.paid ? 1 : 0,
+                        newUser.send_invoice ? 1 : 0,
+                        newUser.status,
+                        newUser.created_at,
+                        newUser.updated_at
+                    ], function(err) {
+                        if (err) reject(err);
+                        else resolve(this.lastID);
+                    });
+                });
+                
+                // Add to global.users
+                global.users.push(newUser);
+                
+                // Send Import Welcome message if enabled
+                if (settings.send_psb_welcome && newUser.phone_number && global.raf) {
+                    try {
+                        // Get import welcome template (for existing customers being registered)
+                        if (templatesCache.notificationTemplates?.import_welcome) {
+                            const templateData = {
+                                nama_pelanggan: newUser.name,
+                                nama_paket: newUser.subscription || '-',
+                                nama_wifi: global.config?.nama || 'RAF NET',
+                                nama_bot: global.config?.namabot || 'RAF NET BOT'
+                            };
+                            
+                            const message = renderTemplate('import_welcome', templateData);
+                            
+                            if (message) {
+                                // Handle multiple phone numbers (separated by |)
+                                const phones = newUser.phone_number.split('|').filter(p => p.trim());
+                                for (const phone of phones) {
+                                    const normalizedPhone = normalizePhoneNumber(phone.trim());
+                                    if (normalizedPhone) {
+                                        await global.raf.sendMessage(`${normalizedPhone}@s.whatsapp.net`, { text: message });
+                                        console.log(`[BULK_IMPORT] Import Welcome sent to ${normalizedPhone} for user ${newUser.pppoe_username}`);
+                                        // Small delay between messages
+                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                                    }
+                                }
+                            }
+                        }
+                    } catch (msgErr) {
+                        console.error(`[BULK_IMPORT] Failed to send Import Welcome for ${newUser.pppoe_username}:`, msgErr.message);
+                        // Don't fail the import if message fails
+                    }
+                }
+                
+                results.success.push({
+                    id: newUser.id,
+                    name: newUser.name,
+                    pppoe_username: newUser.pppoe_username,
+                    username: newUser.username
+                });
+                
+            } catch (userError) {
+                console.error(`[BULK_IMPORT_ERROR] Failed to import ${userData.pppoe_username}:`, userError);
+                results.failed.push({
+                    pppoe_username: userData.pppoe_username || 'unknown',
+                    reason: userError.message
+                });
+            }
+        }
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'CREATE',
+                resourceType: 'user',
+                resourceId: 'bulk-import',
+                resourceName: 'Bulk Import from MikroTik',
+                description: `Imported ${results.success.length} users from MikroTik (${results.failed.length} failed)`,
+                oldValue: null,
+                newValue: { 
+                    successCount: results.success.length, 
+                    failedCount: results.failed.length,
+                    importedUsers: results.success.map(u => u.pppoe_username)
+                },
+                ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[BULK_IMPORT] Activity log error:', logErr);
+        }
+        
+        console.log(`[BULK_IMPORT] User ${req.user.username} imported ${results.success.length} users (${results.failed.length} failed)`);
+        
+        return res.json({
+            status: 200,
+            message: `Berhasil import ${results.success.length} pelanggan${results.failed.length > 0 ? `, ${results.failed.length} gagal` : ''}`,
+            results
+        });
+        
+    } catch (error) {
+        console.error('[BULK_IMPORT_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal melakukan bulk import',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/users/isolated - Get list of isolated users
+router.get('/isolated', ensureAdmin, async (req, res) => {
+    try {
+        const isolirProfile = global.config.isolir_profile || 'ISOLIR';
+        const { search } = req.query;
+        
+        // Get all PPPoE secrets from MikroTik in one call (much faster)
+        let mikrotikSecrets = [];
+        try {
+            mikrotikSecrets = await getAllPPPoESecrets();
+            console.log(`[ISOLATED_CHECK] Fetched ${mikrotikSecrets.length} PPPoE secrets from MikroTik`);
+        } catch (err) {
+            console.error('[ISOLATED_CHECK] Failed to fetch PPPoE secrets:', err.message);
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal mengambil data dari MikroTik: ' + err.message
+            });
+        }
+        
+        // Create a map of pppoe_username -> profile for quick lookup
+        const profileMap = new Map();
+        for (const secret of mikrotikSecrets) {
+            if (secret.name) {
+                profileMap.set(secret.name.toLowerCase(), secret.profile);
+            }
+        }
+        
+        // Find isolated users
+        const isolatedUsers = [];
+        
+        for (const user of global.users) {
+            if (!user.pppoe_username) continue;
+            
+            const currentProfile = profileMap.get(user.pppoe_username.toLowerCase());
+            
+            // Check if user is isolated (profile matches isolir profile)
+            if (currentProfile && currentProfile.toLowerCase() === isolirProfile.toLowerCase()) {
+                // Apply search filter if provided
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    const matchesSearch = 
+                        (user.name && user.name.toLowerCase().includes(searchLower)) ||
+                        (user.pppoe_username && user.pppoe_username.toLowerCase().includes(searchLower)) ||
+                        (user.subscription && user.subscription.toLowerCase().includes(searchLower));
+                    
+                    if (!matchesSearch) continue;
+                }
+                
+                isolatedUsers.push({
+                    id: user.id,
+                    name: user.name,
+                    pppoe_username: user.pppoe_username,
+                    subscription: user.subscription,
+                    phone_number: user.phone_number,
+                    device_id: user.device_id,
+                    paid: user.paid,
+                    current_profile: currentProfile
+                });
+            }
+        }
+        
+        console.log(`[ISOLATED_CHECK] Found ${isolatedUsers.length} isolated users`);
+        
+        return res.json({
+            status: 200,
+            data: isolatedUsers,
+            total: isolatedUsers.length
+        });
+        
+    } catch (error) {
+        console.error('[GET_ISOLATED_USERS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil data pelanggan terisolir',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/users/buka-isolir - Open isolation for users (change profile back to subscription profile)
+router.post('/buka-isolir', ensureAdmin, async (req, res) => {
+    try {
+        const { userIds } = req.body;
+        
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tidak ada pelanggan yang dipilih'
+            });
+        }
+        
+        const results = {
+            success: [],
+            failed: []
+        };
+        
+        for (const userId of userIds) {
+            const user = global.users.find(u => u.id === userId);
+            
+            if (!user) {
+                results.failed.push({
+                    id: userId,
+                    reason: 'Pelanggan tidak ditemukan'
+                });
+                continue;
+            }
+            
+            if (!user.pppoe_username) {
+                results.failed.push({
+                    id: userId,
+                    name: user.name,
+                    reason: 'PPPoE username tidak tersedia'
+                });
+                continue;
+            }
+            
+            // Get the correct profile based on subscription
+            const targetProfile = getProfileBySubscription(user.subscription);
+            
+            if (!targetProfile) {
+                results.failed.push({
+                    id: userId,
+                    name: user.name,
+                    reason: `Profil tidak ditemukan untuk paket: ${user.subscription}`
+                });
+                continue;
+            }
+            
+            try {
+                // 1. Update PPPoE profile to the correct subscription profile
+                console.log(`[BUKA_ISOLIR] Updating profile for ${user.pppoe_username} to ${targetProfile}`);
+                await updatePPPoEProfile(user.pppoe_username, targetProfile);
+                
+                // 2. Disconnect active session to force reconnect with new profile
+                console.log(`[BUKA_ISOLIR] Disconnecting session for ${user.pppoe_username}`);
+                try {
+                    await deleteActivePPPoEUser(user.pppoe_username);
+                } catch (disconnectErr) {
+                    // Session might not be active, continue anyway
+                    console.log(`[BUKA_ISOLIR] Session disconnect note for ${user.pppoe_username}: ${disconnectErr.message}`);
+                }
+                
+                // 3. Reboot router if device_id is available
+                if (user.device_id) {
+                    console.log(`[BUKA_ISOLIR] Rebooting router for ${user.name} (${user.device_id})`);
+                    try {
+                        await rebootRouter(user.device_id);
+                    } catch (rebootErr) {
+                        // Reboot might fail but isolation is already opened
+                        console.log(`[BUKA_ISOLIR] Reboot note for ${user.name}: ${rebootErr.message}`);
+                    }
+                }
+                
+                // Note: We do NOT change paid status - this is intentional per requirements
+                // The user remains unpaid but can access internet
+                
+                results.success.push({
+                    id: user.id,
+                    name: user.name,
+                    pppoe_username: user.pppoe_username,
+                    new_profile: targetProfile
+                });
+                
+                console.log(`[BUKA_ISOLIR_SUCCESS] ${user.name} (${user.pppoe_username}) - Profile changed to ${targetProfile}`);
+                
+            } catch (error) {
+                console.error(`[BUKA_ISOLIR_ERROR] Failed for ${user.name}:`, error);
+                results.failed.push({
+                    id: userId,
+                    name: user.name,
+                    reason: error.message
+                });
+            }
+        }
+        
+        // Log activity
+        try {
+            await logActivity({
+                userId: req.user.id,
+                username: req.user.username,
+                role: req.user.role,
+                actionType: 'UPDATE',
+                resourceType: 'user',
+                resourceId: 'buka-isolir',
+                resourceName: 'Buka Isolir',
+                description: `Buka isolir untuk ${results.success.length} pelanggan (${results.failed.length} gagal)`,
+                oldValue: null,
+                newValue: {
+                    successCount: results.success.length,
+                    failedCount: results.failed.length,
+                    users: results.success.map(u => u.name)
+                },
+                ipAddress: req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'],
+                userAgent: req.headers['user-agent']
+            });
+        } catch (logErr) {
+            console.error('[BUKA_ISOLIR] Activity log error:', logErr);
+        }
+        
+        const message = results.success.length > 0
+            ? `Berhasil buka isolir ${results.success.length} pelanggan${results.failed.length > 0 ? `, ${results.failed.length} gagal` : ''}`
+            : 'Gagal buka isolir semua pelanggan';
+        
+        return res.json({
+            status: results.success.length > 0 ? 200 : 500,
+            message,
+            results
+        });
+        
+    } catch (error) {
+        console.error('[BUKA_ISOLIR_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal melakukan buka isolir',
+            error: error.message
+        });
     }
 });
 
