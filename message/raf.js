@@ -2120,12 +2120,18 @@ Contoh: proses ${pendingTickets[0].ticketId}
             }
             
             case 'DONE_UPLOAD_PHOTOS': {
-                if (!isTeknisi && !isOwner) return reply(mess.teknisiOrOwnerOnly);
-                
+                // IMPORTANT: Only respond if there's an active workflow session
+                // If no active session, silently ignore - don't respond at all
                 const state = global.teknisiStates && global.teknisiStates[sender];
                 
+                // No active session = silently ignore (no response)
                 if (!state) {
-                    return reply('❌ *TIDAK ADA SESI AKTIF*\n\n📌 *Urutan yang benar:*\n1️⃣ proses [ID]\n2️⃣ otw [ID]\n3️⃣ sampai [ID]\n4️⃣ verifikasi [ID] [OTP]\n5️⃣ Upload foto\n6️⃣ done/lanjut/next \u2190 Anda di sini\n\nSilakan mulai dari awal dengan *proses [ID_TIKET]*');
+                    break;
+                }
+                
+                // Must be teknisi/owner to use this command
+                if (!isTeknisi && !isOwner) {
+                    break;
                 }
                 
                 if (state.guidedMode) {

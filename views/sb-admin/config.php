@@ -222,6 +222,11 @@
               </div>
               <div class="card-body">
                   <div class="mb-3">
+                    <label for="site_url_bot" class="form-label">Site URL Bot</label>
+                    <input type="text" class="form-control" id="site_url_bot" name="site_url_bot" placeholder="http://127.0.0.1:3100" />
+                    <small class="form-text text-muted">URL untuk koneksi ke MikroTik melalui PHP. Contoh: http://127.0.0.1:3100 atau http://localhost:3100</small>
+                  </div>
+                  <div class="mb-3">
                     <label for="genieacsBaseUrl" class="form-label">Genieacs URL</label>
                     <input type="text" class="form-control" id="genieacsBaseUrl" name="genieacsBaseUrl" />
                   </div>
@@ -474,6 +479,7 @@
                 setValue('tanggal_isolir', json.data.tanggal_isolir, '11');
                 setValue('isolir_profile', json.data.isolir_profile);
                 setValue('rekening_details', json.data.rekening_details);
+                setValue('site_url_bot', json.data.site_url_bot, 'http://127.0.0.1:3100');
                 setValue('genieacsBaseUrl', json.data.genieacsBaseUrl);
                 setValue('accessLimit', json.data.accessLimit);
                 setValue('rx_tolerance', json.data.rx_tolerance);

@@ -31,22 +31,6 @@
     "name": "Pesan Khusus Teknisi",
     "template": "Fitur ini hanya untuk Teknisi."
   },
-  "mess_reportNotFound": {
-    "name": "Pesan Laporan Tidak Ditemukan",
-    "template": "Maaf, tiket laporan tidak ditemukan."
-  },
-  "mess_reportAlreadyDone": {
-    "name": "Pesan Laporan Sudah Selesai",
-    "template": "Laporan ini statusnya sudah selesai sebelumnya."
-  },
-  "mess_reportNotFound_detail": {
-    "name": "Pesan Laporan Tidak Ditemukan (dengan ID)",
-    "template": "Maaf, tiket laporan dengan ID \"${ticketId}\" tidak ditemukan."
-  },
-  "mess_reportAlreadyDone_detail": {
-    "name": "Pesan Laporan Sudah Selesai (dengan ID)",
-    "template": "Laporan dengan tiket ID \"${ticketId}\" statusnya sudah selesai sebelumnya."
-  },
   "convo_awaiting_question_prompt": {
     "name": "Percakapan: Menunggu Pertanyaan",
     "template": "Tentu, silakan. Apa yang ingin Anda tanyakan? 😊"
@@ -183,10 +167,6 @@
     "name": "Transfer Sukses (Penerima)",
     "template": "*「 SUKSES 」*\n\nPengisian Saldo Dengan Jumlah\n${jumlah}\nDari Nomor ${nomorPengirim}\n\nSilakan Cek Saldo Anda Dengan Ketik ceksaldo\n\nTerima Kasih Telah Melakukan Topup\nBy Bot Voucher"
   },
-  "mess_userNotRegister": {
-    "name": "Pesan Pengguna Tidak Terdaftar",
-    "template": "Anda tidak terdaftar di dalam database pelanggan kami."
-  },
   "error_photo_process_failed": {
     "name": "Error: Gagal Memproses Foto",
     "template": "❌ Gagal memproses foto. Silakan coba lagi."
@@ -226,10 +206,6 @@
   "success_process_cancelled": {
     "name": "Success: Proses Dibatalkan",
     "template": "✅ Proses dibatalkan"
-  },
-  "error_ticket_not_found": {
-    "name": "Error: Tiket Tidak Ditemukan",
-    "template": "❌ Tiket tidak ditemukan atau bukan milik Anda."
   },
   "error_format_transfer": {
     "name": "Error: Format Transfer Salah",
@@ -286,6 +262,30 @@
   "convo_tanya_jawab_unavailable": {
     "name": "Percakapan: Tanya Jawab Tidak Tersedia",
     "template": "Maaf, fitur tanya jawab otomatis sudah tidak tersedia.\n\nSilakan gunakan perintah berikut:\n• *menu* - Lihat menu utama\n• *bantuan* - Lihat panduan\n• Atau hubungi admin untuk bantuan lebih lanjut."
+  },
+  "mess_userNotRegister": {
+    "name": "Pesan Pengguna Tidak Terdaftar",
+    "template": "Anda tidak terdaftar di dalam database pelanggan kami."
+  },
+  "mess_reportNotFound": {
+    "name": "Pesan Laporan Tidak Ditemukan",
+    "template": "Maaf, tiket laporan tidak ditemukan."
+  },
+  "mess_reportAlreadyDone": {
+    "name": "Pesan Laporan Sudah Selesai",
+    "template": "Laporan ini statusnya sudah selesai sebelumnya."
+  },
+  "mess_reportNotFound_detail": {
+    "name": "Pesan Laporan Tidak Ditemukan (dengan ID)",
+    "template": "Maaf, tiket laporan dengan ID \"${ticketId}\" tidak ditemukan."
+  },
+  "mess_reportAlreadyDone_detail": {
+    "name": "Pesan Laporan Sudah Selesai (dengan ID)",
+    "template": "Laporan dengan tiket ID \"${ticketId}\" statusnya sudah selesai sebelumnya."
+  },
+  "error_ticket_not_found": {
+    "name": "Error: Tiket Tidak Ditemukan",
+    "template": "❌ Tiket tidak ditemukan atau bukan milik Anda."
   },
   "panduan_laporan_cerdas": {
     "name": "Panduan Laporan Cerdas",

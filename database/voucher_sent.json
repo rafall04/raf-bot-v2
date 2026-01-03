@@ -1,0 +1,30 @@
+[
+  {
+    "id": "VS17674250751120",
+    "type": "random",
+    "profile": "Paket-3Jam",
+    "profile_name": "Paket 3 Jam",
+    "duration": "3 Jam",
+    "username": "ya9v7w",
+    "password": "ya9v7w",
+    "phone": "085233047094",
+    "notes": "",
+    "sent_status": "generated",
+    "created_at": "2026-01-03T07:24:35.112Z",
+    "created_by": "admin"
+  },
+  {
+    "id": "VS17674251847210",
+    "type": "random",
+    "profile": "Paket-3Jam",
+    "profile_name": "Paket 3 Jam",
+    "duration": "3 Jam",
+    "username": "mezvjs",
+    "password": "mezvjs",
+    "phone": "085233047094",
+    "notes": "",
+    "sent_status": "sent",
+    "created_at": "2026-01-03T07:26:24.721Z",
+    "created_by": "admin"
+  }
+]

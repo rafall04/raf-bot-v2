@@ -445,16 +445,19 @@ router.post('/users', ensureAdmin, async (req, res) => {
             }
             
             // Validate phone numbers before creating user (support international)
+            // Phone number is now OPTIONAL
             const phoneToValidate = userData.phone_number || userData.phone;
-            const defaultCountry = userData.country || 'ID'; // Default to Indonesia
-            const validationResult = await validatePhoneNumbers(global.db, phoneToValidate, null, defaultCountry);
-            
-            if (!validationResult.valid) {
-                return res.status(400).json({
-                    status: 400,
-                    message: validationResult.message,
-                    conflictUser: validationResult.conflictUser || null
-                });
+            if (phoneToValidate && phoneToValidate.trim() !== '') {
+                const defaultCountry = userData.country || 'ID'; // Default to Indonesia
+                const validationResult = await validatePhoneNumbers(global.db, phoneToValidate, null, defaultCountry);
+                
+                if (!validationResult.valid) {
+                    return res.status(400).json({
+                        status: 400,
+                        message: validationResult.message,
+                        conflictUser: validationResult.conflictUser || null
+                    });
+                }
             }
             
             // Final safety check: ensure ID is not already in use
@@ -829,17 +832,24 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
         const oldPaidStatus = userToUpdate.paid;
         
         // Validate phone numbers if being updated (support international)
-        if (userData.phone_number || userData.phone) {
-            const phoneToValidate = userData.phone_number || userData.phone;
+        // Phone number is now OPTIONAL - only validate if provided and not empty
+        const phoneToValidate = userData.phone_number || userData.phone;
+        if (phoneToValidate && phoneToValidate.trim() !== '') {
             const defaultCountry = userData.country || userToUpdate.country || 'ID';
             const validationResult = await validatePhoneNumbers(global.db, phoneToValidate, id, defaultCountry);
             
             if (!validationResult.valid) {
-                return res.status(400).json({
-                    status: 400,
-                    message: validationResult.message,
-                    conflictUser: validationResult.conflictUser || null
-                });
+                // Only block if format is invalid, not for duplicates (allow admin to fix duplicates)
+                if (!validationResult.message.includes('already registered')) {
+                    return res.status(400).json({
+                        status: 400,
+                        message: validationResult.message,
+                        conflictUser: validationResult.conflictUser || null
+                    });
+                } else {
+                    // Log warning but allow update (admin might be fixing duplicate)
+                    console.warn(`[USER_UPDATE] Phone duplicate warning for user ${id}: ${validationResult.message}`);
+                }
             }
         }
         
@@ -3272,6 +3282,669 @@ router.post('/psb/delete-all', ensureAdmin, async (req, res) => {
         return res.status(500).json({
             status: 500,
             message: 'Gagal menghapus data PSB',
+            error: error.message
+        });
+    }
+});
+
+// ============================================
+// IMPORT MIKROTIK ENDPOINTS
+// ============================================
+
+// GET /api/mikrotik/unregistered-pppoe - Get PPPoE users from MikroTik that are not registered in system
+router.get('/mikrotik/unregistered-pppoe', ensureAdmin, async (req, res) => {
+    try {
+        const { getAllPPPoESecrets } = require('../lib/mikrotik');
+        
+        // Get all PPPoE secrets from MikroTik
+        const mikrotikSecrets = await getAllPPPoESecrets();
+        
+        if (!mikrotikSecrets || mikrotikSecrets.length === 0) {
+            return res.json({
+                status: 200,
+                message: 'Tidak ada PPPoE secrets di MikroTik',
+                data: [],
+                stats: { total: 0, registered: 0, unregistered: 0 }
+            });
+        }
+        
+        // Get registered PPPoE usernames from system
+        const registeredUsernames = new Set(
+            (global.users || [])
+                .filter(u => u.pppoe_username)
+                .map(u => u.pppoe_username.toLowerCase())
+        );
+        
+        // Filter unregistered PPPoE users
+        const unregisteredSecrets = mikrotikSecrets.filter(secret => {
+            const username = (secret.name || '').toLowerCase();
+            return username && !registeredUsernames.has(username);
+        });
+        
+        // Get available packages for profile mapping
+        const packages = global.packages || [];
+        
+        // Map profile to package
+        const profileToPackage = {};
+        packages.forEach(pkg => {
+            if (pkg.profile) {
+                profileToPackage[pkg.profile.toLowerCase()] = {
+                    name: pkg.name,
+                    price: pkg.price,
+                    profile: pkg.profile
+                };
+            }
+        });
+        
+        // Enhance unregistered secrets with package info
+        const enhancedSecrets = unregisteredSecrets.map(secret => {
+            const profileLower = (secret.profile || '').toLowerCase();
+            const matchedPackage = profileToPackage[profileLower] || null;
+            
+            return {
+                ...secret,
+                matchedPackage: matchedPackage,
+                packageName: matchedPackage ? matchedPackage.name : null,
+                packagePrice: matchedPackage ? matchedPackage.price : null
+            };
+        });
+        
+        return res.json({
+            status: 200,
+            message: `Ditemukan ${enhancedSecrets.length} PPPoE yang belum terdaftar`,
+            data: enhancedSecrets,
+            stats: {
+                total: mikrotikSecrets.length,
+                registered: registeredUsernames.size,
+                unregistered: enhancedSecrets.length
+            },
+            profiles: [...new Set(mikrotikSecrets.map(s => s.profile).filter(Boolean))],
+            packages: packages.map(p => ({ name: p.name, profile: p.profile, price: p.price }))
+        });
+        
+    } catch (error) {
+        console.error('[MIKROTIK_UNREGISTERED_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil data dari MikroTik',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/genieacs/devices-for-import - Get all devices from GenieACS for import matching
+router.get('/genieacs/devices-for-import', ensureAdmin, async (req, res) => {
+    try {
+        if (!global.config?.genieacsBaseUrl) {
+            return res.status(400).json({
+                status: 400,
+                message: 'GenieACS tidak dikonfigurasi'
+            });
+        }
+        
+        // Fetch all devices from GenieACS with PPP username info
+        const projectionFields = '_id,Device.DeviceInfo,InternetGatewayDevice.DeviceInfo,InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username,Device.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username';
+        
+        const response = await axios.get(`${global.config.genieacsBaseUrl}/devices/`, {
+            params: {
+                projection: projectionFields,
+                limit: 1000
+            },
+            timeout: 30000
+        });
+        
+        if (!response.data || !Array.isArray(response.data)) {
+            return res.json({
+                status: 200,
+                message: 'Tidak ada device di GenieACS',
+                data: []
+            });
+        }
+        
+        // Get already registered device IDs from users
+        const registeredDeviceIds = new Set(
+            (global.users || [])
+                .filter(u => u.device_id)
+                .map(u => u.device_id)
+        );
+        
+        // Process devices
+        const devices = response.data.map(device => {
+            const deviceId = device._id;
+            
+            // Get serial number
+            const serialNumber = device.InternetGatewayDevice?.DeviceInfo?.SerialNumber?._value ||
+                               device.Device?.DeviceInfo?.SerialNumber?._value ||
+                               deviceId;
+            
+            // Get model
+            const model = device.InternetGatewayDevice?.DeviceInfo?.ModelName?._value ||
+                         device.Device?.DeviceInfo?.ModelName?._value ||
+                         device.InternetGatewayDevice?.DeviceInfo?.ProductClass?._value ||
+                         device.Device?.DeviceInfo?.ProductClass?._value ||
+                         '-';
+            
+            // Get manufacturer
+            const manufacturer = device.InternetGatewayDevice?.DeviceInfo?.Manufacturer?._value ||
+                                device.Device?.DeviceInfo?.Manufacturer?._value ||
+                                '-';
+            
+            // Get current PPP username
+            const pppUsername = device.InternetGatewayDevice?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value ||
+                               device.Device?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value ||
+                               null;
+            
+            return {
+                deviceId: deviceId,
+                serialNumber: serialNumber,
+                model: model,
+                manufacturer: manufacturer,
+                pppUsername: pppUsername,
+                isRegistered: registeredDeviceIds.has(deviceId)
+            };
+        });
+        
+        // Filter out already registered devices (optional - can include all)
+        const availableDevices = devices.filter(d => !d.isRegistered);
+        
+        console.log(`[GENIEACS_DEVICES_FOR_IMPORT] Found ${devices.length} devices, ${availableDevices.length} available for import`);
+        
+        return res.json({
+            status: 200,
+            message: `Ditemukan ${availableDevices.length} device tersedia`,
+            data: availableDevices,
+            stats: {
+                total: devices.length,
+                registered: devices.length - availableDevices.length,
+                available: availableDevices.length
+            }
+        });
+        
+    } catch (error) {
+        console.error('[GENIEACS_DEVICES_FOR_IMPORT_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal mengambil data dari GenieACS',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// VOUCHER SEND ENDPOINTS
+// ==========================================
+
+const voucherSentDbPath = path.join(__dirname, '../database/voucher_sent.json');
+
+// Helper: Load voucher sent history
+function loadVoucherSentHistory() {
+    try {
+        if (fs.existsSync(voucherSentDbPath)) {
+            return JSON.parse(fs.readFileSync(voucherSentDbPath, 'utf8'));
+        }
+        return [];
+    } catch (error) {
+        console.error('[VOUCHER_SENT] Error loading history:', error);
+        return [];
+    }
+}
+
+// Helper: Save voucher sent history
+function saveVoucherSentHistory(data) {
+    fs.writeFileSync(voucherSentDbPath, JSON.stringify(data, null, 2));
+}
+
+// GET /api/voucher/profiles - Get voucher profiles from database
+router.get('/voucher/profiles', async (req, res) => {
+    try {
+        // Load from global.voucher or database/voucher.json
+        let profiles = global.voucher || [];
+        
+        if (!profiles || profiles.length === 0) {
+            const voucherDbPath = path.join(__dirname, '../database/voucher.json');
+            if (fs.existsSync(voucherDbPath)) {
+                profiles = JSON.parse(fs.readFileSync(voucherDbPath, 'utf8'));
+            }
+        }
+        
+        console.log(`[VOUCHER_PROFILES] Loaded ${profiles.length} profiles`);
+        
+        return res.json({
+            status: 200,
+            message: `Ditemukan ${profiles.length} paket voucher`,
+            data: profiles
+        });
+    } catch (error) {
+        console.error('[VOUCHER_PROFILES_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal memuat paket voucher',
+            error: error.message
+        });
+    }
+});
+
+// POST /api/voucher/generate-send - Generate voucher and optionally send via WhatsApp
+router.post('/voucher/generate-send', async (req, res) => {
+    try {
+        const { profile, profileName, duration, quantity, phones, notes, sendWhatsApp, voucherType, customUsername, customPassword } = req.body;
+        
+        if (!profile) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Profile voucher diperlukan'
+            });
+        }
+        
+        const isCustom = voucherType === 'custom';
+        let generatedVouchers = [];
+        
+        if (isCustom) {
+            // Custom voucher - tidak generate di MikroTik, hanya kirim pesan
+            if (!customUsername || !customPassword) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Username dan Password diperlukan untuk voucher custom'
+                });
+            }
+            
+            console.log(`[VOUCHER_CUSTOM] Sending custom voucher: ${customUsername}`);
+            
+            generatedVouchers.push({
+                username: customUsername,
+                password: customPassword,
+                profile: profile,
+                type: 'custom'
+            });
+        } else {
+            // Random voucher - generate di MikroTik
+            if (!quantity || quantity < 1 || quantity > 50) {
+                return res.status(400).json({
+                    status: 400,
+                    message: 'Jumlah voucher harus antara 1-50'
+                });
+            }
+            
+            console.log(`[VOUCHER_GENERATE] Generating ${quantity} vouchers for profile: ${profile}`);
+            
+            const axios = require('axios');
+            
+            // Get site_url_bot from config
+            const siteUrlBot = global.config?.site_url_bot || `http://127.0.0.1:${process.env.PORT || 3000}`;
+            
+            for (let i = 0; i < quantity; i++) {
+                try {
+                    // Call PHP script to generate voucher in MikroTik
+                    // Comment format: "vc-BotWa | VoucherSend | {profile} | {date}"
+                    const phpUrl = `${siteUrlBot}/adduserhotspot.php?profil=${encodeURIComponent(profile)}&komen=VoucherSend`;
+                    console.log(`[VOUCHER_GENERATE] Calling: ${phpUrl}`);
+                    
+                    const phpResponse = await axios.get(phpUrl, { timeout: 15000 });
+                    
+                    if (phpResponse.data && phpResponse.data.status === 'success' && phpResponse.data.data) {
+                        generatedVouchers.push({
+                            username: phpResponse.data.data.username,
+                            password: phpResponse.data.data.password,
+                            profile: phpResponse.data.data.profile || profile,
+                            type: 'random'
+                        });
+                        console.log(`[VOUCHER_GENERATE] Generated voucher ${i + 1}: ${phpResponse.data.data.username}`);
+                    } else {
+                        console.error(`[VOUCHER_GENERATE] Failed to generate voucher ${i + 1}:`, phpResponse.data);
+                    }
+                } catch (err) {
+                    console.error(`[VOUCHER_GENERATE] Error generating voucher ${i + 1}:`, err.message);
+                }
+                
+                // Small delay between MikroTik calls
+                if (i < quantity - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            }
+            
+            if (generatedVouchers.length === 0) {
+                return res.status(500).json({
+                    status: 500,
+                    message: 'Gagal generate voucher dari MikroTik. Pastikan koneksi MikroTik aktif.'
+                });
+            }
+        }
+        
+        // Load message template
+        let messageTemplate = '';
+        try {
+            const templatesPath = path.join(__dirname, '../database/message_templates.json');
+            const templates = JSON.parse(fs.readFileSync(templatesPath, 'utf8'));
+            
+            if (isCustom) {
+                messageTemplate = templates.voucher_send_custom?.template || '';
+            } else {
+                messageTemplate = templates.voucher_send?.template || '';
+            }
+        } catch (err) {
+            console.error('[VOUCHER_GENERATE] Error loading template:', err);
+        }
+        
+        // Default templates if not found
+        if (!messageTemplate) {
+            if (isCustom) {
+                messageTemplate = `🎫 *VOUCHER HOTSPOT*\n\n📦 Paket: *\${nama_paket}*\n⏱️ Durasi: *\${durasi}*\n\n🔐 *KREDENSIAL LOGIN:*\n👤 Username: \`\${username}\`\n🔑 Password: \`\${password}\`\n\n📌 *Cara Penggunaan:*\n1. Hubungkan ke WiFi Hotspot\n2. Buka browser\n3. Masukkan Username & Password di atas\n\n\${catatan}\n\nTerima kasih! 🙏\n*\${nama_wifi}*`;
+            } else {
+                messageTemplate = `🎫 *VOUCHER HOTSPOT*\n\n📦 Paket: *\${nama_paket}*\n⏱️ Durasi: *\${durasi}*\n\n🔐 *KODE VOUCHER:*\n\${voucher_list}\n\n📌 *Cara Penggunaan:*\n1. Hubungkan ke WiFi Hotspot\n2. Buka browser\n3. Masukkan kode di atas pada Username & Password\n\n\${catatan}\n\nTerima kasih! 🙏\n*\${nama_wifi}*`;
+            }
+        }
+        
+        const notesText = notes ? `📝 Catatan: ${notes}` : '';
+        const wifiName = global.config?.nama_wifi || 'RAF NET';
+        
+        // Build message based on type
+        let message = '';
+        if (isCustom) {
+            message = messageTemplate
+                .replace(/\$\{nama_paket\}/g, profileName || profile)
+                .replace(/\$\{durasi\}/g, duration || '-')
+                .replace(/\$\{username\}/g, customUsername)
+                .replace(/\$\{password\}/g, customPassword)
+                .replace(/\$\{catatan\}/g, notesText)
+                .replace(/\$\{nama_wifi\}/g, wifiName);
+        } else {
+            // Build voucher list text - username = password, so show as single "Kode Voucher"
+            const voucherListText = generatedVouchers.map((v, i) => 
+                `${generatedVouchers.length > 1 ? `${i+1}. ` : ''}Kode: \`${v.username}\``
+            ).join('\n');
+            
+            message = messageTemplate
+                .replace(/\$\{nama_paket\}/g, profileName || profile)
+                .replace(/\$\{durasi\}/g, duration || '-')
+                .replace(/\$\{voucher_list\}/g, voucherListText)
+                .replace(/\$\{catatan\}/g, notesText)
+                .replace(/\$\{nama_wifi\}/g, wifiName);
+        }
+        
+        // Send via WhatsApp if requested
+        const sentTo = [];
+        if (sendWhatsApp && phones && phones.length > 0 && global.conn) {
+            for (const phone of phones) {
+                try {
+                    // Normalize phone number
+                    let normalizedPhone = phone.replace(/\D/g, '');
+                    if (normalizedPhone.startsWith('0')) {
+                        normalizedPhone = '62' + normalizedPhone.substring(1);
+                    }
+                    if (!normalizedPhone.startsWith('62')) {
+                        normalizedPhone = '62' + normalizedPhone;
+                    }
+                    
+                    const jid = normalizedPhone + '@s.whatsapp.net';
+                    await global.conn.sendMessage(jid, { text: message });
+                    sentTo.push(phone);
+                    
+                    console.log(`[VOUCHER_SEND] Sent to ${phone}`);
+                    
+                    // Small delay between sends
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (err) {
+                    console.error(`[VOUCHER_SEND] Failed to send to ${phone}:`, err.message);
+                }
+            }
+        }
+        
+        // Save to history
+        const history = loadVoucherSentHistory();
+        const timestamp = new Date().toISOString();
+        
+        generatedVouchers.forEach((voucher, index) => {
+            history.push({
+                id: `VS${Date.now()}${index}`,
+                type: isCustom ? 'custom' : 'random',
+                profile: profile,
+                profile_name: profileName,
+                duration: duration,
+                username: voucher.username,
+                password: voucher.password,
+                phone: sendWhatsApp && phones.length > 0 ? phones.join(', ') : null,
+                notes: notes,
+                sent_status: sendWhatsApp && sentTo.length > 0 ? 'sent' : 'generated',
+                created_at: timestamp,
+                created_by: req.user?.username || 'admin'
+            });
+        });
+        
+        saveVoucherSentHistory(history);
+        
+        return res.json({
+            status: 200,
+            message: `Berhasil generate ${generatedVouchers.length} voucher`,
+            vouchers: generatedVouchers,
+            sentTo: sentTo,
+            totalSent: sentTo.length
+        });
+        
+    } catch (error) {
+        console.error('[VOUCHER_GENERATE_SEND_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/voucher/sent-history - Get sent voucher history
+router.get('/voucher/sent-history', (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 50;
+        const history = loadVoucherSentHistory();
+        
+        // Sort by created_at descending and limit
+        const sorted = history
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, limit);
+        
+        return res.json({
+            status: 200,
+            data: sorted,
+            total: history.length
+        });
+    } catch (error) {
+        console.error('[VOUCHER_HISTORY_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal memuat riwayat',
+            error: error.message
+        });
+    }
+});
+
+// GET /api/voucher/sent-stats - Get voucher sent statistics
+router.get('/voucher/sent-stats', (req, res) => {
+    try {
+        const history = loadVoucherSentHistory();
+        
+        // Today's date
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const todayCount = history.filter(item => {
+            const itemDate = new Date(item.created_at);
+            itemDate.setHours(0, 0, 0, 0);
+            return itemDate.getTime() === today.getTime();
+        }).length;
+        
+        return res.json({
+            status: 200,
+            today: todayCount,
+            total: history.length
+        });
+    } catch (error) {
+        console.error('[VOUCHER_STATS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Gagal memuat statistik',
+            error: error.message
+        });
+    }
+});
+
+// ==========================================
+// MEMBER CREDENTIALS SEND ENDPOINTS
+// ==========================================
+
+// POST /api/member/send-credentials - Send member credentials via WhatsApp
+router.post('/member/send-credentials', async (req, res) => {
+    try {
+        const { userId, phones, notes } = req.body;
+        
+        if (!userId) {
+            return res.status(400).json({
+                status: 400,
+                message: 'User ID diperlukan'
+            });
+        }
+        
+        // Get user data from global.users or database
+        let user = null;
+        if (global.users) {
+            user = global.users.find(u => u.id == userId || u.pppoe == userId);
+        }
+        
+        if (!user) {
+            // Try to get from database
+            const sqlite3 = require('sqlite3').verbose();
+            const dbPath = path.join(__dirname, '../database/users.sqlite');
+            const db = new sqlite3.Database(dbPath);
+            
+            user = await new Promise((resolve, reject) => {
+                db.get('SELECT * FROM users WHERE id = ? OR pppoe = ?', [userId, userId], (err, row) => {
+                    db.close();
+                    if (err) reject(err);
+                    else resolve(row);
+                });
+            });
+        }
+        
+        if (!user) {
+            return res.status(404).json({
+                status: 404,
+                message: 'User tidak ditemukan'
+            });
+        }
+        
+        // Get package info
+        let packageInfo = null;
+        if (global.packages && user.paket) {
+            packageInfo = global.packages.find(p => p.nama === user.paket || p.profile === user.paket);
+        }
+        
+        // Determine target phones
+        let targetPhones = phones && phones.length > 0 ? phones : [];
+        if (targetPhones.length === 0 && user.no_hp) {
+            targetPhones = user.no_hp.split('|').map(p => p.trim()).filter(p => p);
+        }
+        
+        if (targetPhones.length === 0) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Tidak ada nomor HP tujuan'
+            });
+        }
+        
+        // Load message template
+        let messageTemplate = '';
+        try {
+            const templatesPath = path.join(__dirname, '../database/message_templates.json');
+            const templates = JSON.parse(fs.readFileSync(templatesPath, 'utf8'));
+            messageTemplate = templates.member_credentials_send?.template || '';
+        } catch (err) {
+            console.error('[MEMBER_CREDENTIALS] Error loading template:', err);
+        }
+        
+        // Default template if not found
+        if (!messageTemplate) {
+            messageTemplate = `🔐 *KREDENSIAL MEMBER*\n\nHalo *\${nama_pelanggan}*,\n\nBerikut adalah informasi login internet Anda:\n\n👤 *Username:* \`\${username}\`\n🔑 *Password:* \`\${password}\`\n\n📦 Paket: *\${nama_paket}*\n\n📌 *Cara Penggunaan:*\n1. Hubungkan ke jaringan WiFi\n2. Masukkan username & password saat diminta\n\n\${catatan}\n\nTerima kasih! 🙏\n*\${nama_wifi}*`;
+        }
+        
+        const notesText = notes ? `📝 Catatan: ${notes}` : '';
+        const wifiName = global.config?.nama_wifi || 'RAF NET';
+        
+        // Build message
+        const message = messageTemplate
+            .replace(/\$\{nama_pelanggan\}/g, user.nama || '-')
+            .replace(/\$\{username\}/g, user.pppoe || user.username || '-')
+            .replace(/\$\{password\}/g, user.password || '-')
+            .replace(/\$\{nama_paket\}/g, packageInfo?.nama || user.paket || '-')
+            .replace(/\$\{catatan\}/g, notesText)
+            .replace(/\$\{nama_wifi\}/g, wifiName);
+        
+        // Send via WhatsApp
+        const sentTo = [];
+        if (global.conn) {
+            for (const phone of targetPhones) {
+                try {
+                    let normalizedPhone = phone.replace(/\D/g, '');
+                    if (normalizedPhone.startsWith('0')) {
+                        normalizedPhone = '62' + normalizedPhone.substring(1);
+                    }
+                    if (!normalizedPhone.startsWith('62')) {
+                        normalizedPhone = '62' + normalizedPhone;
+                    }
+                    
+                    const jid = normalizedPhone + '@s.whatsapp.net';
+                    await global.conn.sendMessage(jid, { text: message });
+                    sentTo.push(phone);
+                    
+                    console.log(`[MEMBER_CREDENTIALS] Sent to ${phone}`);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } catch (err) {
+                    console.error(`[MEMBER_CREDENTIALS] Failed to send to ${phone}:`, err.message);
+                }
+            }
+        } else {
+            return res.status(500).json({
+                status: 500,
+                message: 'WhatsApp tidak terhubung'
+            });
+        }
+        
+        if (sentTo.length === 0) {
+            return res.status(500).json({
+                status: 500,
+                message: 'Gagal mengirim ke semua nomor'
+            });
+        }
+        
+        // Save to history
+        const history = loadVoucherSentHistory();
+        history.push({
+            id: `MC${Date.now()}`,
+            type: 'member_credentials',
+            user_id: user.id,
+            user_name: user.nama,
+            username: user.pppoe || user.username,
+            phone: sentTo.join(', '),
+            notes: notes,
+            sent_status: 'sent',
+            created_at: new Date().toISOString(),
+            created_by: req.user?.username || 'admin'
+        });
+        saveVoucherSentHistory(history);
+        
+        return res.json({
+            status: 200,
+            message: `Kredensial berhasil dikirim ke ${sentTo.length} nomor`,
+            sentTo: sentTo,
+            user: {
+                nama: user.nama,
+                username: user.pppoe || user.username,
+                paket: user.paket
+            }
+        });
+        
+    } catch (error) {
+        console.error('[MEMBER_CREDENTIALS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            message: 'Terjadi kesalahan',
             error: error.message
         });
     }
