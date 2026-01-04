@@ -264,14 +264,27 @@
         let dataTable = null;
         let currentFilter = 'all';
         let selectedCustomerId = null;
+        let billingDueDate = 10; // Default tanggal tagihan
 
         $(document).ready(function() {
             loadTechnicianInfo();
+            loadConfig();
             loadPackages();
             loadPendingRequests();
             loadCustomerData();
             setupEventHandlers();
         });
+
+        function loadConfig() {
+            fetch('/api/stats/config', { credentials: 'include' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.data && data.data.tanggal_batas_bayar) {
+                        billingDueDate = data.data.tanggal_batas_bayar;
+                    }
+                })
+                .catch(err => console.error('Error loading config:', err));
+        }
 
         function loadTechnicianInfo() {
             fetch('/api/teknisi/me', { credentials: 'include' })
@@ -388,7 +401,6 @@
                 }
                 
                 const phoneDisplay = customer.phone_number ? customer.phone_number.split('|')[0].trim() : '-';
-                const billingDate = customer.payment_due_date || '-';
                 const packageName = customer.subscription || '-';
 
                 let actionButtons = `<button class="btn btn-info btn-action" onclick="showDetail(${customer.id})" title="Lihat Detail"><i class="fas fa-eye"></i></button>`;
@@ -409,7 +421,7 @@
                             </div>
                         </td>
                         <td><span class="package-badge">${escapeHtml(packageName)}</span></td>
-                        <td class="billing-date">Tgl ${billingDate}</td>
+                        <td class="billing-date">Tgl ${billingDueDate}</td>
                         <td>${statusBadge}</td>
                         <td>${actionButtons}</td>
                     </tr>
@@ -471,7 +483,7 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Tanggal Tagihan</span>
-                    <span class="detail-value">Tanggal ${customer.payment_due_date || '-'}</span>
+                    <span class="detail-value">Tanggal ${billingDueDate}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Nominal</span>
@@ -585,7 +597,7 @@
                         <table class="table table-sm">
                             <tr><td width="40%"><strong>Paket</strong></td><td><span class="package-badge">${escapeHtml(customer.subscription || '-')}</span></td></tr>
                             <tr><td><strong>Harga</strong></td><td><strong class="text-success">${formatCurrency(price)}</strong></td></tr>
-                            <tr><td><strong>Tgl Tagihan</strong></td><td>Tanggal ${customer.payment_due_date || '-'}</td></tr>
+                            <tr><td><strong>Tgl Tagihan</strong></td><td>Tanggal ${billingDueDate}</td></tr>
                             <tr><td><strong>Status Bayar</strong></td><td>${statusBadge}</td></tr>
                         </table>
                     </div>
