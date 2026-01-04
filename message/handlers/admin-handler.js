@@ -82,13 +82,16 @@ async function handleHotspotStats() {
 }
 
 /**
- * Handle list users request
+ * Handle list users request with pagination
  * @param {Object} params - Parameters
  * @returns {Object} Response object
  */
-function handleListUsers({ filter = null }) {
+function handleListUsers({ filter = null, page = 1 }) {
     try {
         let users = [...global.users];
+        
+        // Get items per page from config (default 50)
+        const itemsPerPage = global.config?.listPelangganPerPage || 50;
         
         // Apply filter if provided
         if (filter === 'paid') {
@@ -107,28 +110,48 @@ function handleListUsers({ filter = null }) {
         // Sort by ID
         users.sort((a, b) => (a.id || 0) - (b.id || 0));
         
-        let message = `📋 *DAFTAR PELANGGAN*\n`;
-        message += `Total: ${users.length} pelanggan\n\n`;
+        // Calculate pagination
+        const totalUsers = users.length;
+        const totalPages = Math.ceil(totalUsers / itemsPerPage);
+        const currentPage = Math.max(1, Math.min(page, totalPages)); // Clamp to valid range
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, totalUsers);
+        const displayUsers = users.slice(startIndex, endIndex);
         
-        // Limit display to prevent too long message
-        const maxDisplay = 25;
-        const displayUsers = users.slice(0, maxDisplay);
+        // Build message
+        let message = `📋 *DAFTAR PELANGGAN*\n`;
+        message += `Total: ${totalUsers} pelanggan`;
+        if (filter) {
+            message += ` (${filter === 'paid' ? 'Lunas' : 'Belum Bayar'})`;
+        }
+        message += `\n`;
+        message += `📄 Halaman ${currentPage}/${totalPages} (${startIndex + 1}-${endIndex})\n\n`;
         
         displayUsers.forEach((user) => {
             const statusEmoji = user.paid ? '✅' : '❌';
             message += `${statusEmoji} *ID ${user.id}* - ${user.name}\n`;
         });
         
-        if (users.length > maxDisplay) {
-            message += `\n... dan ${users.length - maxDisplay} pelanggan lainnya.\n`;
-        }
-        
         message += `\n━━━━━━━━━━━━━━━━━━━━\n`;
         message += `✅ = Sudah Bayar | ❌ = Belum Bayar\n\n`;
+        
+        // Navigation hints
+        if (totalPages > 1) {
+            message += `📖 *Navigasi:*\n`;
+            if (currentPage > 1) {
+                message += `• *daftar pelanggan ${currentPage - 1}* - Hal. sebelumnya\n`;
+            }
+            if (currentPage < totalPages) {
+                message += `• *daftar pelanggan ${currentPage + 1}* - Hal. berikutnya\n`;
+            }
+            message += `\n`;
+        }
+        
         message += `💡 *Tips:*\n`;
-        message += `• Ketik *cari [nama]* untuk detail\n`;
-        message += `• Ketik *ganti sandi wifi [ID] [password]*\n`;
-        message += `• Ketik *ganti nama wifi [ID] [nama]*`;
+        message += `• *cari [nama/ID]* - Cari pelanggan\n`;
+        message += `• *daftar pelanggan lunas* - Filter lunas\n`;
+        message += `• *daftar pelanggan belum* - Filter belum bayar\n`;
+        message += `• *cek wifi [ID]* - Cek WiFi pelanggan`;
         
         return {
             success: true,

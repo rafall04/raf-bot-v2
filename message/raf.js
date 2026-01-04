@@ -1851,16 +1851,27 @@ atau ketik:
                     return reply(mess.teknisiOrOwnerOnly);
                 }
                 
-                // Use qAfterKeyword instead of q for correct argument parsing
+                // Parse arguments: "daftar pelanggan [filter] [page]"
+                // Examples: "daftar pelanggan", "daftar pelanggan 2", "daftar pelanggan lunas", "daftar pelanggan belum 2"
                 let filter = null;
-                if (qAfterKeyword && qAfterKeyword.toLowerCase().includes('lunas')) {
-                    filter = 'paid';
-                } else if (qAfterKeyword && qAfterKeyword.toLowerCase().includes('belum')) {
-                    filter = 'unpaid';
+                let page = 1;
+                
+                if (qAfterKeyword) {
+                    const parts = qAfterKeyword.toLowerCase().trim().split(/\s+/);
+                    
+                    for (const part of parts) {
+                        if (part === 'lunas') {
+                            filter = 'paid';
+                        } else if (part === 'belum') {
+                            filter = 'unpaid';
+                        } else if (!isNaN(parseInt(part, 10))) {
+                            page = parseInt(part, 10);
+                        }
+                    }
                 }
                 
                 const { handleListUsers } = require('./handlers/admin-handler');
-                const result = handleListUsers({ filter });
+                const result = handleListUsers({ filter, page });
                 return reply(result.message);
             }
             case 'GANTI_NAMA_WIFI': {
