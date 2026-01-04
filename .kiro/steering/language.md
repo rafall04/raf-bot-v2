@@ -9,7 +9,8 @@
 - `paid` = Status Pembayaran (Sudah Bayar / Belum Bayar)
 - `subscription` = Paket Langganan
 - `isolation` = Isolir (pembatasan akses internet)
-- `bulk` = Tanggal Tagihan
+- `due_date` = Tanggal Tagihan (tanggal jatuh tempo pembayaran)
+- `bulk` = SSID WiFi (bukan tanggal tagihan)
 
 ## Logika Metode Pembayaran
 
