@@ -37,6 +37,76 @@
             opacity: 0.5;
             pointer-events: none;
         }
+        
+        /* ===== MOBILE RESPONSIVE STYLES ===== */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 0.75rem;
+            }
+            
+            .dashboard-header h1 {
+                font-size: 1.25rem;
+            }
+            
+            .dashboard-header p {
+                font-size: 0.9rem;
+            }
+            
+            /* Card adjustments */
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            /* Time input */
+            .time-input {
+                max-width: 100%;
+            }
+            
+            /* Day setting row */
+            .day-setting .row {
+                flex-direction: column;
+            }
+            
+            .day-setting .col-md-2,
+            .day-setting .col-md-3,
+            .day-setting .col-md-4 {
+                margin-bottom: 0.5rem;
+            }
+            
+            /* Form controls */
+            .form-control, select, input[type="time"] {
+                font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            
+            /* Button */
+            .btn {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 0.5rem;
+            }
+            
+            .dashboard-header h1 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 0.75rem;
+            }
+            
+            .status-badge {
+                font-size: 0.8rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
     </style>
 </head>
 

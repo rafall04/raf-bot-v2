@@ -231,6 +231,124 @@
         .hidden-column {
             display: none !important; /* Forces the column to be hidden */
         }
+        
+        /* ===== MOBILE RESPONSIVE STYLES ===== */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 0.75rem;
+            }
+            
+            /* Page Header */
+            h1.h3 {
+                font-size: 1.25rem;
+            }
+            
+            /* Card adjustments */
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            .card-header .d-flex {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .card-header .d-flex > div {
+                width: 100%;
+                display: flex;
+                gap: 0.5rem;
+            }
+            
+            .card-header .btn {
+                flex: 1;
+            }
+            
+            /* Filter row */
+            .row.mt-3 .col-md-3 {
+                margin-bottom: 0.5rem;
+            }
+            
+            /* Table responsive */
+            .table-responsive {
+                font-size: 0.8rem;
+            }
+            
+            .table td, .table th {
+                padding: 0.5rem;
+                white-space: nowrap;
+            }
+            
+            /* Modal adjustments */
+            .modal-dialog {
+                margin: 0.5rem;
+                max-width: calc(100% - 1rem);
+            }
+            
+            .modal-body {
+                max-height: calc(100vh - 150px);
+                padding: 1rem;
+            }
+            
+            .modal-lg {
+                max-width: calc(100% - 1rem);
+            }
+            
+            /* Form controls */
+            .form-control, .form-control-sm, select {
+                font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            
+            /* Select2 mobile */
+            .select2-container {
+                width: 100% !important;
+            }
+            
+            /* Map in modal */
+            .map-in-modal {
+                height: 200px;
+            }
+            
+            /* Action buttons */
+            .device-action-group {
+                flex-direction: column;
+            }
+            
+            .device-action-group .btn {
+                width: 100%;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 0.5rem;
+            }
+            
+            h1.h3 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 0.75rem;
+            }
+            
+            /* Table extra small */
+            .table-responsive {
+                font-size: 0.75rem;
+            }
+            
+            .table td, .table th {
+                padding: 0.35rem;
+            }
+            
+            /* Map in modal extra small */
+            .map-in-modal {
+                height: 180px;
+            }
+        }
     </style>
 </head>
 

@@ -220,6 +220,26 @@
                 padding-right: 0.5rem;
             }
             
+            /* Phone number field mobile fix */
+            .phone-number-item {
+                flex-wrap: nowrap;
+            }
+            
+            .phone-number-item input {
+                min-width: 0;
+                flex: 1 1 auto;
+            }
+            
+            .phone-number-item .btn {
+                flex-shrink: 0;
+                width: auto !important;
+                margin-bottom: 0 !important;
+            }
+            
+            #phone_number_container {
+                width: 100%;
+            }
+            
             /* Photo upload container */
             .photo-upload-container {
                 padding: 15px;

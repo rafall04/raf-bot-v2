@@ -365,6 +365,200 @@
         .photo-preview-item {
             box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         }
+        
+        /* ===== MOBILE RESPONSIVE STYLES ===== */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 0.75rem;
+            }
+            
+            /* Page Header */
+            .d-sm-flex {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+            }
+            
+            .d-sm-flex .btn {
+                width: 100%;
+                margin-top: 1rem;
+            }
+            
+            /* Card adjustments */
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            /* Table responsive */
+            .table-responsive {
+                font-size: 0.85rem;
+            }
+            
+            /* Workflow stepper mobile */
+            .workflow-stepper {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+            
+            .workflow-step {
+                flex: 0 0 auto;
+                min-width: 60px;
+            }
+            
+            .workflow-step:not(:last-child)::after {
+                display: none;
+            }
+            
+            .step-icon {
+                width: 30px;
+                height: 30px;
+                font-size: 14px;
+            }
+            
+            .step-label {
+                font-size: 0.65rem;
+            }
+            
+            /* Upload progress steps mobile */
+            .upload-progress-steps {
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 10px;
+            }
+            
+            .upload-progress-steps .step {
+                flex: 0 0 auto;
+                min-width: 50px;
+            }
+            
+            .upload-progress-steps .step-connector {
+                display: none;
+            }
+            
+            .upload-progress-steps .step-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 0.85rem;
+            }
+            
+            .upload-progress-steps .step-label {
+                font-size: 0.6rem;
+            }
+            
+            /* Modal adjustments */
+            .modal-dialog {
+                margin: 0.5rem;
+                max-width: calc(100% - 1rem);
+            }
+            
+            .modal-body {
+                max-height: calc(100vh - 150px);
+                padding: 1rem;
+            }
+            
+            .modal-lg {
+                max-width: calc(100% - 1rem);
+            }
+            
+            /* Form controls */
+            .form-control, .form-control-sm, select {
+                font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            
+            /* Select2 mobile */
+            .select2-container {
+                width: 100% !important;
+            }
+            
+            /* Photo preview mobile */
+            .photo-preview-container {
+                justify-content: center;
+            }
+            
+            .photo-preview-item {
+                width: 120px;
+                height: 120px;
+            }
+            
+            /* Action buttons */
+            .action-buttons .btn {
+                width: 100%;
+                margin-right: 0;
+            }
+            
+            /* OTP box mobile */
+            .otp-box {
+                padding: 15px;
+            }
+            
+            .otp-code {
+                font-size: 1.8rem;
+                letter-spacing: 5px;
+            }
+            
+            /* Current step guidance */
+            .current-step-guidance {
+                padding: 12px;
+            }
+            
+            .current-step-guidance h5 {
+                font-size: 0.9rem;
+            }
+            
+            .current-step-guidance ul li {
+                font-size: 0.85rem;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 0.5rem;
+            }
+            
+            h1.h3 {
+                font-size: 1.25rem;
+            }
+            
+            .card-body {
+                padding: 0.75rem;
+            }
+            
+            /* Workflow stepper extra small */
+            .workflow-step {
+                min-width: 50px;
+            }
+            
+            .step-icon {
+                width: 25px;
+                height: 25px;
+                font-size: 12px;
+            }
+            
+            .step-label {
+                font-size: 0.55rem;
+            }
+            
+            /* Photo preview extra small */
+            .photo-preview-item {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .photo-preview-item .remove-photo {
+                width: 20px;
+                height: 20px;
+                font-size: 10px;
+            }
+            
+            /* OTP input */
+            #otpInput {
+                font-size: 1.2rem !important;
+                letter-spacing: 3px !important;
+            }
+        }
     </style>
 </head>
 

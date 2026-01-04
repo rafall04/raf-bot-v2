@@ -10,6 +10,55 @@
     <link href="/css/sb-admin-2.min.css" rel="stylesheet">
   <link href="/css/dashboard-modern.css" rel="stylesheet">
     <link href="/vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
+    <style>
+        /* ===== MOBILE RESPONSIVE STYLES ===== */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 0.75rem;
+            }
+            
+            h1.h3 {
+                font-size: 1.25rem;
+            }
+            
+            p.mb-4 {
+                font-size: 0.9rem;
+            }
+            
+            /* Card adjustments */
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            /* Form controls */
+            .form-control, select, textarea {
+                font-size: 16px !important; /* Prevents zoom on iOS */
+            }
+            
+            /* Button */
+            .btn {
+                width: 100%;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding: 0.5rem;
+            }
+            
+            h1.h3 {
+                font-size: 1.1rem;
+            }
+            
+            .card-body {
+                padding: 0.75rem;
+            }
+        }
+    </style>
 </head>
 <body id="page-top">
     <div id="wrapper">
