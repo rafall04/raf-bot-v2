@@ -388,7 +388,7 @@
                 }
                 
                 const phoneDisplay = customer.phone_number ? customer.phone_number.split('|')[0].trim() : '-';
-                const billingDate = customer.due_date || '-';
+                const billingDate = customer.payment_due_date || '-';
                 const packageName = customer.subscription || '-';
 
                 let actionButtons = `<button class="btn btn-info btn-action" onclick="showDetail(${customer.id})" title="Lihat Detail"><i class="fas fa-eye"></i></button>`;
@@ -471,7 +471,7 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Tanggal Tagihan</span>
-                    <span class="detail-value">Tanggal ${customer.due_date || '-'}</span>
+                    <span class="detail-value">Tanggal ${customer.payment_due_date || '-'}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Nominal</span>
@@ -585,7 +585,7 @@
                         <table class="table table-sm">
                             <tr><td width="40%"><strong>Paket</strong></td><td><span class="package-badge">${escapeHtml(customer.subscription || '-')}</span></td></tr>
                             <tr><td><strong>Harga</strong></td><td><strong class="text-success">${formatCurrency(price)}</strong></td></tr>
-                            <tr><td><strong>Tgl Tagihan</strong></td><td>Tanggal ${customer.due_date || '-'}</td></tr>
+                            <tr><td><strong>Tgl Tagihan</strong></td><td>Tanggal ${customer.payment_due_date || '-'}</td></tr>
                             <tr><td><strong>Status Bayar</strong></td><td>${statusBadge}</td></tr>
                         </table>
                     </div>
