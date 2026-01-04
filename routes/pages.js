@@ -92,6 +92,10 @@ router.get('/teknisi-pelanggan', checkRole(['teknisi', 'admin', 'owner', 'supera
     res.render('sb-admin/teknisi-pelanggan.php');
 });
 
+router.get('/teknisi-pembayaran', checkRole(['teknisi', 'admin', 'owner', 'superadmin']), (req, res) => {
+    res.render('sb-admin/teknisi-pembayaran.php');
+});
+
 router.get('/admin/teknisi-request-paket', checkRole(['admin', 'owner', 'superadmin', 'teknisi']), (req, res) => {
     res.render('sb-admin/teknisi-request-paket.php');
 });

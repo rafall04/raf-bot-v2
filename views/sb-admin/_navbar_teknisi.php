@@ -31,6 +31,14 @@ $current_page = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
         </a>
     </li>
 
+    <!-- Nav Item - Monitoring Pembayaran -->
+    <li class="nav-item <?php echo ($current_page == '/teknisi-pembayaran.php' || $current_page == '/teknisi-pembayaran') ? 'active' : ''; ?>">
+        <a class="nav-link" href="/teknisi-pembayaran">
+            <i class="fas fa-fw fa-money-check-alt"></i>
+            <span>Monitoring Pembayaran</span>
+        </a>
+    </li>
+
     <!-- Nav Item - Pasang Baru (PSB) -->
     <li class="nav-item <?php echo (strpos($current_page, '/teknisi-psb') !== false) ? 'active' : ''; ?>">
         <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePSB" aria-expanded="false" aria-controls="collapsePSB">
