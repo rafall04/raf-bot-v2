@@ -135,22 +135,29 @@ function handleListUsers({ filter = null, page = 1 }) {
         message += `\n━━━━━━━━━━━━━━━━━━━━\n`;
         message += `✅ = Sudah Bayar | ❌ = Belum Bayar\n\n`;
         
+        // Build filter text for navigation
+        const filterText = filter === 'paid' ? 'lunas ' : (filter === 'unpaid' ? 'belum ' : '');
+        
         // Navigation hints
         if (totalPages > 1) {
             message += `📖 *Navigasi:*\n`;
             if (currentPage > 1) {
-                message += `• *daftar pelanggan ${currentPage - 1}* - Hal. sebelumnya\n`;
+                message += `• *daftar pelanggan ${filterText}${currentPage - 1}* - Hal. sebelumnya\n`;
             }
             if (currentPage < totalPages) {
-                message += `• *daftar pelanggan ${currentPage + 1}* - Hal. berikutnya\n`;
+                message += `• *daftar pelanggan ${filterText}${currentPage + 1}* - Hal. berikutnya\n`;
             }
             message += `\n`;
         }
         
         message += `💡 *Tips:*\n`;
         message += `• *cari [nama/ID]* - Cari pelanggan\n`;
-        message += `• *daftar pelanggan lunas* - Filter lunas\n`;
-        message += `• *daftar pelanggan belum* - Filter belum bayar\n`;
+        if (!filter) {
+            message += `• *daftar pelanggan lunas* - Filter lunas\n`;
+            message += `• *daftar pelanggan belum* - Filter belum bayar\n`;
+        } else {
+            message += `• *daftar pelanggan* - Lihat semua\n`;
+        }
         message += `• *cek wifi [ID]* - Cek WiFi pelanggan`;
         
         return {
@@ -182,13 +189,12 @@ function handleSearchUser({ query }) {
         
         const searchQuery = query.toLowerCase().trim();
         
-        // Search in users
+        // Search in users by name, phone, or ID
         const results = global.users.filter(user => {
             const nameMatch = user.name && user.name.toLowerCase().includes(searchQuery);
             const phoneMatch = user.phone_number && user.phone_number.includes(searchQuery);
-            const deviceMatch = user.device_id && user.device_id.toLowerCase().includes(searchQuery);
             const idMatch = user.id && String(user.id) === searchQuery;
-            return nameMatch || phoneMatch || deviceMatch || idMatch;
+            return nameMatch || phoneMatch || idMatch;
         });
         
         if (results.length === 0) {
@@ -209,9 +215,6 @@ function handleSearchUser({ query }) {
             message += `📱 HP: ${phoneNumber}\n`;
             message += `📦 Paket: ${user.subscription || 'N/A'}\n`;
             message += `💰 Status: ${user.paid ? 'Sudah Bayar' : 'Belum Bayar'}\n`;
-            if (user.device_id) {
-                message += `🔧 Device: ${user.device_id}\n`;
-            }
             message += '\n';
         });
         
