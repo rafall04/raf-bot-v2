@@ -13,118 +13,42 @@
     <link href="/css/dashboard-modern.css" rel="stylesheet">
     <link href="/vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <style>
-        .stats-card {
-            border-radius: 10px;
-            transition: transform 0.2s;
-        }
-        .stats-card:hover {
-            transform: translateY(-2px);
-        }
-        .stats-card .card-body {
-            padding: 1.25rem;
-        }
-        .stats-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-        }
-        .stats-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-        }
-        .stats-label {
-            font-size: 0.85rem;
-            color: #6c757d;
-        }
+        .stats-card { border-radius: 10px; transition: transform 0.2s; }
+        .stats-card:hover { transform: translateY(-2px); }
+        .stats-card .card-body { padding: 1.25rem; }
+        .stats-icon { width: 50px; height: 50px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .stats-value { font-size: 1.75rem; font-weight: 700; }
+        .stats-label { font-size: 0.85rem; color: #6c757d; }
         
-        /* Status badges */
-        .badge-lunas {
-            background-color: #28a745;
-            color: white;
-        }
-        .badge-belum {
-            background-color: #dc3545;
-            color: white;
-        }
+        .badge-lunas { background-color: #28a745; color: white; }
+        .badge-belum { background-color: #dc3545; color: white; }
+        .badge-pending { background-color: #ffc107; color: #000; }
         
-        /* Filter tabs */
-        .filter-tabs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        .filter-tab {
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            border: 2px solid #e3e6f0;
-            background: white;
-            transition: all 0.2s;
-            font-weight: 500;
-        }
-        .filter-tab:hover {
-            border-color: #4e73df;
-        }
-        .filter-tab.active {
-            background: #4e73df;
-            color: white;
-            border-color: #4e73df;
-        }
-        .filter-tab .count {
-            background: rgba(0,0,0,0.1);
-            padding: 2px 8px;
-            border-radius: 10px;
-            margin-left: 5px;
-            font-size: 0.8rem;
-        }
-        .filter-tab.active .count {
-            background: rgba(255,255,255,0.2);
-        }
+        .filter-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-tab { padding: 8px 16px; border-radius: 20px; cursor: pointer; border: 2px solid #e3e6f0; background: white; transition: all 0.2s; font-weight: 500; }
+        .filter-tab:hover { border-color: #4e73df; }
+        .filter-tab.active { background: #4e73df; color: white; border-color: #4e73df; }
+        .filter-tab .count { background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 10px; margin-left: 5px; font-size: 0.8rem; }
+        .filter-tab.active .count { background: rgba(255,255,255,0.2); }
         
-        /* Table styles */
-        .table-payment th {
-            background: #f8f9fc;
-            font-weight: 600;
-            font-size: 0.85rem;
-        }
-        .table-payment td {
-            vertical-align: middle;
-        }
-        .customer-info {
-            display: flex;
-            flex-direction: column;
-        }
-        .customer-name {
-            font-weight: 600;
-            color: #2e2f37;
-        }
-        .customer-phone {
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-        .package-badge {
-            background: #e7f1ff;
-            color: #4e73df;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-        .billing-date {
-            font-weight: 500;
-        }
+        .table-payment th { background: #f8f9fc; font-weight: 600; font-size: 0.85rem; }
+        .table-payment td { vertical-align: middle; }
+        .customer-info { display: flex; flex-direction: column; }
+        .customer-name { font-weight: 600; color: #2e2f37; }
+        .customer-phone { font-size: 0.8rem; color: #6c757d; }
+        .package-badge { background: #e7f1ff; color: #4e73df; padding: 4px 10px; border-radius: 15px; font-size: 0.8rem; font-weight: 500; }
+        .billing-date { font-weight: 500; }
+        .btn-action { padding: 5px 10px; font-size: 0.8rem; }
         
-        /* Action buttons */
-        .btn-action {
-            padding: 5px 10px;
-            font-size: 0.8rem;
-        }
-</style>
+        /* Request Payment Modal */
+        .customer-summary { background: #f8f9fc; border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+        .customer-summary h5 { margin-bottom: 10px; color: #4e73df; }
+        .customer-summary .detail-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #e3e6f0; }
+        .customer-summary .detail-row:last-child { border-bottom: none; }
+        .customer-summary .detail-label { color: #6c757d; }
+        .customer-summary .detail-value { font-weight: 600; }
+        .price-highlight { font-size: 1.5rem; color: #28a745; font-weight: 700; }
+    </style>
 </head>
 
 <body id="page-top">
@@ -138,16 +62,13 @@
                     </button>
                     <ul class="navbar-nav ml-auto">
                         <li class="nav-item dropdown no-arrow">
-                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
-                                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">
                                 <span id="loggedInTechnicianInfo" class="mr-2 text-gray-600 small">Memuat nama...</span>
                                 <img class="img-profile rounded-circle" src="/img/undraw_profile.svg">
                             </a>
-                            <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
-                                aria-labelledby="userDropdown">
+                            <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in">
                                 <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
-                                    <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
-                                    Logout
+                                    <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
                                 </a>
                             </div>
                         </li>
@@ -155,7 +76,6 @@
                 </nav>
 
                 <div class="container-fluid">
-                    <!-- Page Header -->
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h1 class="h3 mb-0 text-gray-800">
                             <i class="fas fa-file-invoice-dollar text-primary"></i> Monitoring Pembayaran
@@ -175,9 +95,7 @@
                                             <div class="stats-label text-uppercase">Total Pelanggan</div>
                                             <div class="stats-value text-primary" id="totalCustomers">-</div>
                                         </div>
-                                        <div class="stats-icon bg-primary text-white">
-                                            <i class="fas fa-users"></i>
-                                        </div>
+                                        <div class="stats-icon bg-primary text-white"><i class="fas fa-users"></i></div>
                                     </div>
                                 </div>
                             </div>
@@ -190,9 +108,7 @@
                                             <div class="stats-label text-uppercase">Sudah Bayar</div>
                                             <div class="stats-value text-success" id="paidCount">-</div>
                                         </div>
-                                        <div class="stats-icon bg-success text-white">
-                                            <i class="fas fa-check-circle"></i>
-                                        </div>
+                                        <div class="stats-icon bg-success text-white"><i class="fas fa-check-circle"></i></div>
                                     </div>
                                 </div>
                             </div>
@@ -205,9 +121,7 @@
                                             <div class="stats-label text-uppercase">Belum Bayar</div>
                                             <div class="stats-value text-danger" id="unpaidCount">-</div>
                                         </div>
-                                        <div class="stats-icon bg-danger text-white">
-                                            <i class="fas fa-exclamation-circle"></i>
-                                        </div>
+                                        <div class="stats-icon bg-danger text-white"><i class="fas fa-exclamation-circle"></i></div>
                                     </div>
                                 </div>
                             </div>
@@ -220,9 +134,7 @@
                                             <div class="stats-label text-uppercase">Persentase Lunas</div>
                                             <div class="stats-value text-warning" id="paidPercentage">-</div>
                                         </div>
-                                        <div class="stats-icon bg-warning text-white">
-                                            <i class="fas fa-percentage"></i>
-                                        </div>
+                                        <div class="stats-icon bg-warning text-white"><i class="fas fa-percentage"></i></div>
                                     </div>
                                 </div>
                             </div>
@@ -232,25 +144,20 @@
                     <!-- Filter Tabs -->
                     <div class="filter-tabs">
                         <div class="filter-tab active" data-filter="all">
-                            <i class="fas fa-list"></i> Semua
-                            <span class="count" id="countAll">0</span>
+                            <i class="fas fa-list"></i> Semua <span class="count" id="countAll">0</span>
                         </div>
                         <div class="filter-tab" data-filter="unpaid">
-                            <i class="fas fa-times-circle text-danger"></i> Belum Bayar
-                            <span class="count" id="countUnpaid">0</span>
+                            <i class="fas fa-times-circle text-danger"></i> Belum Bayar <span class="count" id="countUnpaid">0</span>
                         </div>
                         <div class="filter-tab" data-filter="paid">
-                            <i class="fas fa-check-circle text-success"></i> Sudah Bayar
-                            <span class="count" id="countPaid">0</span>
+                            <i class="fas fa-check-circle text-success"></i> Sudah Bayar <span class="count" id="countPaid">0</span>
                         </div>
                     </div>
 
                     <!-- Data Table -->
                     <div class="card shadow mb-4">
                         <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">
-                                <i class="fas fa-table"></i> Daftar Pelanggan
-                            </h6>
+                            <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-table"></i> Daftar Pelanggan</h6>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -265,43 +172,32 @@
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <!-- Data will be loaded via JavaScript -->
-                                    </tbody>
+                                    <tbody></tbody>
                                 </table>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
-                    <div class="copyright text-center my-auto">
-                        <span>Copyright &copy; RAF BOT 2025</span>
-                    </div>
+                    <div class="copyright text-center my-auto"><span>Copyright &copy; RAF BOT 2025</span></div>
                 </div>
             </footer>
         </div>
     </div>
 
-    <a class="scroll-to-top rounded" href="#page-top">
-        <i class="fas fa-angle-up"></i>
-    </a>
+    <a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
 
     <!-- Logout Modal -->
-    <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog" role="document">
+    <div class="modal fade" id="logoutModal" tabindex="-1">
+        <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Konfirmasi Logout</h5>
-                    <button type="button" class="close" data-dismiss="modal">
-                        <span>&times;</span>
-                    </button>
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                 </div>
-                <div class="modal-body">
-                    Apakah Anda yakin ingin logout?
-                </div>
+                <div class="modal-body">Apakah Anda yakin ingin logout?</div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                     <a href="/logout" class="btn btn-primary">Logout</a>
@@ -310,19 +206,43 @@
         </div>
     </div>
 
+    <!-- Request Payment Modal -->
+    <div class="modal fade" id="requestPaymentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fas fa-money-bill-wave"></i> Request Pembayaran</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="customer-summary" id="paymentCustomerSummary">
+                        <!-- Filled by JS -->
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Catatan:</strong> Request pembayaran akan dikirim ke admin untuk disetujui. 
+                        Metode pembayaran otomatis tercatat sebagai <strong>TUNAI</strong> karena diterima langsung oleh teknisi.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-success" id="confirmPaymentBtn">
+                        <i class="fas fa-paper-plane"></i> Kirim Request
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Detail Modal -->
-    <div class="modal fade" id="detailModal" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg" role="document">
+    <div class="modal fade" id="detailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title"><i class="fas fa-user"></i> Detail Pelanggan</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">
-                        <span>&times;</span>
-                    </button>
+                    <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                 </div>
-                <div class="modal-body" id="detailModalBody">
-                    <!-- Content loaded via JS -->
-                </div>
+                <div class="modal-body" id="detailModalBody"></div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                 </div>
@@ -330,7 +250,6 @@
         </div>
     </div>
 
-    <!-- Scripts -->
     <script src="/vendor/jquery/jquery.min.js"></script>
     <script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
@@ -339,19 +258,21 @@
     <script src="/vendor/datatables/dataTables.bootstrap4.min.js"></script>
 
     <script>
-        // Global variables
         let allCustomers = [];
+        let allPackages = [];
+        let pendingRequests = [];
         let dataTable = null;
         let currentFilter = 'all';
+        let selectedCustomerId = null;
 
-        // Initialize page
         $(document).ready(function() {
             loadTechnicianInfo();
+            loadPackages();
+            loadPendingRequests();
             loadCustomerData();
             setupEventHandlers();
         });
 
-        // Load technician info
         function loadTechnicianInfo() {
             fetch('/api/teknisi/me', { credentials: 'include' })
                 .then(res => res.json())
@@ -360,13 +281,31 @@
                         $('#loggedInTechnicianInfo').text(data.data.name || 'Teknisi');
                     }
                 })
-                .catch(err => {
-                    console.error('Error loading technician info:', err);
-                    $('#loggedInTechnicianInfo').text('Teknisi');
-                });
+                .catch(() => $('#loggedInTechnicianInfo').text('Teknisi'));
         }
 
-        // Load customer data
+        function loadPackages() {
+            fetch('/api/packages', { credentials: 'include' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 200 && Array.isArray(data.data)) {
+                        allPackages = data.data;
+                    }
+                })
+                .catch(err => console.error('Error loading packages:', err));
+        }
+
+        function loadPendingRequests() {
+            fetch('/api/requests', { credentials: 'include' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 200 && Array.isArray(data.data)) {
+                        pendingRequests = data.data.filter(r => r.status === 'pending');
+                    }
+                })
+                .catch(err => console.error('Error loading requests:', err));
+        }
+
         function loadCustomerData() {
             $('#refreshBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memuat...');
             
@@ -382,7 +321,7 @@
                     }
                 })
                 .catch(err => {
-                    console.error('Error loading customers:', err);
+                    console.error('Error:', err);
                     showAlert('danger', 'Terjadi kesalahan saat memuat data');
                 })
                 .finally(() => {
@@ -390,7 +329,19 @@
                 });
         }
 
-        // Update statistics
+        function getPackagePrice(packageName) {
+            if (!packageName) return 0;
+            const pkg = allPackages.find(p => p.name === packageName);
+            if (pkg && pkg.price) return pkg.price;
+            const match = packageName.match(/([0-9]+)K/i);
+            if (match) return parseInt(match[1]) * 1000;
+            return 0;
+        }
+
+        function formatCurrency(amount) {
+            return 'Rp ' + Number(amount).toLocaleString('id-ID');
+        }
+
         function updateStats() {
             const total = allCustomers.length;
             const paid = allCustomers.filter(c => c.paid === true || c.paid === 1 || c.paid === 'true').length;
@@ -401,21 +352,18 @@
             $('#paidCount').text(paid);
             $('#unpaidCount').text(unpaid);
             $('#paidPercentage').text(percentage + '%');
-
-            // Update filter counts
             $('#countAll').text(total);
             $('#countPaid').text(paid);
             $('#countUnpaid').text(unpaid);
         }
 
-        // Render table
-        function renderTable() {
-            // Destroy existing DataTable if exists
-            if (dataTable) {
-                dataTable.destroy();
-            }
+        function hasPendingRequest(userId) {
+            return pendingRequests.some(r => String(r.userId) === String(userId));
+        }
 
-            // Filter data based on current filter
+        function renderTable() {
+            if (dataTable) dataTable.destroy();
+
             let filteredData = allCustomers;
             if (currentFilter === 'paid') {
                 filteredData = allCustomers.filter(c => c.paid === true || c.paid === 1 || c.paid === 'true');
@@ -423,22 +371,33 @@
                 filteredData = allCustomers.filter(c => c.paid !== true && c.paid !== 1 && c.paid !== 'true');
             }
 
-            // Build table rows
             const tbody = $('#paymentTable tbody');
             tbody.empty();
 
             filteredData.forEach(customer => {
                 const isPaid = customer.paid === true || customer.paid === 1 || customer.paid === 'true';
-                const statusBadge = isPaid 
-                    ? '<span class="badge badge-lunas"><i class="fas fa-check"></i> Lunas</span>'
-                    : '<span class="badge badge-belum"><i class="fas fa-times"></i> Belum Bayar</span>';
+                const hasPending = hasPendingRequest(customer.id);
                 
-                const phoneDisplay = customer.phone_number 
-                    ? customer.phone_number.split('|')[0].trim() 
-                    : '-';
+                let statusBadge;
+                if (hasPending) {
+                    statusBadge = '<span class="badge badge-pending"><i class="fas fa-clock"></i> Menunggu Approval</span>';
+                } else if (isPaid) {
+                    statusBadge = '<span class="badge badge-lunas"><i class="fas fa-check"></i> Lunas</span>';
+                } else {
+                    statusBadge = '<span class="badge badge-belum"><i class="fas fa-times"></i> Belum Bayar</span>';
+                }
                 
+                const phoneDisplay = customer.phone_number ? customer.phone_number.split('|')[0].trim() : '-';
                 const billingDate = customer.bulk || '-';
                 const packageName = customer.subscription || '-';
+
+                let actionButtons = `<button class="btn btn-info btn-action" onclick="showDetail(${customer.id})" title="Lihat Detail"><i class="fas fa-eye"></i></button>`;
+                
+                if (!isPaid && !hasPending) {
+                    actionButtons += ` <button class="btn btn-success btn-action" onclick="openPaymentModal(${customer.id})" title="Request Pembayaran"><i class="fas fa-money-bill-wave"></i></button>`;
+                } else if (hasPending) {
+                    actionButtons += ` <button class="btn btn-warning btn-action" disabled title="Menunggu Approval"><i class="fas fa-hourglass-half"></i></button>`;
+                }
 
                 const row = `
                     <tr>
@@ -452,22 +411,12 @@
                         <td><span class="package-badge">${escapeHtml(packageName)}</span></td>
                         <td class="billing-date">Tgl ${billingDate}</td>
                         <td>${statusBadge}</td>
-                        <td>
-                            <button class="btn btn-info btn-action" onclick="showDetail(${customer.id})" title="Lihat Detail">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            ${!isPaid ? `
-                            <a href="/pembayaran/teknisi?userId=${customer.id}" class="btn btn-success btn-action" title="Request Pembayaran">
-                                <i class="fas fa-money-bill-wave"></i>
-                            </a>
-                            ` : ''}
-                        </td>
+                        <td>${actionButtons}</td>
                     </tr>
                 `;
                 tbody.append(row);
             });
 
-            // Initialize DataTable
             dataTable = $('#paymentTable').DataTable({
                 order: [[0, 'asc']],
                 pageLength: 25,
@@ -478,34 +427,101 @@
                     infoEmpty: "Tidak ada data",
                     infoFiltered: "(difilter dari _MAX_ total data)",
                     zeroRecords: "Tidak ada data yang cocok",
-                    paginate: {
-                        first: "Pertama",
-                        last: "Terakhir",
-                        next: "Selanjutnya",
-                        previous: "Sebelumnya"
-                    }
+                    paginate: { first: "Pertama", last: "Terakhir", next: "Selanjutnya", previous: "Sebelumnya" }
                 },
                 responsive: true
             });
         }
 
-        // Setup event handlers
         function setupEventHandlers() {
-            // Refresh button
             $('#refreshBtn').on('click', function() {
+                loadPendingRequests();
                 loadCustomerData();
             });
 
-            // Filter tabs
             $('.filter-tab').on('click', function() {
                 $('.filter-tab').removeClass('active');
                 $(this).addClass('active');
                 currentFilter = $(this).data('filter');
                 renderTable();
             });
+
+            $('#confirmPaymentBtn').on('click', submitPaymentRequest);
         }
 
-        // Show customer detail
+        function openPaymentModal(customerId) {
+            const customer = allCustomers.find(c => c.id === customerId);
+            if (!customer) {
+                showAlert('danger', 'Data pelanggan tidak ditemukan');
+                return;
+            }
+
+            selectedCustomerId = customerId;
+            const price = getPackagePrice(customer.subscription);
+
+            const summaryHtml = `
+                <h5><i class="fas fa-user"></i> ${escapeHtml(customer.name)}</h5>
+                <div class="detail-row">
+                    <span class="detail-label">ID Pelanggan</span>
+                    <span class="detail-value">${customer.id}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Paket</span>
+                    <span class="detail-value">${escapeHtml(customer.subscription || '-')}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Tanggal Tagihan</span>
+                    <span class="detail-value">Tanggal ${customer.bulk || '-'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Nominal</span>
+                    <span class="detail-value price-highlight">${formatCurrency(price)}</span>
+                </div>
+            `;
+
+            $('#paymentCustomerSummary').html(summaryHtml);
+            $('#requestPaymentModal').modal('show');
+        }
+
+        function submitPaymentRequest() {
+            if (!selectedCustomerId) {
+                showAlert('danger', 'Pelanggan tidak dipilih');
+                return;
+            }
+
+            const btn = $('#confirmPaymentBtn');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Mengirim...');
+
+            fetch('/api/requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    userId: selectedCustomerId,
+                    newStatus: true
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 200 || data.status === 201) {
+                    $('#requestPaymentModal').modal('hide');
+                    showAlert('success', 'Request pembayaran berhasil dikirim! Menunggu approval admin.');
+                    loadPendingRequests();
+                    setTimeout(() => loadCustomerData(), 500);
+                } else {
+                    showAlert('danger', data.message || 'Gagal mengirim request');
+                }
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                showAlert('danger', 'Terjadi kesalahan saat mengirim request');
+            })
+            .finally(() => {
+                btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Kirim Request');
+                selectedCustomerId = null;
+            });
+        }
+
         function showDetail(customerId) {
             const customer = allCustomers.find(c => c.id === customerId);
             if (!customer) {
@@ -514,75 +530,73 @@
             }
 
             const isPaid = customer.paid === true || customer.paid === 1 || customer.paid === 'true';
-            const statusBadge = isPaid 
-                ? '<span class="badge badge-success badge-lg"><i class="fas fa-check"></i> LUNAS</span>'
-                : '<span class="badge badge-danger badge-lg"><i class="fas fa-times"></i> BELUM BAYAR</span>';
+            const hasPending = hasPendingRequest(customer.id);
+            
+            let statusBadge;
+            if (hasPending) {
+                statusBadge = '<span class="badge badge-warning badge-lg"><i class="fas fa-clock"></i> MENUNGGU APPROVAL</span>';
+            } else if (isPaid) {
+                statusBadge = '<span class="badge badge-success badge-lg"><i class="fas fa-check"></i> LUNAS</span>';
+            } else {
+                statusBadge = '<span class="badge badge-danger badge-lg"><i class="fas fa-times"></i> BELUM BAYAR</span>';
+            }
 
             const phones = customer.phone_number ? customer.phone_number.split('|').map(p => p.trim()).filter(p => p) : [];
             const phoneList = phones.length > 0 
                 ? phones.map(p => `<a href="https://wa.me/${p}" target="_blank" class="btn btn-sm btn-success mr-1 mb-1"><i class="fab fa-whatsapp"></i> ${p}</a>`).join('')
                 : '<span class="text-muted">Tidak ada nomor</span>';
 
+            const price = getPackagePrice(customer.subscription);
+
+            let actionSection = '';
+            if (!isPaid && !hasPending) {
+                actionSection = `
+                    <hr>
+                    <div class="text-center">
+                        <button class="btn btn-success btn-lg" onclick="$('#detailModal').modal('hide'); openPaymentModal(${customer.id});">
+                            <i class="fas fa-money-bill-wave"></i> Request Pembayaran (${formatCurrency(price)})
+                        </button>
+                    </div>
+                `;
+            } else if (hasPending) {
+                actionSection = `
+                    <hr>
+                    <div class="text-center">
+                        <div class="alert alert-warning mb-0">
+                            <i class="fas fa-hourglass-half"></i> Request pembayaran sedang menunggu approval admin
+                        </div>
+                    </div>
+                `;
+            }
+
             const content = `
                 <div class="row">
                     <div class="col-md-6">
                         <h6 class="font-weight-bold text-primary mb-3">Informasi Pelanggan</h6>
                         <table class="table table-sm">
-                            <tr>
-                                <td width="40%"><strong>ID</strong></td>
-                                <td>${customer.id}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Nama</strong></td>
-                                <td>${escapeHtml(customer.name)}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Alamat</strong></td>
-                                <td>${escapeHtml(customer.address || '-')}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Telepon</strong></td>
-                                <td>${phoneList}</td>
-                            </tr>
+                            <tr><td width="40%"><strong>ID</strong></td><td>${customer.id}</td></tr>
+                            <tr><td><strong>Nama</strong></td><td>${escapeHtml(customer.name)}</td></tr>
+                            <tr><td><strong>Alamat</strong></td><td>${escapeHtml(customer.address || '-')}</td></tr>
+                            <tr><td><strong>Telepon</strong></td><td>${phoneList}</td></tr>
                         </table>
                     </div>
                     <div class="col-md-6">
                         <h6 class="font-weight-bold text-primary mb-3">Informasi Langganan</h6>
                         <table class="table table-sm">
-                            <tr>
-                                <td width="40%"><strong>Paket</strong></td>
-                                <td><span class="package-badge">${escapeHtml(customer.subscription || '-')}</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Tgl Tagihan</strong></td>
-                                <td>Tanggal ${customer.bulk || '-'}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Status Bayar</strong></td>
-                                <td>${statusBadge}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>PPPoE User</strong></td>
-                                <td><code>${escapeHtml(customer.pppoe_user || '-')}</code></td>
-                            </tr>
+                            <tr><td width="40%"><strong>Paket</strong></td><td><span class="package-badge">${escapeHtml(customer.subscription || '-')}</span></td></tr>
+                            <tr><td><strong>Harga</strong></td><td><strong class="text-success">${formatCurrency(price)}</strong></td></tr>
+                            <tr><td><strong>Tgl Tagihan</strong></td><td>Tanggal ${customer.bulk || '-'}</td></tr>
+                            <tr><td><strong>Status Bayar</strong></td><td>${statusBadge}</td></tr>
                         </table>
                     </div>
                 </div>
-                ${!isPaid ? `
-                <hr>
-                <div class="text-center">
-                    <a href="/pembayaran/teknisi?userId=${customer.id}" class="btn btn-success">
-                        <i class="fas fa-money-bill-wave"></i> Request Pembayaran untuk Pelanggan Ini
-                    </a>
-                </div>
-                ` : ''}
+                ${actionSection}
             `;
 
             $('#detailModalBody').html(content);
             $('#detailModal').modal('show');
         }
 
-        // Helper: Escape HTML
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -590,154 +604,48 @@
             return div.innerHTML;
         }
 
-        // Helper: Show alert
         function showAlert(type, message) {
             const alertHtml = `
                 <div class="alert alert-${type} alert-dismissible fade show" role="alert">
                     ${message}
-                    <button type="button" class="close" data-dismiss="alert">
-                        <span>&times;</span>
-                    </button>
+                    <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
                 </div>
             `;
             $('.container-fluid').prepend(alertHtml);
-            setTimeout(() => {
-                $('.alert').alert('close');
-            }, 5000);
+            setTimeout(() => $('.alert').alert('close'), 5000);
         }
     </script>
 
     <style>
-        /* ===== MOBILE RESPONSIVE STYLES ===== */
         @media (max-width: 768px) {
-            .container-fluid {
-                padding: 0.75rem;
-            }
-            
-            /* Page Header */
-            .d-sm-flex {
-                flex-direction: column !important;
-                align-items: flex-start !important;
-            }
-            
-            .d-sm-flex .btn {
-                width: 100%;
-                margin-top: 1rem;
-            }
-            
-            h1.h3 {
-                font-size: 1.25rem;
-            }
-            
-            /* Stats cards */
-            .stats-card .card-body {
-                padding: 1rem;
-            }
-            
-            .stats-value {
-                font-size: 1.5rem;
-            }
-            
-            .stats-icon {
-                width: 40px;
-                height: 40px;
-                font-size: 1.2rem;
-            }
-            
-            /* Filter tabs */
-            .filter-tabs {
-                gap: 8px;
-            }
-            
-            .filter-tab {
-                padding: 6px 12px;
-                font-size: 0.85rem;
-            }
-            
-            /* Card adjustments */
-            .card-body {
-                padding: 1rem;
-            }
-            
-            .card-header {
-                padding: 0.75rem 1rem;
-            }
-            
-            /* Table */
-            .table-responsive {
-                font-size: 0.85rem;
-            }
-            
-            .customer-info {
-                min-width: 120px;
-            }
-            
-            .btn-action {
-                padding: 4px 8px;
-                font-size: 0.75rem;
-            }
-            
-            /* Modal */
-            .modal-dialog {
-                margin: 0.5rem;
-                max-width: calc(100% - 1rem);
-            }
-            
-            .modal-body {
-                padding: 1rem;
-            }
-            
-            /* Form controls */
-            .form-control, select {
-                font-size: 16px !important;
-            }
+            .container-fluid { padding: 0.75rem; }
+            .d-sm-flex { flex-direction: column !important; align-items: flex-start !important; }
+            .d-sm-flex .btn { width: 100%; margin-top: 1rem; }
+            h1.h3 { font-size: 1.25rem; }
+            .stats-card .card-body { padding: 1rem; }
+            .stats-value { font-size: 1.5rem; }
+            .stats-icon { width: 40px; height: 40px; font-size: 1.2rem; }
+            .filter-tabs { gap: 8px; }
+            .filter-tab { padding: 6px 12px; font-size: 0.85rem; }
+            .card-body { padding: 1rem; }
+            .table-responsive { font-size: 0.85rem; }
+            .btn-action { padding: 4px 8px; font-size: 0.75rem; }
+            .modal-dialog { margin: 0.5rem; max-width: calc(100% - 1rem); }
+            .form-control, select { font-size: 16px !important; }
         }
-        
         @media (max-width: 576px) {
-            .container-fluid {
-                padding: 0.5rem;
-            }
-            
-            h1.h3 {
-                font-size: 1.1rem;
-            }
-            
-            .stats-value {
-                font-size: 1.25rem;
-            }
-            
-            .stats-label {
-                font-size: 0.75rem;
-            }
-            
-            .stats-icon {
-                width: 35px;
-                height: 35px;
-                font-size: 1rem;
-            }
-            
-            .filter-tab {
-                padding: 5px 10px;
-                font-size: 0.8rem;
-            }
-            
-            .filter-tab .count {
-                padding: 1px 6px;
-                font-size: 0.7rem;
-            }
-            
-            .card-body {
-                padding: 0.75rem;
-            }
-            
-            .table-responsive {
-                font-size: 0.8rem;
-            }
-            
-            .package-badge {
-                font-size: 0.7rem;
-                padding: 3px 8px;
-            }
+            .container-fluid { padding: 0.5rem; }
+            h1.h3 { font-size: 1.1rem; }
+            .stats-value { font-size: 1.25rem; }
+            .stats-label { font-size: 0.75rem; }
+            .stats-icon { width: 35px; height: 35px; font-size: 1rem; }
+            .filter-tab { padding: 5px 10px; font-size: 0.8rem; }
+            .filter-tab .count { padding: 1px 6px; font-size: 0.7rem; }
+            .card-body { padding: 0.75rem; }
+            .table-responsive { font-size: 0.8rem; }
+            .package-badge { font-size: 0.7rem; padding: 3px 8px; }
+            .customer-summary { padding: 12px; }
+            .price-highlight { font-size: 1.25rem; }
         }
     </style>
 </body>
