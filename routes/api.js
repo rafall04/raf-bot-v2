@@ -992,21 +992,31 @@ router.post('/users/:id', ensureAdmin, async (req, res) => {
             console.error('[ACTIVITY_LOG_ERROR] Failed to log user update:', logErr);
         }
         
-        // Handle paid status change
+        // Handle paid status change (non-blocking - don't fail the request if notification fails)
         if (oldPaidStatus !== userToUpdate.paid && userToUpdate.paid === true) {
-            await handlePaidStatusChange(userToUpdate, {
-                paidDate: new Date().toISOString(),
-                method: userData.payment_method || 'TRANSFER_BANK', // Default to bank transfer for admin updates
-                approvedBy: req.user.username,
-                notes: 'Status pembayaran diperbarui'
-            });
+            try {
+                await handlePaidStatusChange(userToUpdate, {
+                    paidDate: new Date().toISOString(),
+                    method: userData.payment_method || 'TRANSFER_BANK', // Default to bank transfer for admin updates
+                    approvedBy: req.user.username,
+                    notes: 'Status pembayaran diperbarui'
+                });
+            } catch (paidChangeErr) {
+                console.error('[PAID_STATUS_CHANGE_ERROR] Non-critical error during paid status change:', paidChangeErr.message);
+                // Don't throw - data is already updated, just log the error
+            }
         }
         
-        // Update PPPoE if needed
+        // Update PPPoE if needed (non-blocking)
         if (userToUpdate.pppoe_username && (userToUpdate.subscription || userToUpdate.package)) {
-            const profile = getProfileBySubscription(userToUpdate.subscription || userToUpdate.package);
-            if (profile) {
-                await updatePPPoEProfile(userToUpdate.pppoe_username, profile);
+            try {
+                const profile = getProfileBySubscription(userToUpdate.subscription || userToUpdate.package);
+                if (profile) {
+                    await updatePPPoEProfile(userToUpdate.pppoe_username, profile);
+                }
+            } catch (pppoeErr) {
+                console.error('[PPPOE_UPDATE_ERROR] Non-critical error during PPPoE update:', pppoeErr.message);
+                // Don't throw - data is already updated, just log the error
             }
         }
         
