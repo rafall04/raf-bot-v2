@@ -597,7 +597,15 @@ async function startApp() {
             version,
             logger: P({ level: 'fatal' }),
             browser: ["RAF BOT MD BETA", "safari", "1.0.0"],
-            auth: state
+            auth: state,
+            // Keep-alive configuration untuk mencegah stream timeout (error 515)
+            keepAliveIntervalMs: 30000,        // Kirim heartbeat setiap 30 detik
+            connectTimeoutMs: 60000,           // Timeout koneksi 60 detik
+            retryRequestDelayMs: 2000,         // Delay retry request 2 detik
+            defaultQueryTimeoutMs: 60000,      // Timeout query default 60 detik
+            markOnlineOnConnect: true,         // Mark online saat connect
+            syncFullHistory: false,            // Tidak perlu sync full history
+            generateHighQualityLinkPreview: false, // Hemat resource
         });
         raf.multi = true
         raf.nopref = false
