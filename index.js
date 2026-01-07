@@ -733,28 +733,18 @@ async function startApp() {
                 } else {
                     console.log("Connection lost, initiating recovery...");
                     
-                    const recovery = await global.errorRecovery.handleError(error, {
-                        context: 'whatsapp_disconnection',
-                        retryable: true,
-                        identifier: 'whatsapp_connection'
-                    });
+                    // Reset retry counter untuk whatsapp_connection agar bisa retry terus
+                    global.errorRecovery.resetRetryCount('whatsapp_connection');
                     
-                    if (recovery.recovered) {
-                        console.log("✅ Recovery successful");
-                    } else if (recovery.retry && recovery.delay) {
-                        console.log(`⏱️ Will retry connection in ${recovery.delay}ms`);
-                        setTimeout(() => {
-                            connect();
-                        }, recovery.delay);
-                    } else {
-                        console.log("❌ Max reconnection attempts reached");
-                        io.emit('message', 'disconnected');
-                        
-                        await global.alertSystem.sendAlert('critical', 'WHATSAPP_DISCONNECTED', {
-                            reason: reason,
-                            message: 'Failed to reconnect after multiple attempts'
-                        });
-                    }
+                    // Langsung reconnect dengan delay, tanpa melalui error recovery yang punya max retries
+                    // Karena untuk WhatsApp, kita ingin terus mencoba reconnect selama session valid
+                    const reconnectDelay = 5000; // 5 detik
+                    console.log(`⏱️ Will retry connection in ${reconnectDelay}ms`);
+                    
+                    setTimeout(() => {
+                        console.log("🔄 Attempting to reconnect WhatsApp...");
+                        connect();
+                    }, reconnectDelay);
                 }
             } else if (update.qr) {
                 console.log("Please scan QR code");
