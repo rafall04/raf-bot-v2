@@ -225,7 +225,7 @@ router.get('/users', ensureAuthenticated, (req, res) => {
 
 // POST /api/users/update - Update user payment status
 router.post('/users/update', ensureAdmin, async (req, res) => {
-    const { id, paid } = req.body;
+    const { id, paid, payment_method } = req.body;
     
     if (!id) {
         return res.status(400).json({
@@ -269,11 +269,16 @@ router.post('/users/update', ensureAdmin, async (req, res) => {
         
         // Handle paid status change logic
         if (paid === true) {
+            // Use payment_method from request body if provided, otherwise default to TRANSFER_BANK
+            const method = payment_method && ['CASH', 'TRANSFER_BANK'].includes(payment_method) 
+                ? payment_method 
+                : 'TRANSFER_BANK';
+            
             await handlePaidStatusChange(user, {
                 paidDate: new Date().toISOString(),
-                method: 'TRANSFER_BANK', // Admin creating paid user = bank transfer
+                method: method,
                 approvedBy: req.user.username,
-                notes: 'User baru dengan status lunas'
+                notes: `Status pembayaran diperbarui (${method === 'CASH' ? 'Tunai' : 'Transfer Bank'})`
             });
         }
         
@@ -597,27 +602,95 @@ router.post('/users', ensureAdmin, async (req, res) => {
             
             // Add PPPoE user if needed - HANYA jika checkbox "add_to_mikrotik" dicentang
             const addToMikrotik = userData.add_to_mikrotik === true || userData.add_to_mikrotik === 'true';
-            if (addToMikrotik && newUser.pppoe_username && newUser.pppoe_password && newUser.subscription) {
+            const registrationMode = userData.registration_mode || 'legacy'; // 'new', 'import', or 'legacy'
+            const skipMikrotik = userData.skip_mikrotik === true;
+            
+            // Handle Mode New: Full setup with device, WiFi, and PPPoE
+            if (registrationMode === 'new' && !skipMikrotik) {
+                const deviceId = userData.device_id;
+                const wifiSSID = userData.wifi_ssid;
+                const wifiPassword = userData.wifi_password;
+                const ssidIndices = userData.ssid_indices || [];
+                
+                // 1. Setup WiFi via GenieACS
+                if (deviceId && wifiSSID && wifiPassword && ssidIndices.length > 0) {
+                    try {
+                        const { setWifiCredentials } = require('../lib/genieacs-helper');
+                        
+                        for (const ssidIndex of ssidIndices) {
+                            await setWifiCredentials(deviceId, ssidIndex, wifiSSID, wifiPassword);
+                            console.log(`[USER_CREATE_MODE_NEW] WiFi SSID ${ssidIndex} configured for device ${deviceId}`);
+                        }
+                    } catch (wifiError) {
+                        console.error(`[USER_CREATE_MODE_NEW_ERROR] Failed to set WiFi:`, wifiError.message);
+                        // Don't fail user creation, but log the error
+                    }
+                }
+                
+                // 2. Setup PPPoE in MikroTik
+                if (newUser.pppoe_username && newUser.subscription) {
+                    const profile = getProfileBySubscription(newUser.subscription);
+                    const pppoePassword = newUser.pppoe_password || global.config.defaultPPPoEPassword || 'rafnet123';
+                    
+                    if (profile) {
+                        try {
+                            await addPPPoEUser(newUser.pppoe_username, pppoePassword, profile);
+                            console.log(`[USER_CREATE_MODE_NEW] PPPoE user ${newUser.pppoe_username} added to MikroTik with profile ${profile}`);
+                            
+                            // Update user with pppoe_password if it was default
+                            if (!newUser.pppoe_password) {
+                                newUser.pppoe_password = pppoePassword;
+                                // Update in database
+                                await new Promise((resolve, reject) => {
+                                    global.db.run('UPDATE users SET pppoe_password = ? WHERE id = ?', [pppoePassword, newUser.id], (err) => {
+                                        if (err) reject(err);
+                                        else resolve();
+                                    });
+                                });
+                            }
+                        } catch (mikrotikError) {
+                            if (mikrotikError.message && mikrotikError.message.includes('sudah ada')) {
+                                console.warn(`[USER_CREATE_MODE_NEW_WARNING] PPPoE user ${newUser.pppoe_username} already exists in MikroTik.`);
+                            } else {
+                                throw new Error(`Gagal menambahkan user ke MikroTik: ${mikrotikError.message}`);
+                            }
+                        }
+                    }
+                }
+                
+                // 3. Set PPPoE credentials on device via GenieACS
+                if (deviceId && newUser.pppoe_username) {
+                    try {
+                        const { setPPPoECredentials } = require('../lib/genieacs-helper');
+                        const pppoePassword = newUser.pppoe_password || global.config.defaultPPPoEPassword || 'rafnet123';
+                        await setPPPoECredentials(deviceId, newUser.pppoe_username, pppoePassword);
+                        console.log(`[USER_CREATE_MODE_NEW] PPPoE credentials set on device ${deviceId}`);
+                    } catch (pppoeDeviceError) {
+                        console.error(`[USER_CREATE_MODE_NEW_ERROR] Failed to set PPPoE on device:`, pppoeDeviceError.message);
+                        // Don't fail user creation
+                    }
+                }
+                
+            } else if (registrationMode === 'import' || skipMikrotik) {
+                // Mode Import: Only save to database, skip MikroTik operations
+                console.log(`[USER_CREATE_MODE_IMPORT] User ${newUser.name} imported without MikroTik setup`);
+                
+            } else if (addToMikrotik && newUser.pppoe_username && newUser.pppoe_password && newUser.subscription) {
+                // Legacy mode: Add PPPoE if checkbox is checked
                 const profile = getProfileBySubscription(newUser.subscription);
                 if (profile) {
                     try {
                         await addPPPoEUser(newUser.pppoe_username, newUser.pppoe_password, profile);
-                        // PPPoE user added to MikroTik
                     } catch (mikrotikError) {
-                        // Jika error karena user sudah ada, log warning tapi jangan gagalkan proses
                         if (mikrotikError.message && mikrotikError.message.includes('sudah ada')) {
                             console.warn(`[USER_CREATE_WARNING] PPPoE user ${newUser.pppoe_username} sudah ada di MikroTik. User tetap ditambahkan ke database.`);
                         } else {
-                            // Untuk error lain, throw error untuk mencegah inconsistent state
                             throw new Error(`Gagal menambahkan user ke MikroTik: ${mikrotikError.message}`);
                         }
                     }
                 } else {
                     console.warn(`[USER_CREATE_WARNING] Profile tidak ditemukan untuk subscription ${newUser.subscription}. User tetap ditambahkan ke database.`);
                 }
-            } else if (newUser.pppoe_username && newUser.pppoe_password && newUser.subscription && !addToMikrotik) {
-                // Log info jika field PPPoE terisi tapi checkbox tidak dicentang
-                // Simplified log
             }
             
             // Send welcome message if enabled
@@ -664,7 +737,12 @@ router.post('/users', ensureAdmin, async (req, res) => {
             return res.json({
                 status: 201,
                 message: 'User berhasil ditambahkan',
-                data: newUser
+                data: newUser,
+                generated_credentials: {
+                    username: finalUsername,
+                    password: plainTextPassword
+                },
+                registration_mode: registrationMode || 'legacy'
             });
         }
         
@@ -1785,10 +1863,10 @@ router.get('/psb/list-customers', ensureAuthenticatedStaff, async (req, res) => 
 });
 
 // GET /api/psb/list-devices - List devices dengan berbagai filter
-// Query params: filter (default|new|all), serialNumber (optional - filter by serial number)
+// Query params: filter (default|new|by-sn|by-pppoe), serialNumber (optional), pppoeUsername (optional)
 router.get('/psb/list-devices', ensureAuthenticatedStaff, async (req, res) => {
     try {
-        const filterType = req.query.filter || 'default'; // default, new, by-sn
+        const filterType = req.query.filter || 'default'; // default, new, by-sn, by-pppoe
         // Handle serialNumber parameter - could be string, array, or undefined
         let serialNumberFilter = null;
         if (req.query.serialNumber) {
@@ -1807,12 +1885,36 @@ router.get('/psb/list-devices', ensureAuthenticatedStaff, async (req, res) => {
             }
         }
         
+        // Handle pppoeUsername parameter for by-pppoe filter
+        let pppoeUsernameFilter = null;
+        if (req.query.pppoeUsername) {
+            if (Array.isArray(req.query.pppoeUsername)) {
+                pppoeUsernameFilter = req.query.pppoeUsername[0] ? String(req.query.pppoeUsername[0]).trim() : null;
+            } else if (typeof req.query.pppoeUsername === 'string') {
+                pppoeUsernameFilter = req.query.pppoeUsername.trim();
+            } else {
+                pppoeUsernameFilter = String(req.query.pppoeUsername).trim();
+            }
+            if (!pppoeUsernameFilter || pppoeUsernameFilter === '') {
+                pppoeUsernameFilter = null;
+            }
+        }
+        
         // Validate: "by-sn" filter requires Serial Number
         if (filterType === 'by-sn' && !serialNumberFilter) {
             return res.status(400).json({
                 status: 400,
                 message: 'Filter "By SN" memerlukan Serial Number. Silakan masukkan Serial Number terlebih dahulu.',
                 error: 'Serial Number required for by-sn filter'
+            });
+        }
+        
+        // Validate: "by-pppoe" filter requires pppoeUsername
+        if (filterType === 'by-pppoe' && !pppoeUsernameFilter) {
+            return res.status(400).json({
+                status: 400,
+                message: 'Filter "By PPPoE" memerlukan PPPoE Username.',
+                error: 'PPPoE Username required for by-pppoe filter'
             });
         }
         
@@ -1843,6 +1945,12 @@ router.get('/psb/list-devices', ensureAuthenticatedStaff, async (req, res) => {
             limit = 500; // Get more devices to search for matching SN
             
             console.log(`[PSB_LIST_DEVICES] By SN filter: Will fetch all devices and filter client-side for Serial Number containing "${serialNumberFilter}"`);
+        } else if (filterType === 'by-pppoe') {
+            // Filter by PPPoE Username - fetch all devices, filter client-side
+            query = {}; // Empty query to get all devices
+            limit = 500;
+            
+            console.log(`[PSB_LIST_DEVICES] By PPPoE filter: Will fetch all devices and filter client-side for PPPoE Username containing "${pppoeUsernameFilter}"`);
         } else {
             // Default: filter by username "tes@hw" or empty/null
             // GenieACS query might not support complex $or with nested paths, so we'll fetch more and filter client-side
@@ -2163,6 +2271,26 @@ router.get('/psb/list-devices', ensureAuthenticatedStaff, async (req, res) => {
                 });
                 
                 console.log(`[PSB_LIST_DEVICES] Serial Number filter "${serialNumberFilter}": ${filteredDevices.length} devices (from ${beforeSNFilter} before filter)`);
+            }
+            
+            // Apply PPPoE Username filter for by-pppoe filter type
+            if (filterType === 'by-pppoe' && pppoeUsernameFilter) {
+                const beforePPPoEFilter = filteredDevices.length;
+                filteredDevices = filteredDevices.filter(device => {
+                    // Extract PPPoE Username from device
+                    const currentPPPUsername = device.InternetGatewayDevice?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                              device.Device?.WANDevice?.['1']?.WANConnectionDevice?.['1']?.WANPPPConnection?.['1']?.Username?._value || 
+                                              null;
+                    
+                    // Case-insensitive search
+                    if (currentPPPUsername && typeof currentPPPUsername === 'string') {
+                        return currentPPPUsername.toLowerCase().includes(pppoeUsernameFilter.toLowerCase());
+                    }
+                    
+                    return false; // Exclude devices without PPPoE username or non-matching
+                });
+                
+                console.log(`[PSB_LIST_DEVICES] PPPoE Username filter "${pppoeUsernameFilter}": ${filteredDevices.length} devices (from ${beforePPPoEFilter} before filter)`);
             }
             
             const mappedDevices = filteredDevices.map(device => {
@@ -2609,6 +2737,102 @@ router.get('/psb/validate-pppoe-username', ensureAuthenticatedStaff, async (req,
             status: 500,
             message: 'Gagal mengecek username',
             available: false,
+            error: error.message
+        });
+    }
+});
+
+// GET /api/users/validate-pppoe-exists - Validate PPPoE username exists in MikroTik (for Import Mode)
+// Returns profile info if exists, error if not found
+router.get('/users/validate-pppoe-exists', ensureAdmin, async (req, res) => {
+    try {
+        const { username } = req.query;
+        
+        if (!username || typeof username !== 'string' || username.trim() === '') {
+            return res.status(400).json({
+                status: 400,
+                exists: false,
+                message: 'Username PPPoE tidak boleh kosong'
+            });
+        }
+        
+        const usernameTrimmed = username.trim();
+        
+        // Check if username already exists in local database
+        const existingUser = global.users.find(u => 
+            u.pppoe_username && u.pppoe_username.toLowerCase() === usernameTrimmed.toLowerCase()
+        );
+        
+        if (existingUser) {
+            return res.status(400).json({
+                status: 400,
+                exists: false,
+                message: `Username "${usernameTrimmed}" sudah terdaftar di database (${existingUser.name}). Tidak dapat import ulang.`,
+                conflictUser: {
+                    id: existingUser.id,
+                    name: existingUser.name
+                }
+            });
+        }
+        
+        // Check if username exists in MikroTik and get profile
+        try {
+            const { getAllPPPoESecrets } = require('../lib/mikrotik');
+            const secrets = await getAllPPPoESecrets();
+            
+            const mikrotikUser = secrets.find(s => 
+                s.name && s.name.toLowerCase() === usernameTrimmed.toLowerCase()
+            );
+            
+            if (!mikrotikUser) {
+                return res.status(404).json({
+                    status: 404,
+                    exists: false,
+                    message: `Username "${usernameTrimmed}" tidak ditemukan di MikroTik. Pastikan username sudah ada di router.`
+                });
+            }
+            
+            // Find matching package based on profile
+            let matchedPackage = null;
+            if (mikrotikUser.profile && global.packages) {
+                matchedPackage = global.packages.find(p => 
+                    p.profile && p.profile.toLowerCase() === mikrotikUser.profile.toLowerCase()
+                );
+            }
+            
+            return res.status(200).json({
+                status: 200,
+                exists: true,
+                message: `Username "${usernameTrimmed}" ditemukan di MikroTik`,
+                data: {
+                    username: mikrotikUser.name,
+                    password: mikrotikUser.password || '', // Include password from MikroTik
+                    profile: mikrotikUser.profile,
+                    disabled: mikrotikUser.disabled === 'true' || mikrotikUser.disabled === true,
+                    comment: mikrotikUser.comment || '',
+                    matchedPackage: matchedPackage ? {
+                        name: matchedPackage.name,
+                        profile: matchedPackage.profile,
+                        price: matchedPackage.price
+                    } : null
+                }
+            });
+            
+        } catch (mikrotikError) {
+            console.error('[VALIDATE_PPPOE_EXISTS] MikroTik error:', mikrotikError.message);
+            return res.status(500).json({
+                status: 500,
+                exists: false,
+                message: `Gagal mengecek MikroTik: ${mikrotikError.message}`
+            });
+        }
+        
+    } catch (error) {
+        console.error('[VALIDATE_PPPOE_EXISTS_ERROR]', error);
+        return res.status(500).json({
+            status: 500,
+            exists: false,
+            message: 'Gagal memvalidasi username PPPoE',
             error: error.message
         });
     }

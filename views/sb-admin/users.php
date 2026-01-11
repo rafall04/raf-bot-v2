@@ -801,6 +801,28 @@
             <form class="modal-content" id="createUserForm">
                 <div class="modal-header"><h5 class="modal-title">Tambah Pelanggan Baru</h5><button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button></div>
                 <div class="modal-body">
+                    <!-- Mode Selection -->
+                    <div class="alert alert-light border mb-3">
+                        <label class="form-label mb-2"><strong><i class="fas fa-cog"></i> Mode Registrasi</strong></label>
+                        <div class="d-flex flex-wrap" style="gap: 1rem;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="registration_mode" id="mode_new" value="new" checked>
+                                <label class="form-check-label" for="mode_new">
+                                    <i class="fas fa-user-plus text-success"></i> Registrasi Baru <small class="text-muted">(Full Setup)</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="registration_mode" id="mode_import" value="import">
+                                <label class="form-check-label" for="mode_import">
+                                    <i class="fas fa-file-import text-info"></i> Import Existing <small class="text-muted">(Dari MikroTik)</small>
+                                </label>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted mt-1" id="mode_description">
+                            <i class="fas fa-info-circle"></i> Registrasi baru: Setup device, WiFi, dan PPPoE dari awal.
+                        </small>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3"><label for="create_name" class="form-label">Nama <span class="text-danger">*</span></label><input type="text" class="form-control form-control-sm" id="create_name" name="name" required/></div>
@@ -815,14 +837,64 @@
                                 </small>
                             </div>
                             
-                            <div class="mb-3">
-                                <label for="create_device_id" class="form-label">Device ID</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control form-control-sm" id="create_device_id" name="device_id" />
-                                    <div class="input-group-append">
-                                        <button class="btn btn-outline-secondary btn-sm" type="button" id="load_create_ssid_btn">Muat SSID</button>
+                            <!-- Device ID Section - Mode New -->
+                            <div class="mb-3" id="device_section_new">
+                                <label class="form-label">Cari Device <span class="text-danger">*</span></label>
+                                
+                                <!-- Filter Options -->
+                                <div class="mb-2">
+                                    <div class="btn-group btn-group-sm" role="group" id="device-filter-group">
+                                        <input type="radio" class="btn-check" name="device-filter" id="filter-default" value="default" checked>
+                                        <label class="btn btn-outline-primary" for="filter-default" title="Device dengan username 'tes@hw' atau kosong">
+                                            <i class="fas fa-filter"></i> Default
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="device-filter" id="filter-new" value="new">
+                                        <label class="btn btn-outline-primary" for="filter-new" title="Device baru (< 1 hari)">
+                                            <i class="fas fa-clock"></i> Baru
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="device-filter" id="filter-by-sn" value="by-sn">
+                                        <label class="btn btn-outline-primary" for="filter-by-sn" title="Filter berdasarkan Serial Number">
+                                            <i class="fas fa-barcode"></i> By SN
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="device-filter" id="filter-by-pppoe" value="by-pppoe">
+                                        <label class="btn btn-outline-primary" for="filter-by-pppoe" title="Cari berdasarkan PPPoE Username">
+                                            <i class="fas fa-user"></i> By PPPoE
+                                        </label>
                                     </div>
                                 </div>
+                                
+                                <!-- Search Input -->
+                                <div class="input-group input-group-sm mb-2">
+                                    <input type="text" class="form-control" id="create_device_search" placeholder="Masukkan Serial Number..." autocomplete="off">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-primary" type="button" id="search_device_btn">
+                                            <i class="fas fa-search"></i> Cari
+                                        </button>
+                                        <button class="btn btn-outline-secondary" type="button" id="clear_device_search_btn" title="Hapus pencarian">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted mb-2" id="device_search_hint">
+                                    <i class="fas fa-info-circle"></i> Pilih filter dan masukkan kata kunci untuk mencari device.
+                                </small>
+                                
+                                <!-- Device Select -->
+                                <select class="form-control form-control-sm" id="create_device_select" style="display: none;">
+                                    <option value="">-- Pilih Device --</option>
+                                </select>
+                                <small class="form-text text-muted" id="device_count_display" style="display: none;"></small>
+                                <input type="hidden" id="create_device_id" name="device_id" />
+                                <div id="device_info_display" class="mt-2"></div>
+                            </div>
+
+                            <!-- Device ID Section - Mode Import (simpler) -->
+                            <div class="mb-3" id="device_section_import" style="display: none;">
+                                <label for="create_device_id_import" class="form-label">Device ID <small class="text-muted">(Opsional)</small></label>
+                                <input type="text" class="form-control form-control-sm" id="create_device_id_import" placeholder="Masukkan Device ID jika ada" />
                             </div>
 
                             <div class="mb-3"><label for="create_subscription" class="form-label">Paket Langganan <span class="text-danger">*</span></label><select name="subscription" id="create_subscription" class="form-control form-control-sm" required><option value="">-- Pilih Paket --</option></select></div>
@@ -843,20 +915,80 @@
                             <div id="createUserMap" class="map-in-modal"></div><small class="form-text text-muted">Klik peta untuk menandai lokasi atau gunakan tombol GPS <i class="fas fa-map-marker-alt"></i>.</small>
                         </div>
                     </div>
+                    
                     <hr class="my-2">
-                    <div class="form-group form-check mb-3">
-                        <input type="checkbox" class="form-check-input" id="create_add_to_mikrotik" name="add_to_mikrotik">
-                        <label class="form-check-label" for="create_add_to_mikrotik">Tambahkan ke MikroTik (PPPoE User)</label>
-                    </div>
-                    <div id="pppoe-fields-container"> 
+                    
+                    <!-- WiFi Configuration - Mode New Only -->
+                    <div id="wifi_config_section">
+                        <h6 class="mb-3"><i class="fas fa-wifi text-primary"></i> Konfigurasi WiFi</h6>
                         <div class="row">
-                            <div class="col-md-6 mb-3"><label for="create_pppoe_username" class="form-label">PPPOE Username</label><input type="text" class="form-control form-control-sm" id="create_pppoe_username" name="pppoe_username" /></div>
-                            <div class="col-md-6 mb-3"><label for="create_pppoe_password" class="form-label">PPPOE Password</label><input type="text" class="form-control form-control-sm" id="create_pppoe_password" name="pppoe_password" /></div>
+                            <div class="col-md-6 mb-3">
+                                <label for="create_wifi_ssid" class="form-label">Nama WiFi (SSID) <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="create_wifi_ssid" placeholder="Nama_WiFi_Pelanggan" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="create_wifi_password" class="form-label">Password WiFi <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm" id="create_wifi_password" placeholder="password_wifi" />
+                            </div>
+                        </div>
+                        <div id="ssid_checkbox_container" class="mb-3" style="display: none;">
+                            <label class="form-label small">Pilih SSID yang akan dikonfigurasi:</label>
+                            <div id="ssid_checkboxes" class="border rounded p-2 bg-light"></div>
                         </div>
                     </div>
+                    
+                    <!-- PPPoE Section - Mode New -->
+                    <div id="pppoe_section_new">
+                        <h6 class="mb-3"><i class="fas fa-network-wired text-success"></i> Konfigurasi PPPoE</h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="create_pppoe_username" class="form-label">PPPoE Username <span class="text-danger">*</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="create_pppoe_username" name="pppoe_username" placeholder="pelanggan001" />
+                                    <div class="input-group-append">
+                                        <span class="input-group-text" id="pppoe_username_status"></span>
+                                    </div>
+                                </div>
+                                <small class="form-text" id="pppoe_username_feedback"></small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="create_pppoe_password" class="form-label">PPPoE Password</label>
+                                <input type="text" class="form-control form-control-sm" id="create_pppoe_password" name="pppoe_password" placeholder="Kosongkan untuk password default" />
+                                <small class="form-text text-muted">Jika kosong, akan menggunakan password default</small>
+                            </div>
+                        </div>
+                        <input type="hidden" id="create_add_to_mikrotik" name="add_to_mikrotik" value="true">
+                    </div>
+                    
+                    <!-- PPPoE Section - Mode Import -->
+                    <div id="pppoe_section_import" style="display: none;">
+                        <h6 class="mb-3"><i class="fas fa-file-import text-info"></i> Import dari MikroTik</h6>
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label for="import_pppoe_username" class="form-label">PPPoE Username <span class="text-danger">*</span></label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="import_pppoe_username" placeholder="Username yang sudah ada di MikroTik" />
+                                    <div class="input-group-append">
+                                        <button class="btn btn-info" type="button" id="validate_import_btn">
+                                            <i class="fas fa-check-circle"></i> Validasi
+                                        </button>
+                                    </div>
+                                </div>
+                                <small class="form-text" id="import_validation_feedback"></small>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Status</label>
+                                <div id="import_status_display" class="border rounded p-2 bg-light text-center">
+                                    <small class="text-muted">Belum divalidasi</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="import_info_display" class="alert alert-info" style="display: none;"></div>
+                    </div>
+                    
                     <div id="bulk-container" class="mt-2"></div>
                 </div>
-                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary btn-sm">Simpan</button></div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary btn-sm" id="create_submit_btn">Simpan</button></div>
             </form>
         </div>
     </div>
@@ -1677,11 +1809,10 @@
             // Clear bulk container on modal open
             $('#bulk-container').empty(); 
 
-            // NEW: Set initial state for add to MikroTik checkbox and fields
-            $('#create_add_to_mikrotik').prop('checked', false); // Default unchecked
-            // PPPoE fields are now always visible, but required status depends on checkbox
-            $('#create_pppoe_username').prop('required', false);
-            $('#create_pppoe_password').prop('required', false);
+            // Reset registration mode to default (Mode New)
+            $('#mode_new').prop('checked', true);
+            switchRegistrationMode('new');
+            resetRegistrationForm();
         });
 
         $('#editModal').on('shown.bs.modal', function () {
@@ -1784,7 +1915,506 @@
             $('#create_connected_odp, #edit_connected_odp').prop('disabled', true).empty().append(new Option('-- Pilih ODC Dahulu --', '')).trigger('change.select2');
             // Clear SSID bulk container when modal is hidden
             $('#bulk-container').empty(); 
-            $('#edit-bulk-container').empty(); 
+            $('#edit-bulk-container').empty();
+            
+            // Reset registration mode to default
+            $('#mode_new').prop('checked', true).trigger('change');
+            resetRegistrationForm();
+        });
+
+        // =====================================================
+        // REGISTRATION MODE HANDLING (Mode New & Mode Import)
+        // =====================================================
+        
+        let deviceListCache = []; // Cache for device list
+        let pppoeValidationTimeout = null;
+        let importValidationResult = null; // Store import validation result
+        
+        // Switch registration mode
+        $('input[name="registration_mode"]').on('change', function() {
+            const mode = $(this).val();
+            switchRegistrationMode(mode);
+        });
+        
+        function switchRegistrationMode(mode) {
+            if (mode === 'new') {
+                // Mode: Registrasi Baru (Full Setup)
+                $('#mode_description').html('<i class="fas fa-info-circle"></i> Registrasi baru: Setup device, WiFi, dan PPPoE dari awal.');
+                
+                // Show Mode New sections
+                $('#device_section_new').show();
+                $('#wifi_config_section').show();
+                $('#pppoe_section_new').show();
+                
+                // Hide Mode Import sections
+                $('#device_section_import').hide();
+                $('#pppoe_section_import').hide();
+                
+                // Update submit button
+                $('#create_submit_btn').html('<i class="fas fa-save"></i> Simpan & Setup');
+                
+            } else {
+                // Mode: Import Existing
+                $('#mode_description').html('<i class="fas fa-info-circle"></i> Import pelanggan yang sudah ada di MikroTik. Hanya menyimpan ke database.');
+                
+                // Hide Mode New sections
+                $('#device_section_new').hide();
+                $('#wifi_config_section').hide();
+                $('#pppoe_section_new').hide();
+                
+                // Show Mode Import sections
+                $('#device_section_import').show();
+                $('#pppoe_section_import').show();
+                
+                // Update submit button
+                $('#create_submit_btn').html('<i class="fas fa-file-import"></i> Import Pelanggan');
+                
+                // Reset import validation
+                importValidationResult = null;
+                $('#import_validation_feedback').text('').removeClass('text-success text-danger');
+                $('#import_status_display').html('<small class="text-muted">Belum divalidasi</small>');
+                $('#import_info_display').hide();
+            }
+        }
+        
+        function resetRegistrationForm() {
+            // Reset device search
+            $('#create_device_sn_search').val('');
+            $('#create_device_select').hide().empty().append('<option value="">-- Pilih Device --</option>');
+            $('#create_device_id').val('');
+            $('#device_info_display').empty();
+            
+            // Reset WiFi config
+            $('#create_wifi_ssid').val('');
+            $('#create_wifi_password').val('');
+            $('#ssid_checkbox_container').hide();
+            $('#ssid_checkboxes').empty();
+            
+            // Reset PPPoE
+            $('#create_pppoe_username').val('');
+            $('#create_pppoe_password').val('');
+            $('#pppoe_username_status').empty();
+            $('#pppoe_username_feedback').text('').removeClass('text-success text-danger text-warning');
+            
+            // Reset import fields
+            $('#create_device_id_import').val('');
+            $('#import_pppoe_username').val('');
+            $('#import_validation_feedback').text('').removeClass('text-success text-danger');
+            $('#import_status_display').html('<small class="text-muted">Belum divalidasi</small>');
+            $('#import_info_display').hide();
+            importValidationResult = null;
+            
+            // Reset cache
+            deviceListCache = [];
+        }
+        
+        // =====================================================
+        // MODE NEW: Device Search & Selection
+        // =====================================================
+        
+        // Update search hint based on filter selection
+        $('input[name="device-filter"]').on('change', function() {
+            updateDeviceSearchHint();
+        });
+        
+        function updateDeviceSearchHint() {
+            const filterType = $('input[name="device-filter"]:checked').val();
+            const searchInput = $('#create_device_search');
+            const hintEl = $('#device_search_hint');
+            
+            switch(filterType) {
+                case 'default':
+                    searchInput.attr('placeholder', 'Opsional: Filter tambahan by SN...');
+                    hintEl.html('<i class="fas fa-info-circle"></i> Menampilkan device dengan PPPoE "tes@hw" atau kosong. Klik Cari untuk memuat.');
+                    break;
+                case 'new':
+                    searchInput.attr('placeholder', 'Opsional: Filter tambahan by SN...');
+                    hintEl.html('<i class="fas fa-info-circle"></i> Menampilkan device baru (< 1 hari). Klik Cari untuk memuat.');
+                    break;
+                case 'by-sn':
+                    searchInput.attr('placeholder', 'Masukkan Serial Number... (wajib)');
+                    hintEl.html('<i class="fas fa-exclamation-circle text-warning"></i> Serial Number wajib diisi untuk filter ini.');
+                    break;
+                case 'by-pppoe':
+                    searchInput.attr('placeholder', 'Masukkan PPPoE Username...');
+                    hintEl.html('<i class="fas fa-info-circle"></i> Cari device berdasarkan PPPoE username yang terdaftar di device.');
+                    break;
+            }
+        }
+        
+        // Search device button click
+        $('#search_device_btn').on('click', function() {
+            searchDevices();
+        });
+        
+        // Search on Enter key
+        $('#create_device_search').on('keypress', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                searchDevices();
+            }
+        });
+        
+        // Clear search button
+        $('#clear_device_search_btn').on('click', function() {
+            $('#create_device_search').val('');
+            $('#create_device_select').hide().empty().append('<option value="">-- Pilih Device --</option>');
+            $('#create_device_id').val('');
+            $('#device_info_display').empty();
+            $('#device_count_display').hide();
+            $('#ssid_checkbox_container').hide();
+            $('#ssid_checkboxes').empty();
+            deviceListCache = [];
+        });
+        
+        function searchDevices() {
+            const filterType = $('input[name="device-filter"]:checked').val();
+            const searchValue = $('#create_device_search').val().trim();
+            
+            // Validate: by-sn filter requires search value
+            if (filterType === 'by-sn' && !searchValue) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Serial Number Kosong',
+                    text: 'Filter "By SN" memerlukan Serial Number.'
+                });
+                $('#create_device_search').focus();
+                return;
+            }
+            
+            // Validate: by-pppoe filter requires search value
+            if (filterType === 'by-pppoe' && !searchValue) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'PPPoE Username Kosong',
+                    text: 'Filter "By PPPoE" memerlukan PPPoE Username.'
+                });
+                $('#create_device_search').focus();
+                return;
+            }
+            
+            const btn = $('#search_device_btn');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Mencari...');
+            
+            // Build query parameters
+            let queryParams = `filter=${filterType}`;
+            if (searchValue) {
+                if (filterType === 'by-pppoe') {
+                    queryParams += `&pppoeUsername=${encodeURIComponent(searchValue)}`;
+                } else {
+                    queryParams += `&serialNumber=${encodeURIComponent(searchValue)}`;
+                }
+            }
+            
+            fetch(`/api/psb/list-devices?${queryParams}`, {
+                credentials: 'include'
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.prop('disabled', false).html('<i class="fas fa-search"></i> Cari');
+                
+                if (data.status === 200 && data.data && data.data.length > 0) {
+                    deviceListCache = data.data;
+                    
+                    const select = $('#create_device_select');
+                    select.empty().append('<option value="">-- Pilih Device --</option>');
+                    
+                    data.data.forEach(device => {
+                        let displayText = `${device.serialNumber || 'N/A'} - ${device.model || 'Unknown'}`;
+                        if (device.currentPPPUsername && device.currentPPPUsername !== 'tes@hw') {
+                            displayText += ` (PPP: ${device.currentPPPUsername})`;
+                        }
+                        select.append(`<option value="${device.deviceId}" data-device='${JSON.stringify(device)}'>${displayText}</option>`);
+                    });
+                    
+                    select.show();
+                    $('#device_count_display').text(`${data.data.length} device ditemukan`).show();
+                    
+                    // Auto-select if only one result
+                    if (data.data.length === 1) {
+                        select.val(data.data[0].deviceId).trigger('change');
+                    }
+                    
+                } else {
+                    $('#create_device_select').hide();
+                    $('#device_count_display').hide();
+                    
+                    let errorMsg = 'Tidak ada device ditemukan.';
+                    if (filterType === 'by-sn') {
+                        errorMsg = `Tidak ada device dengan Serial Number "${searchValue}".`;
+                    } else if (filterType === 'by-pppoe') {
+                        errorMsg = `Tidak ada device dengan PPPoE username "${searchValue}".`;
+                    } else if (filterType === 'default') {
+                        errorMsg = 'Tidak ada device dengan PPPoE "tes@hw" atau kosong.';
+                    } else if (filterType === 'new') {
+                        errorMsg = 'Tidak ada device baru (< 1 hari).';
+                    }
+                    
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Tidak Ditemukan',
+                        text: errorMsg
+                    });
+                }
+            })
+            .catch(err => {
+                btn.prop('disabled', false).html('<i class="fas fa-search"></i> Cari');
+                console.error('Search device error:', err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Gagal mencari device: ' + err.message
+                });
+            });
+        }
+        
+        // Device selection change
+        $('#create_device_select').on('change', function() {
+            const deviceId = $(this).val();
+            
+            if (deviceId) {
+                $('#create_device_id').val(deviceId);
+                
+                // Show device info
+                const selectedOption = $(this).find('option:selected');
+                try {
+                    const device = JSON.parse(selectedOption.attr('data-device'));
+                    showDeviceInfo(device);
+                    
+                    // Auto-fill WiFi SSID from customer name if available
+                    const customerName = $('#create_name').val().trim();
+                    if (customerName && !$('#create_wifi_ssid').val()) {
+                        $('#create_wifi_ssid').val(customerName.replace(/\s+/g, '_').toUpperCase());
+                    }
+                    
+                    // Load SSID checkboxes
+                    loadSSIDCheckboxes(deviceId);
+                } catch (e) {
+                    console.error('Error parsing device data:', e);
+                }
+            } else {
+                $('#create_device_id').val('');
+                $('#device_info_display').empty();
+                $('#ssid_checkbox_container').hide();
+                $('#ssid_checkboxes').empty();
+            }
+        });
+        
+        function showDeviceInfo(device) {
+            const html = `
+                <div class="alert alert-success py-2 mb-0">
+                    <small>
+                        <strong>Device ID:</strong> <code>${device.deviceId}</code><br>
+                        <strong>Serial Number:</strong> ${device.serialNumber || 'N/A'}<br>
+                        <strong>Model:</strong> ${device.model || 'N/A'}<br>
+                        <strong>Manufacturer:</strong> ${device.manufacturer || 'N/A'}<br>
+                        <strong>Current PPP:</strong> ${device.currentPPPUsername || 'tes@hw'}
+                    </small>
+                </div>
+            `;
+            $('#device_info_display').html(html);
+        }
+        
+        // Load SSID checkboxes from device
+        function loadSSIDCheckboxes(deviceId) {
+            const container = $('#ssid_checkboxes');
+            container.html('<small class="text-muted"><i class="fas fa-spinner fa-spin"></i> Memuat SSID...</small>');
+            $('#ssid_checkbox_container').show();
+            
+            fetch(`/api/customer-wifi-info/${encodeURIComponent(deviceId)}?skipRefresh=true`, {
+                credentials: 'include'
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.status === 200 && result.data && Array.isArray(result.data.ssid)) {
+                    container.empty();
+                    
+                    if (result.data.ssid.length === 0) {
+                        container.html('<small class="text-muted">Tidak ada SSID ditemukan.</small>');
+                    } else {
+                        result.data.ssid.forEach(ssid => {
+                            const checkboxHtml = `
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input ssid-checkbox-create" id="create_ssid_${ssid.id}" value="${ssid.id}" checked>
+                                    <label class="form-check-label" for="create_ssid_${ssid.id}">
+                                        SSID ${ssid.id} ${ssid.name ? `(${ssid.name})` : ''}
+                                    </label>
+                                </div>
+                            `;
+                            container.append(checkboxHtml);
+                        });
+                    }
+                } else {
+                    container.html('<small class="text-warning">Gagal memuat SSID.</small>');
+                }
+            })
+            .catch(err => {
+                console.error('Load SSID error:', err);
+                container.html('<small class="text-danger">Error memuat SSID.</small>');
+            });
+        }
+        
+        // =====================================================
+        // MODE NEW: PPPoE Username Validation (Real-time)
+        // =====================================================
+        
+        $('#create_pppoe_username').on('input', function() {
+            const username = $(this).val().trim();
+            const statusEl = $('#pppoe_username_status');
+            const feedbackEl = $('#pppoe_username_feedback');
+            
+            // Clear previous timeout
+            if (pppoeValidationTimeout) {
+                clearTimeout(pppoeValidationTimeout);
+            }
+            
+            // Reset status
+            statusEl.empty();
+            feedbackEl.text('').removeClass('text-success text-danger text-warning');
+            
+            if (!username) return;
+            
+            // Show loading
+            statusEl.html('<i class="fas fa-spinner fa-spin text-muted"></i>');
+            
+            // Debounce validation
+            pppoeValidationTimeout = setTimeout(() => {
+                fetch(`/api/psb/validate-pppoe-username?username=${encodeURIComponent(username)}`, {
+                    credentials: 'include'
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 200) {
+                        if (data.available) {
+                            statusEl.html('<i class="fas fa-check-circle text-success"></i>');
+                            feedbackEl.text(data.message || 'Username tersedia').addClass('text-success');
+                        } else {
+                            statusEl.html('<i class="fas fa-times-circle text-danger"></i>');
+                            feedbackEl.text(data.message || 'Username sudah digunakan').addClass('text-danger');
+                        }
+                    } else {
+                        statusEl.html('<i class="fas fa-exclamation-triangle text-warning"></i>');
+                        feedbackEl.text('Tidak dapat memvalidasi').addClass('text-warning');
+                    }
+                })
+                .catch(err => {
+                    console.error('PPPoE validation error:', err);
+                    statusEl.html('<i class="fas fa-exclamation-triangle text-warning"></i>');
+                    feedbackEl.text('Error validasi').addClass('text-warning');
+                });
+            }, 500);
+        });
+        
+        // =====================================================
+        // MODE IMPORT: Validate PPPoE Username Exists in MikroTik
+        // =====================================================
+        
+        $('#validate_import_btn').on('click', function() {
+            validateImportPPPoE();
+        });
+        
+        $('#import_pppoe_username').on('keypress', function(e) {
+            if (e.which === 13) {
+                e.preventDefault();
+                validateImportPPPoE();
+            }
+        });
+        
+        function validateImportPPPoE() {
+            const username = $('#import_pppoe_username').val().trim();
+            
+            if (!username) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Username Kosong',
+                    text: 'Masukkan PPPoE username yang akan diimport.'
+                });
+                return;
+            }
+            
+            const btn = $('#validate_import_btn');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Validasi...');
+            
+            // Reset previous result
+            importValidationResult = null;
+            $('#import_validation_feedback').text('').removeClass('text-success text-danger');
+            $('#import_status_display').html('<small class="text-muted"><i class="fas fa-spinner fa-spin"></i> Mengecek...</small>');
+            $('#import_info_display').hide();
+            
+            fetch(`/api/users/validate-pppoe-exists?username=${encodeURIComponent(username)}`, {
+                credentials: 'include'
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.prop('disabled', false).html('<i class="fas fa-check-circle"></i> Validasi');
+                
+                if (data.status === 200 && data.exists) {
+                    // Transform response to match expected format
+                    importValidationResult = {
+                        exists: true,
+                        alreadyRegistered: false,
+                        userInfo: data.data,
+                        matchedPackage: data.data?.matchedPackage || null
+                    };
+                    
+                    $('#import_validation_feedback').text('Username ditemukan di MikroTik!').addClass('text-success');
+                    $('#import_status_display').html('<span class="text-success"><i class="fas fa-check-circle"></i> Valid</span>');
+                    
+                    // Show user info
+                    const info = data.data || {};
+                    let packageInfo = '';
+                    if (info.matchedPackage) {
+                        packageInfo = `<br>Paket: <strong>${info.matchedPackage.name}</strong> (Rp ${Number(info.matchedPackage.price).toLocaleString('id-ID')})`;
+                    }
+                    
+                    $('#import_info_display').html(`
+                        <strong><i class="fas fa-user"></i> Info PPPoE dari MikroTik:</strong><br>
+                        <small>
+                            Username: <strong>${info.username || username}</strong><br>
+                            Profile: <strong>${info.profile || 'N/A'}</strong>${packageInfo}<br>
+                            Status: ${info.disabled ? '<span class="text-danger">Disabled</span>' : '<span class="text-success">Active</span>'}
+                        </small>
+                    `).show();
+                    
+                    // Auto-select matched package if available
+                    if (info.matchedPackage && info.matchedPackage.name) {
+                        $('#create_subscription').val(info.matchedPackage.name).trigger('change');
+                    }
+                    
+                } else if (data.status === 400 && data.conflictUser) {
+                    // Username already registered in database
+                    importValidationResult = null;
+                    
+                    $('#import_validation_feedback').text(data.message).addClass('text-danger');
+                    $('#import_status_display').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Sudah Terdaftar</span>');
+                    $('#import_info_display').hide();
+                    
+                } else {
+                    importValidationResult = null;
+                    
+                    $('#import_validation_feedback').text(data.message || 'Username tidak ditemukan di MikroTik.').addClass('text-danger');
+                    $('#import_status_display').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Tidak Valid</span>');
+                    $('#import_info_display').hide();
+                }
+            })
+            .catch(err => {
+                btn.prop('disabled', false).html('<i class="fas fa-check-circle"></i> Validasi');
+                console.error('Import validation error:', err);
+                
+                importValidationResult = null;
+                $('#import_validation_feedback').text('Error saat validasi: ' + err.message).addClass('text-danger');
+                $('#import_status_display').html('<span class="text-danger"><i class="fas fa-times-circle"></i> Error</span>');
+            });
+        }
+        
+        // Auto-fill WiFi SSID when customer name changes
+        $('#create_name').on('blur', function() {
+            const name = $(this).val().trim();
+            const mode = $('input[name="registration_mode"]:checked').val();
+            
+            if (mode === 'new' && name && !$('#create_wifi_ssid').val()) {
+                $('#create_wifi_ssid').val(name.replace(/\s+/g, '_').toUpperCase());
+            }
         });
 
         $(document).on('click', '.btn-edit', function() {
@@ -2965,6 +3595,92 @@
             const form = this;
             const isEditForm = form.id === 'editUserForm';
             const userId = isEditForm ? $('#edit_user_id').val() : null;
+            
+            // Get registration mode (only for create form)
+            const registrationMode = !isEditForm ? $('input[name="registration_mode"]:checked').val() : null;
+            
+            // Validation for Mode New
+            if (!isEditForm && registrationMode === 'new') {
+                const deviceId = $('#create_device_id').val();
+                const wifiSSID = $('#create_wifi_ssid').val().trim();
+                const wifiPassword = $('#create_wifi_password').val().trim();
+                const pppoeUsername = $('#create_pppoe_username').val().trim();
+                
+                if (!deviceId) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Device Belum Dipilih',
+                        text: 'Silakan cari dan pilih device terlebih dahulu.'
+                    });
+                    return;
+                }
+                
+                if (!wifiSSID || !wifiPassword) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Konfigurasi WiFi Belum Lengkap',
+                        text: 'Nama WiFi (SSID) dan Password WiFi wajib diisi.'
+                    });
+                    return;
+                }
+                
+                if (!pppoeUsername) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'PPPoE Username Kosong',
+                        text: 'PPPoE Username wajib diisi untuk registrasi baru.'
+                    });
+                    return;
+                }
+                
+                // Check if at least one SSID is selected
+                const selectedSSIDs = [];
+                $('.ssid-checkbox-create:checked').each(function() {
+                    selectedSSIDs.push($(this).val());
+                });
+                
+                if (selectedSSIDs.length === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'SSID Belum Dipilih',
+                        text: 'Pilih minimal satu SSID yang akan dikonfigurasi.'
+                    });
+                    return;
+                }
+            }
+            
+            // Validation for Mode Import
+            if (!isEditForm && registrationMode === 'import') {
+                const importUsername = $('#import_pppoe_username').val().trim();
+                
+                if (!importUsername) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'PPPoE Username Kosong',
+                        text: 'Masukkan PPPoE username yang akan diimport.'
+                    });
+                    return;
+                }
+                
+                if (!importValidationResult || !importValidationResult.exists) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Validasi Diperlukan',
+                        text: 'Silakan validasi PPPoE username terlebih dahulu dengan klik tombol "Validasi".'
+                    });
+                    return;
+                }
+                
+                if (importValidationResult.alreadyRegistered) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Username Sudah Terdaftar',
+                        text: `Username "${importUsername}" sudah terdaftar di sistem.`
+                    });
+                    return;
+                }
+            }
+            
             const url = isEditForm ? `/api/users/${userId}` : '/api/users';
             const method = 'POST';
 
@@ -3017,27 +3733,53 @@
             
             data.phone_number = phoneNumbers.join('|');
             
-            // PENTING: Jika tidak ada SSID yang dicentang, otomatis set default SSID dari config (atau SSID 1 sebagai fallback)
-            if (bulkSSIDs.length === 0) {
-                // Ambil default SSID dari config, fallback ke '1' jika tidak ada
-                const defaultSSID = (window.configData && window.configData.defaultBulkSSID) 
-                    ? String(window.configData.defaultBulkSSID) 
-                    : '1';
-                bulkSSIDs = [defaultSSID];
+            // Handle registration mode specific data
+            if (!isEditForm) {
+                data.registration_mode = registrationMode;
                 
-                // Auto-check checkbox SSID default di form jika ada
-                // Format ID checkbox: create_bulk_1 atau edit_bulk_1 (dash di containerId diganti underscore)
-                const containerId = isEditForm ? 'edit-bulk-container' : 'create-bulk-container';
-                const checkboxId = containerId.replace(/-/g, '_') + '_bulk_' + defaultSSID;
-                const defaultSSIDCheckbox = $(`#${checkboxId}, [name="bulk_${defaultSSID}"]`);
-                if (defaultSSIDCheckbox.length > 0) {
-                    defaultSSIDCheckbox.prop('checked', true);
-                    console.log(`[USER_FORM] Auto-checked SSID ${defaultSSID} checkbox: #${checkboxId}`);
+                if (registrationMode === 'new') {
+                    // Mode New: Full setup with device, WiFi, and PPPoE
+                    data.device_id = $('#create_device_id').val();
+                    data.wifi_ssid = $('#create_wifi_ssid').val().trim();
+                    data.wifi_password = $('#create_wifi_password').val().trim();
+                    data.pppoe_username = $('#create_pppoe_username').val().trim();
+                    data.pppoe_password = $('#create_pppoe_password').val().trim() || null;
+                    data.add_to_mikrotik = true;
+                    
+                    // Get selected SSID indices for WiFi configuration
+                    const selectedSSIDs = [];
+                    $('.ssid-checkbox-create:checked').each(function() {
+                        selectedSSIDs.push(parseInt($(this).val()));
+                    });
+                    data.ssid_indices = selectedSSIDs;
+                    data.bulk = selectedSSIDs.map(String);
+                    
+                } else if (registrationMode === 'import') {
+                    // Mode Import: Only save to database, no MikroTik/GenieACS setup
+                    data.device_id = $('#create_device_id_import').val().trim() || null;
+                    data.pppoe_username = $('#import_pppoe_username').val().trim();
+                    data.pppoe_password = importValidationResult?.userInfo?.password || null;
+                    data.add_to_mikrotik = false; // Don't create in MikroTik
+                    data.skip_mikrotik = true; // Flag to skip MikroTik operations
+                    
+                    // Use profile from MikroTik to match subscription if available
+                    if (importValidationResult?.matchedPackage) {
+                        data.subscription = importValidationResult.matchedPackage.name;
+                        $('#create_subscription').val(importValidationResult.matchedPackage.name);
+                    }
                 }
-                console.log(`[USER_FORM] Tidak ada SSID yang dicentang, otomatis set SSID ${defaultSSID} (dari config)`);
+            } else {
+                // Edit form - use existing bulk SSIDs logic
+                // PENTING: Jika tidak ada SSID yang dicentang, otomatis set default SSID dari config (atau SSID 1 sebagai fallback)
+                if (bulkSSIDs.length === 0) {
+                    const defaultSSID = (window.configData && window.configData.defaultBulkSSID) 
+                        ? String(window.configData.defaultBulkSSID) 
+                        : '1';
+                    bulkSSIDs = [defaultSSID];
+                }
+                data.bulk = bulkSSIDs;
             }
             
-            data.bulk = bulkSSIDs;
             if(isEditForm && data.hasOwnProperty('id_user_to_edit')) {
                 delete data.id_user_to_edit;
             }
@@ -3052,14 +3794,6 @@
             if (!data.hasOwnProperty('send_invoice')) {
                 data.send_invoice = false;
             }
-
-            // NEW: Add "add_to_mikrotik" flag to data for new user creation
-            if (!isEditForm) { // Only for create new user
-                data.add_to_mikrotik = $('#create_add_to_mikrotik').is(':checked');
-                // PPPoE username and password will always be sent from the form,
-                // regardless of checkbox state, so no need to explicitly clear them here.
-            }
-
 
             const submitButton = $(form).find('button[type="submit"]');
             const originalButtonText = submitButton.html();
@@ -3096,8 +3830,21 @@
                     if (!isEditForm && result.generated_credentials) {
                         // Display credentials in the success popup
                         const creds = result.generated_credentials;
-                        // Use pre-formatted text for better display in the modal
-                        const formattedMessage = `<p>Data pengguna berhasil ditambahkan!</p>
+                        const regMode = result.registration_mode || 'legacy';
+                        
+                        let formattedMessage = `<p>Data pengguna berhasil ditambahkan!</p>`;
+                        
+                        // Add mode-specific info
+                        if (regMode === 'new') {
+                            formattedMessage += `<p class="mb-1 text-success"><i class="fas fa-check-circle"></i> <b>Mode: Registrasi Baru (Full Setup)</b></p>
+                                <small class="text-muted">Device, WiFi, dan PPPoE telah dikonfigurasi.</small>`;
+                        } else if (regMode === 'import') {
+                            formattedMessage += `<p class="mb-1 text-info"><i class="fas fa-file-import"></i> <b>Mode: Import dari MikroTik</b></p>
+                                <small class="text-muted">Data pelanggan diimport tanpa setup device.</small>`;
+                        }
+                        
+                        formattedMessage += `
+                            <hr>
                             <p class="mb-1"><b>Kredensial Login Pelanggan:</b></p>
                             <div class="alert alert-info" style="font-family: monospace; word-wrap: break-word;">
                                 Username: <strong>${creds.username}</strong><br>
