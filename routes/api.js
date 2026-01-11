@@ -695,21 +695,75 @@ router.post('/users', ensureAdmin, async (req, res) => {
             
             // Send welcome message if enabled
             const welcomeEnabled = global.config.welcomeMessage?.enabled !== false; // Default to true
-            if (welcomeEnabled && newUser.username && plainTextPassword && newUser.phone_number) {
+            if (welcomeEnabled && newUser.phone_number) {
                 try {
                     const { normalizePhoneNumber } = require('../lib/utils');
-                    const portalUrl = global.config.welcomeMessage?.customerPortalUrl || global.config.company?.website || global.config.site_url_bot || 'https://rafnet.my.id/customer';
                     
-                    const templateData = {
-                        nama_pelanggan: newUser.name,
-                        username: newUser.username,
-                        password: plainTextPassword, // Use plain text password for message
-                        portal_url: portalUrl,
-                        nama_wifi: global.config.nama || global.config.nama_wifi || 'Layanan Kami',
-                        nama_bot: global.config.namabot || global.config.botName || 'RAF NET BOT'
-                    };
+                    let templateName = 'customer_welcome';
+                    let templateData = {};
                     
-                    const messageText = renderTemplate('customer_welcome', templateData);
+                    if (registrationMode === 'new' && userData.wifi_ssid && userData.wifi_password) {
+                        // Mode New: Gunakan template psb_welcome dengan info WiFi (mirip instalasi selesai)
+                        templateName = 'psb_welcome';
+                        templateData = {
+                            nama_pelanggan: newUser.name,
+                            wifi_ssid: userData.wifi_ssid,
+                            wifi_password: userData.wifi_password,
+                            nama_paket: newUser.subscription || '-',
+                            nama_wifi: global.config.nama || global.config.nama_wifi || 'Layanan Kami',
+                            nama_bot: global.config.namabot || global.config.botName || 'RAF NET BOT'
+                        };
+                        console.log(`[USER_CREATE_MODE_NEW] Using psb_welcome template with WiFi info`);
+                        
+                    } else if (registrationMode === 'import') {
+                        // Mode Import: Gunakan template import_welcome
+                        templateName = 'import_welcome';
+                        
+                        // Cari display profile dari packages berdasarkan subscription
+                        let displayProfile = '-';
+                        if (newUser.subscription && global.packages) {
+                            const pkg = global.packages.find(p => p.name === newUser.subscription);
+                            if (pkg && pkg.display_profile) {
+                                displayProfile = pkg.display_profile;
+                            } else if (pkg && pkg.profile) {
+                                displayProfile = pkg.profile;
+                            }
+                        }
+                        
+                        templateData = {
+                            nama_pelanggan: newUser.name,
+                            nama_paket: newUser.subscription || '-',
+                            display_profile: displayProfile,
+                            nama_wifi: global.config.nama || global.config.nama_wifi || 'Layanan Kami',
+                            nama_bot: global.config.namabot || global.config.botName || 'RAF NET BOT'
+                        };
+                        console.log(`[USER_CREATE_MODE_IMPORT] Using import_welcome template`);
+                        
+                    } else {
+                        // Legacy mode: Gunakan template customer_welcome dengan username/password portal
+                        if (!newUser.username || !plainTextPassword) {
+                            console.log(`[USER_CREATE_LEGACY] Skipping welcome message - no username/password`);
+                            throw new Error('Skip welcome message');
+                        }
+                        
+                        const portalUrl = global.config.welcomeMessage?.customerPortalUrl || global.config.company?.website || global.config.site_url_bot || 'https://rafnet.my.id/customer';
+                        templateData = {
+                            nama_pelanggan: newUser.name,
+                            username: newUser.username,
+                            password: plainTextPassword,
+                            portal_url: portalUrl,
+                            nama_wifi: global.config.nama || global.config.nama_wifi || 'Layanan Kami',
+                            nama_bot: global.config.namabot || global.config.botName || 'RAF NET BOT'
+                        };
+                    }
+                    
+                    const messageText = renderTemplate(templateName, templateData);
+                    
+                    if (!messageText) {
+                        console.warn(`[WELCOME_MSG_WARNING] Template '${templateName}' not found or empty`);
+                        throw new Error('Template not found');
+                    }
+                    
                     const phoneNumbers = newUser.phone_number.split('|').map(p => p.trim()).filter(p => p);
                     
                     // Send message asynchronously (non-blocking)
@@ -722,6 +776,7 @@ router.post('/users', ensureAdmin, async (req, res) => {
                                     const { delay } = await import('@whiskeysockets/baileys');
                                     await delay(1000);
                                     await global.raf.sendMessage(jid, { text: messageText });
+                                    console.log(`[WELCOME_MSG_SENT] Template '${templateName}' sent to ${jid}`);
                                 } catch (e) {
                                     console.error(`[WELCOME_MSG_ERROR] Failed to send welcome message to ${jid}:`, e.message);
                                 }
@@ -729,7 +784,9 @@ router.post('/users', ensureAdmin, async (req, res) => {
                         }
                     })();
                 } catch (welcomeError) {
-                    console.error('[WELCOME_MSG_ERROR] Failed to send welcome message:', welcomeError.message);
+                    if (welcomeError.message !== 'Skip welcome message' && welcomeError.message !== 'Template not found') {
+                        console.error('[WELCOME_MSG_ERROR] Failed to send welcome message:', welcomeError.message);
+                    }
                     // Don't fail user creation if welcome message fails
                 }
             }
