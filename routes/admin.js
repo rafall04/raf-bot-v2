@@ -941,12 +941,26 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
             }
             
             if (userToUpdate.paid === true) {
-                // When admin approves payment request, use TRANSFER_BANK
+                // Determine payment method:
+                // 1. Use payment_method from original request (CASH for teknisi)
+                // 2. If request is from teknisi and newStatus is true, default to CASH
+                // 3. Fallback to TRANSFER_BANK for backward compatibility
+                let paymentMethod = 'TRANSFER_BANK';
+                if (requestToUpdate.payment_method) {
+                    paymentMethod = requestToUpdate.payment_method;
+                } else if (requestToUpdate.requested_by_teknisi_id && requestToUpdate.newStatus === true) {
+                    // Old teknisi requests without payment_method field - default to CASH
+                    paymentMethod = 'CASH';
+                }
+                
+                // Store payment_method in request for history
+                requestToUpdate.payment_method = paymentMethod;
+                
                 const paymentDetails = {
                     paidDate: new Date().toISOString(),
-                    method: 'TRANSFER_BANK', // Admin approval = bank transfer
+                    method: paymentMethod,
                     approvedBy: req.user.username || 'Admin',
-                    notes: 'Pembayaran disetujui melalui sistem approval'
+                    notes: `Pembayaran disetujui melalui sistem approval (${paymentMethod === 'CASH' ? 'Tunai' : 'Transfer Bank'})`
                 };
                 await handlePaidStatusChange(userToUpdate, paymentDetails);
             }
@@ -4355,7 +4369,7 @@ router.post('/api/test-parameter-custom', ensureAuthenticatedStaff, async (req, 
 
 // Bulk update payment status endpoint - Using SQLite database
 router.post('/api/payment-status/bulk-update', ensureAuthenticatedStaff, async (req, res) => {
-    const { userIds, paid, triggerNotification } = req.body;
+    const { userIds, paid, triggerNotification, paymentMethod } = req.body;
     const db = global.db;
     
     if (!db) {
@@ -4468,11 +4482,16 @@ router.post('/api/payment-status/bulk-update', ensureAuthenticatedStaff, async (
                     };
                     
                     // Call handlePaidStatusChange with payment details
+                    // Use paymentMethod from request body if provided, otherwise default to TRANSFER_BANK
+                    const method = paymentMethod && ['CASH', 'TRANSFER_BANK'].includes(paymentMethod) 
+                        ? paymentMethod 
+                        : 'TRANSFER_BANK';
+                    
                     const paymentDetails = {
                         paidDate: new Date().toISOString(),
-                        method: 'TRANSFER_BANK', // Admin marking as paid = bank transfer
+                        method: method,
                         approvedBy: req.user ? req.user.username : 'Admin',
-                        notes: 'Status pembayaran diubah melalui halaman Payment Status'
+                        notes: `Status pembayaran diubah melalui halaman Payment Status (${method === 'CASH' ? 'Tunai' : 'Transfer Bank'})`
                     };
                     
                     await handlePaidStatusChange(userForNotification, paymentDetails);

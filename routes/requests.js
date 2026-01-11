@@ -198,7 +198,8 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/requests - with rate limiting and locking
-router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
+// Rate limit: 30 requests per minute (cukup untuk operasional tagihan bulanan)
+router.post('/', rateLimit('create-request', 30, 60000), async (req, res) => {
     if (!req.user || req.user.role !== 'teknisi') {
         return res.status(403).json({ status: 403, message: "Akses ditolak. Hanya teknisi yang dapat mengakses fitur ini." });
     }
@@ -326,7 +327,8 @@ router.post('/', rateLimit('create-request', 5, 60000), async (req, res) => {
 });
 
 // POST /api/request/cancel - with rate limiting
-router.post('/cancel', rateLimit('cancel-request', 5, 60000), async (req, res) => {
+// Rate limit: 30 requests per minute
+router.post('/cancel', rateLimit('cancel-request', 30, 60000), async (req, res) => {
     if (!req.user || req.user.role !== 'teknisi') {
         return res.status(403).json({ status: 403, message: "Akses ditolak. Hanya teknisi yang dapat mengakses fitur ini." });
     }
@@ -558,9 +560,9 @@ router.post('/approve-paid-change', rateLimit('approve-request', 20, 60000), asy
     }
 });
 
-// POST /api/requests/bulk-approve - Bulk approve with rate limiting and locking
-// Rate limit: 20 requests per 5 minutes (untuk prevent abuse, tapi cukup untuk operasional)
-router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000), async (req, res) => {
+// POST /api/requests/bulk-approve - Approve maksimal 20 request per klik
+// Admin harus klik lagi untuk approve batch berikutnya
+router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 30, 60000), async (req, res) => {
     // Use lock to prevent race conditions during bulk operations
     try {
         return await withLock('bulk-approve-requests', async () => {
@@ -571,7 +573,7 @@ router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000),
             requestIds = validateInput(requestIds, 'array', { 
                 required: true, 
                 minItems: 1, 
-                maxItems: 500  // Increased to 500 for bulk operations
+                maxItems: 500  // Accept up to 500, but only process 20
             });
             
             // Validate each ID in the array
@@ -585,25 +587,46 @@ router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000),
             });
         }
         
+        // LIMIT: Hanya proses maksimal 20 request per klik
+        const MAX_PER_BATCH = 20;
+        const totalRequested = requestIds.length;
+        const requestIdsToProcess = requestIds.slice(0, MAX_PER_BATCH);
+        const remainingCount = Math.max(0, totalRequested - MAX_PER_BATCH);
+        
         const allRequests = loadJSON('database/requests.json');
         const results = {
             approved: [],
             failed: [],
-            notFound: []
+            notFound: [],
+            remaining: remainingCount,
+            totalRequested: totalRequested,
+            processed: requestIdsToProcess.length
+        };
+        
+        // Helper function to check send_invoice column (cache result)
+        let hasSendInvoiceColumn = null;
+        const checkSendInvoiceColumn = async () => {
+            if (hasSendInvoiceColumn !== null) return hasSendInvoiceColumn;
+            return new Promise((resolve) => {
+                global.db.all("PRAGMA table_info(users)", (err, columns) => {
+                    if (err) {
+                        console.error('[BULK_APPROVE_PRAGMA_ERROR]', err);
+                        hasSendInvoiceColumn = false;
+                        resolve(false);
+                        return;
+                    }
+                    hasSendInvoiceColumn = columns.some(col => col.name === 'send_invoice');
+                    resolve(hasSendInvoiceColumn);
+                });
+            });
         };
         
         // Log bulk operation start
-        console.log(`[BULK_APPROVE] Starting bulk approval for ${requestIds.length} requests by ${req.user.username}`);
+        console.log(`[BULK_APPROVE] Processing ${requestIdsToProcess.length} of ${totalRequested} requests by ${req.user.username}`);
         const startTime = Date.now();
         
-        // Process requests with progress logging
-        let processedCount = 0;
-        
-        for (const requestId of requestIds) {
-            processedCount++;
-            if (processedCount % 10 === 0 || processedCount === requestIds.length) {
-                console.log(`[BULK_APPROVE] Progress: ${processedCount}/${requestIds.length} requests processed`);
-            }
+        // Process requests (max 20)
+        for (const requestId of requestIdsToProcess) {
             const requestIndex = allRequests.findIndex(r => String(r.id) === String(requestId));
             
             if (requestIndex === -1) {
@@ -642,21 +665,11 @@ router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000),
                 const newPaidStatus = request.newStatus;
                 user.paid = newPaidStatus;
                 
-                // Check if send_invoice column exists
-                const hasSendInvoiceColumn = await new Promise((resolve) => {
-                    global.db.all("PRAGMA table_info(users)", (err, columns) => {
-                        if (err) {
-                            console.error('[BULK_APPROVE_PRAGMA_ERROR]', err);
-                            resolve(false);
-                            return;
-                        }
-                        const columnExists = columns.some(col => col.name === 'send_invoice');
-                        resolve(columnExists);
-                    });
-                });
+                // Check if send_invoice column exists (use cached result)
+                const hasColumn = await checkSendInvoiceColumn();
                 
                 // Update database
-                if (hasSendInvoiceColumn) {
+                if (hasColumn) {
                     const sendInvoiceValue = user.send_invoice ? 1 : 0;
                     await new Promise((resolve, reject) => {
                         global.db.run('UPDATE users SET paid = ?, send_invoice = ? WHERE id = ?', 
@@ -716,18 +729,21 @@ router.post('/bulk-approve', ensureAdmin, rateLimit('bulk-approve', 20, 300000),
         
         // Log completion
         const elapsedTime = Date.now() - startTime;
-        console.log(`[BULK_APPROVE] Completed in ${elapsedTime}ms. Approved: ${results.approved.length}, Failed: ${results.failed.length}, Not Found: ${results.notFound.length}`);
+        console.log(`[BULK_APPROVE] Completed in ${elapsedTime}ms. Approved: ${results.approved.length}, Failed: ${results.failed.length}, Not Found: ${results.notFound.length}, Remaining: ${remainingCount}`);
         
         // Prepare response message
         let message = '';
         if (results.approved.length > 0) {
-            message += `✅ ${results.approved.length} permintaan berhasil disetujui. `;
+            message += `✅ ${results.approved.length} permintaan berhasil disetujui.`;
         }
         if (results.failed.length > 0) {
-            message += `❌ ${results.failed.length} permintaan gagal diproses. `;
+            message += ` ❌ ${results.failed.length} gagal.`;
         }
         if (results.notFound.length > 0) {
-            message += `⚠️ ${results.notFound.length} permintaan tidak ditemukan.`;
+            message += ` ⚠️ ${results.notFound.length} tidak ditemukan.`;
+        }
+        if (remainingCount > 0) {
+            message += ` 📋 Sisa ${remainingCount} request pending. Klik lagi untuk approve batch berikutnya.`;
         }
         
             return res.json({

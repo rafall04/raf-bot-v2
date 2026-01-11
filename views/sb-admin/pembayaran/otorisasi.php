@@ -866,8 +866,8 @@
           html: `
             <div class="mb-3">
               <div class="loading-spinner mx-auto"></div>
-              <p>Sedang memproses ${pendingRequests.length} request...</p>
-              <small class="text-muted">Mohon tunggu, proses ini mungkin memakan waktu beberapa saat</small>
+              <p>Sedang memproses maksimal 20 request...</p>
+              <small class="text-muted">Mohon tunggu sebentar</small>
             </div>
           `,
           allowOutsideClick: false,
@@ -883,15 +883,34 @@
         contentType: 'application/json',
         data: JSON.stringify({ requestIds: pendingRequests }),
           success: function(response) {
+            const results = response.results || {};
+            const approved = results.approved ? results.approved.length : 0;
+            const failed = results.failed ? results.failed.length : 0;
+            const remaining = results.remaining || 0;
+            
+            let htmlContent = `<p>✅ <strong>${approved}</strong> request berhasil disetujui</p>`;
+            if (failed > 0) {
+              htmlContent += `<p>❌ <strong>${failed}</strong> request gagal</p>`;
+            }
+            if (remaining > 0) {
+              htmlContent += `<hr><p class="text-info"><i class="fas fa-info-circle"></i> Masih ada <strong>${remaining}</strong> request pending.</p>`;
+              htmlContent += `<p class="text-muted small">Klik tombol "Approve All Pending" lagi untuk memproses batch berikutnya.</p>`;
+            }
+            
             Swal.fire({
               icon: 'success',
-              title: 'Berhasil!',
-              html: `<p>Berhasil menyetujui <strong>${pendingRequests.length} request</strong>!</p>`,
-              confirmButtonText: 'OK',
-              timer: 3000,
-              timerProgressBar: true
+              title: 'Batch Selesai!',
+              html: htmlContent,
+              confirmButtonText: remaining > 0 ? 'OK, Lanjutkan Nanti' : 'OK',
+              showCancelButton: remaining > 0,
+              cancelButtonText: remaining > 0 ? 'Approve Batch Berikutnya' : undefined
+            }).then((result) => {
+              dataTable.ajax.reload();
+              // If user clicks "Approve Batch Berikutnya", trigger bulk approve again
+              if (result.dismiss === Swal.DismissReason.cancel && remaining > 0) {
+                setTimeout(() => $('#bulkApprove').click(), 500);
+              }
             });
-            dataTable.ajax.reload();
           },
           error: function(xhr) {
             Swal.fire({
@@ -900,6 +919,7 @@
               text: 'Error: ' + (xhr.responseJSON ? xhr.responseJSON.message : 'Unknown error'),
               confirmButtonText: 'OK'
             });
+            dataTable.ajax.reload();
           },
           complete: function() {
             $('#bulkApprove').prop('disabled', false).html('<i class="fas fa-check-double"></i> Approve All Pending Bulan Ini (<span id="pendingCount">0</span>)');
