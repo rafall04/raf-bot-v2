@@ -809,8 +809,18 @@ a.n ${account.name || '[Nama]'}</small>
           if (json.status === 200 && json.data) {
             document.getElementById('telegramBotToken').value = json.data.botToken || '';
             document.getElementById('telegramChatId').value = json.data.chatId || '';
-            document.getElementById('telegramBackupEnabled').value = json.data.status_telegram_backup ? 'true' : 'false';
+            
+            // FIXED: Ensure proper boolean to string conversion for select element
+            const isEnabled = json.data.status_telegram_backup === true || json.data.status_telegram_backup === 'true';
+            document.getElementById('telegramBackupEnabled').value = isEnabled ? 'true' : 'false';
+            
             document.getElementById('telegramBackupSchedule').value = json.data.schedule || '0 4 * * *';
+            
+            console.log('[TELEGRAM_CONFIG] Loaded:', {
+              status_telegram_backup: json.data.status_telegram_backup,
+              isEnabled: isEnabled,
+              selectValue: document.getElementById('telegramBackupEnabled').value
+            });
           }
         })
         .catch(err => {

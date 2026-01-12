@@ -887,11 +887,18 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
         return res.status(400).json({ message: "Array 'requestIds' diperlukan." });
     }
     let allRequests = loadJSON('database/requests.json');
-    const results = { success: [], failed: [] };
+    // FIXED: Use 'approved' instead of 'success' to match frontend expectation
+    const results = { approved: [], failed: [], notFound: [] };
     for (const reqId of requestIds) {
         const requestIndex = allRequests.findIndex(r => String(r.id) === String(reqId) && r.status === "pending");
         if (requestIndex === -1) {
-            results.failed.push({ id: reqId, reason: "Permintaan tidak ditemukan atau status bukan 'pending'." });
+            // Check if request exists but not pending
+            const existingRequest = allRequests.find(r => String(r.id) === String(reqId));
+            if (existingRequest) {
+                results.failed.push({ id: reqId, reason: `Status bukan 'pending' (current: ${existingRequest.status})` });
+            } else {
+                results.notFound.push(reqId);
+            }
             continue;
         }
         let requestToUpdate = allRequests[requestIndex];
@@ -967,7 +974,7 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
 
             allRequests[requestIndex] = requestToUpdate;
             sendTechnicianNotification(true, requestToUpdate, userToUpdate);
-            results.success.push(reqId);
+            results.approved.push(reqId);
 
         } catch (e) {
             console.error(`[ASYNC_BULK_APPROVE_ERROR] A post-approval operation failed for user ${userToUpdate.name}:`, e.message);
@@ -975,8 +982,22 @@ router.post('/api/requests/bulk-approve', async (req, res) => {
         }
     }
     saveJSON('database/requests.json', allRequests);
+    
+    // FIXED: Return format matching frontend expectation
+    let message = '';
+    if (results.approved.length > 0) {
+        message += `✅ ${results.approved.length} permintaan berhasil disetujui.`;
+    }
+    if (results.failed.length > 0) {
+        message += ` ❌ ${results.failed.length} gagal.`;
+    }
+    if (results.notFound.length > 0) {
+        message += ` ⚠️ ${results.notFound.length} tidak ditemukan.`;
+    }
+    
     return res.status(200).json({
-        message: `Proses approve massal selesai. Berhasil: ${results.success.length}, Gagal: ${results.failed.length}`,
+        status: 200,
+        message: message.trim() || 'Proses approve massal selesai.',
         results
     });
 });
