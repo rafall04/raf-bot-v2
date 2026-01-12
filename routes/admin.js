@@ -5945,8 +5945,22 @@ router.get('/api/telegram-backup/config', ensureAuthenticatedStaff, (req, res) =
         const mainConfigPath = path.join(__dirname, '..', 'config.json');
         const cronConfigPath = path.join(__dirname, '..', 'database', 'cron.json');
         
+        // Read fresh from file to ensure latest values
         const mainConfig = JSON.parse(fs.readFileSync(mainConfigPath, 'utf8'));
-        const cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+        let cronConfig;
+        
+        try {
+            cronConfig = JSON.parse(fs.readFileSync(cronConfigPath, 'utf8'));
+        } catch (cronErr) {
+            console.warn('[TELEGRAM_BACKUP_CONFIG_GET] Failed to read cron.json from file, using global.cronConfig');
+            cronConfig = global.cronConfig || {};
+        }
+        
+        // Debug logging
+        console.log('[TELEGRAM_BACKUP_CONFIG_GET] cronConfig.status_telegram_backup:', cronConfig.status_telegram_backup, 'type:', typeof cronConfig.status_telegram_backup);
+        
+        // Handle both boolean and string values
+        const statusTelegramBackup = cronConfig.status_telegram_backup === true || cronConfig.status_telegram_backup === 'true';
         
         res.json({
             status: 200,
@@ -5956,7 +5970,7 @@ router.get('/api/telegram-backup/config', ensureAuthenticatedStaff, (req, res) =
                 chatId: mainConfig.telegramBackup?.chatId || '',
                 enabled: mainConfig.telegramBackup?.enabled === true,
                 schedule: cronConfig.schedule_telegram_backup || '0 4 * * *',
-                status_telegram_backup: cronConfig.status_telegram_backup === true
+                status_telegram_backup: statusTelegramBackup
             }
         });
     } catch (error) {
