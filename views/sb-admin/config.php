@@ -417,7 +417,7 @@
           </div>
           <div class="form-group">
             <label for="mikrotikPassword">Password</label>
-            <input type="password" class="form-control" id="mikrotikPassword" name="password" required>
+            <input type="password" class="form-control" id="mikrotikPassword" name="password" required autocomplete="current-password">
           </div>
           <div class="form-group">
             <label for="mikrotikPort">API Port</label>
@@ -810,17 +810,11 @@ a.n ${account.name || '[Nama]'}</small>
             document.getElementById('telegramBotToken').value = json.data.botToken || '';
             document.getElementById('telegramChatId').value = json.data.chatId || '';
             
-            // FIXED: Ensure proper boolean to string conversion for select element
+            // Ensure proper boolean to string conversion for select element
             const isEnabled = json.data.status_telegram_backup === true || json.data.status_telegram_backup === 'true';
             document.getElementById('telegramBackupEnabled').value = isEnabled ? 'true' : 'false';
             
             document.getElementById('telegramBackupSchedule').value = json.data.schedule || '0 4 * * *';
-            
-            console.log('[TELEGRAM_CONFIG] Loaded:', {
-              status_telegram_backup: json.data.status_telegram_backup,
-              isEnabled: isEnabled,
-              selectValue: document.getElementById('telegramBackupEnabled').value
-            });
           }
         })
         .catch(err => {

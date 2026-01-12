@@ -5956,9 +5956,6 @@ router.get('/api/telegram-backup/config', ensureAuthenticatedStaff, (req, res) =
             cronConfig = global.cronConfig || {};
         }
         
-        // Debug logging
-        console.log('[TELEGRAM_BACKUP_CONFIG_GET] cronConfig.status_telegram_backup:', cronConfig.status_telegram_backup, 'type:', typeof cronConfig.status_telegram_backup);
-        
         // Handle both boolean and string values
         const statusTelegramBackup = cronConfig.status_telegram_backup === true || cronConfig.status_telegram_backup === 'true';
         
